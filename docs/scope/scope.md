@@ -12,8 +12,8 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
 | 1 | Stack & testing architecture | Foundation | done |
-| 2 | Design system & orange theme | Foundation | planned |
-| 3 | Data model & Google Auth | Foundation | planned |
+| 2 | Design system & orange theme | Foundation | done |
+| 3 | Data model & Google Auth | Foundation | in-progress |
 | 4 | Navigation sidebar & layout shell | Slice 1 | planned |
 | 5 | Task management & daily work log | Slice 2 | planned |
 | 6 | Performance dashboard & team analytics | Slice 3 | planned |
@@ -29,12 +29,15 @@ Base Next.js App Router project with Tailwind CSS v4, shadcn/ui components, and 
 - [x] Verify baseline tests and typecheck pass: `/test`
 code in `./`
 
-### 2. Design system & orange theme · needs a decision
+### 2. Design system & orange theme · done
 Primary orange brand palette, dark background styling matching the reference screens, modern sans-serif typography, and light mode fallback.
 **Done when:** CSS tokens provide the orange accent color, dark and light modes switch smoothly, and typography renders cleanly across components.
-- [ ] Design it (spec): `/architect design system & orange theme`
+- [x] Design it (spec): `/architect design system & orange theme`
+- [x] Configure CSS tokens and theme variables in globals.css: `/develop theme`
+- [x] Verify theme tokens with automated tests: `/test`
+Spec 0002 · code in `app/globals.css`
 
-### 3. Data model & Google Auth · needs a decision
+### 3. Data model & Google Auth · in-progress
 Database schema and authentication service supporting Google social sign in and three user roles (Admin/Boss, Worker, Client).
 **Done when:** users can sign in with Google, each user receives a role, and permissions protect restricted resources.
 - [ ] Design it (spec): `/architect data model & Google Auth`
