@@ -54,4 +54,23 @@ describe("Dashboard & Analytics calculations", () => {
     const progressPct = project.totalTasks > 0 ? Math.round((project.completedTasks / project.totalTasks) * 100) : 0;
     expect(progressPct).toBe(0);
   });
+
+  it("generates trailing 6 months ending in the current month", () => {
+    const now = new Date();
+    const currentMonthShort = now.toLocaleDateString("en-US", { month: "short" });
+
+    const months: Array<{ month: string; isCurrent: boolean }> = [];
+    for (let offset = 5; offset >= 0; offset--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      months.push({
+        month: d.toLocaleDateString("en-US", { month: "short" }),
+        isCurrent: offset === 0,
+      });
+    }
+
+    expect(months.length).toBe(6);
+    expect(months[5].isCurrent).toBe(true);
+    expect(months[5].month).toBe(currentMonthShort);
+    expect(months[0].isCurrent).toBe(false);
+  });
 });

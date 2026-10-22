@@ -14,14 +14,39 @@ export const mockKPIs: DashboardKPI = {
   workloadBalanceIndex: 7.89,
 };
 
-export const mockWeeklyLoad: WeeklyLoadCell[] = [
-  { month: "Jan 1", week1: 6.1, week2: 37.4, week3: 31.3, week4: 25.2 },
-  { month: "Feb 1", week1: 25.8, week2: 25.8, week3: 38.8, week4: 13.7 },
-  { month: "Mar 1", week1: 66.7, week2: 0, week3: 0, week4: 33.3 },
-  { month: "Apr 1", week1: 0, week2: 0, week3: 100.0, week4: 0 },
-  { month: "May 1", week1: 25.0, week2: 50.0, week3: 25.0, week4: 0 },
-  { month: "Jun 1", week1: 100.0, week2: 0, week3: 0, week4: 0 },
-];
+export function getTrailingMonthsWeeklyLoad(): WeeklyLoadCell[] {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthIdx = now.getMonth();
+
+  const baselines = [
+    { w1: 18.5, w2: 32.0, w3: 27.5, w4: 22.0 },
+    { w1: 24.0, w2: 28.5, w3: 31.0, w4: 16.5 },
+    { w1: 30.0, w2: 25.0, w3: 25.0, w4: 20.0 },
+    { w1: 15.0, w2: 35.0, w3: 30.0, w4: 20.0 },
+    { w1: 22.5, w2: 27.5, w3: 32.5, w4: 17.5 },
+    { w1: 28.0, w2: 34.0, w3: 23.0, w4: 15.0 },
+  ];
+
+  const result: WeeklyLoadCell[] = [];
+  for (let offset = 5; offset >= 0; offset--) {
+    const d = new Date(currentYear, currentMonthIdx - offset, 1);
+    const monthShort = d.toLocaleDateString("en-US", { month: "short" });
+    const isCurrent = offset === 0;
+    const base = baselines[5 - offset];
+    result.push({
+      month: monthShort,
+      isCurrent,
+      week1: base.w1,
+      week2: base.w2,
+      week3: base.w3,
+      week4: base.w4,
+    });
+  }
+  return result;
+}
+
+export const mockWeeklyLoad: WeeklyLoadCell[] = getTrailingMonthsWeeklyLoad();
 
 export const mockServiceWorkloads: ServiceWorkload[] = [
   { service: "Photography", total: 326, open: 68, late: 42, onTime: 216, avgTime: "2.3 D" },

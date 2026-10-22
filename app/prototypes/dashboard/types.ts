@@ -9,6 +9,7 @@ export type DashboardKPI = {
 
 export type WeeklyLoadCell = {
   month: string;
+  isCurrent?: boolean;
   week1: number;
   week2: number;
   week3: number;
