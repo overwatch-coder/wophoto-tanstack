@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  MANAGER
+  WORKER
+  CLIENT
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  USED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Specialization {
+  PHOTOGRAPHY
+  VIDEOGRAPHY
+  CONTENT_CREATION
+  GRAPHIC_DESIGN
+  WEB_CREATION
+}
+
+enum CommentVisibility {
+  INTERNAL
+  CLIENT_VISIBLE
+}
+
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole   @default(CLIENT)
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  sentInvitations    Invitation[]         @relation("InvitationSender")
+  acceptedInvitation Invitation?          @relation("InvitationRecipient")
+  managedProjects    Project[]            @relation("ProjectManager")
+  clientProjects     Project[]            @relation("ProjectClient")
+  createdTasks       Task[]               @relation("TaskCreator")
+  taskAssignments    TaskAssignee[]
+  comments           Comment[]
+  ratings            Rating[]
+  specializations    UserSpecialization[]
+
+  @@index([role, status])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  email          String
+  role           UserRole
+  tokenHash      String           @unique
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  usedAt         DateTime?
+  createdAt      DateTime         @default(now())
+  invitedById    String
+  acceptedUserId String?          @unique
+
+  invitedBy    User  @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
+  acceptedUser User? @relation("InvitationRecipient", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+
+  @@index([email, status, expiresAt])
+  @@index([invitedById, createdAt])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  managerId   String
+  clientId    String
+
+  manager  User      @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
+  client   User      @relation("ProjectClient", fields: [clientId], references: [id], onDelete: Restrict)
+  tasks    Task[]
+  comments Comment[]
+  ratings  Rating[]
+
+  @@index([managerId, updatedAt])
+  @@index([clientId, updatedAt])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?      @db.Text
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  startAt     DateTime?
+  dueAt       DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  projectId   String
+  createdById String
+
+  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy       User                 @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  assignees       TaskAssignee[]
+  specializations TaskSpecialization[]
+  comments        Comment[]
+  ratings         Rating[]
+
+  @@index([projectId, status, dueAt])
+  @@index([deletedAt, dueAt])
+  @@index([createdById, createdAt])
+}
+
+model TaskAssignee {
+  taskId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId, assignedAt])
+}
+
+model UserSpecialization {
+  userId         String
+  specialization Specialization
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, specialization])
+}
+
+model TaskSpecialization {
+  taskId         String
+  specialization Specialization
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, specialization])
+}
+
+model Comment {
+  id         String            @id @default(cuid())
+  body       String            @db.Text
+  visibility CommentVisibility
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  authorId   String
+  projectId  String
+  taskId     String?
+
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, visibility, createdAt])
+  @@index([taskId, visibility, createdAt])
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  score     Int
+  feedback  String?  @db.Text
+  createdAt DateTime @default(now())
+  clientId  String
+  projectId String
+  taskId    String?
+
+  client  User    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@unique([clientId, taskId])
+  @@index([projectId, createdAt])
+}

@@ -1,19 +1,34 @@
-import { Button } from "@/components/ui/button"
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-export default function Page() {
+export default function HomePage() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
-    </div>
-  )
+    <Suspense fallback={<main className="min-h-svh bg-background" />}>
+      <AuthenticatedHome />
+    </Suspense>
+  );
+}
+
+async function AuthenticatedHome() {
+  const session = await auth();
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  if (session.user.role === "MANAGER") {
+    redirect("/manager/invitations");
+  }
+
+  return (
+    <main className="mx-auto flex min-h-svh max-w-lg items-center px-6">
+      <section className="w-full rounded-lg border bg-card p-8 shadow-sm">
+        <h1 className="text-2xl font-semibold">You’re signed in to WoPhoto</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Your account is ready. The {session.user.role.toLowerCase()} workspace is still being set up.
+        </p>
+      </section>
+    </main>
+  );
 }
