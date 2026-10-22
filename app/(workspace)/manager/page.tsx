@@ -1,9 +1,11 @@
 import { UserRole } from "@/generated/prisma/client";
-import { ConstructionPage } from "@/components/workspace/construction-page";
 import { requireRole } from "@/lib/authz";
+import { getManagerAnalytics } from "@/lib/analytics";
+import { ManagerDashboard } from "@/components/dashboard/manager-dashboard";
 
 export default async function ManagerDashboardPage() {
   await requireRole(UserRole.MANAGER);
+  const data = await getManagerAnalytics();
 
-  return <ConstructionPage title="Dashboard" />;
+  return <ManagerDashboard data={data} />;
 }

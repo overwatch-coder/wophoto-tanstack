@@ -1,9 +1,11 @@
 import { UserRole } from "@/generated/prisma/client";
-import { ConstructionPage } from "@/components/workspace/construction-page";
 import { requireRole } from "@/lib/authz";
+import { getClientAnalytics } from "@/lib/analytics";
+import { ClientDashboard } from "@/components/dashboard/client-dashboard";
 
 export default async function ClientWorkspacePage() {
   await requireRole(UserRole.CLIENT);
+  const data = await getClientAnalytics();
 
-  return <ConstructionPage title="Dashboard" />;
+  return <ClientDashboard data={data} />;
 }

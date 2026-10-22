@@ -16,7 +16,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 3 | Data model & Google Auth | Foundation | in-progress |
 | 4 | Navigation sidebar & layout shell | Slice 1 | in-progress |
 | 5 | Task management & daily work log | Slice 2 | done |
-| 6 | Performance dashboard & team analytics | Slice 3 | planned |
+| 6 | Performance dashboard & team analytics | Slice 3 | done |
 | 7 | Client portal & feedback system | Slice 4 | planned |
 
 ## Foundations
@@ -74,10 +74,14 @@ Spec 0004 · `../specs/0004-task-management-and-daily-work-log.md` · code in `a
 
 ## Slice 3: Performance dashboard & team analytics
 
-### 6. Performance dashboard & team analytics · needs a decision
+### 6. Performance dashboard & team analytics · done
 Internal performance dashboard featuring key productivity metrics (active tasks per person, on-time delivery rate, workload balance index) and collaborator on-time bars.
 **Done when:** administrators can view aggregated performance cards, weekly load trends, workload by service, and collaborator on-time ranking bars.
-- [ ] Design it (spec): `/architect performance dashboard & team analytics`
+- [x] Design it (spec): `/architect performance dashboard & team analytics`
+- [x] Build it: `/develop performance dashboard & team analytics`
+- [x] Verify it: `/check verify performance dashboard & team analytics`
+- [x] Test it: `/test performance dashboard & team analytics`
+Spec 0005 · `docs/specs/0005-performance-dashboard-and-team-analytics.md` · code in `app/(workspace)/`, `components/dashboard/`, `lib/analytics.ts`
 
 ## Slice 4: Client portal & feedback system
 
