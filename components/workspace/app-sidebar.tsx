@@ -192,6 +192,7 @@ function AccountMenu({
           <DropdownMenuSeparator />
           <form action={signOutUser}>
             <DropdownMenuItem
+              nativeButton
               variant="destructive"
               render={<button type="submit" />}
               className="w-full"

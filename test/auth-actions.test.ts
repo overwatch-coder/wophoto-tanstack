@@ -1,0 +1,42 @@
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const mocks = vi.hoisted(() => ({
+  cookies: vi.fn(),
+  deleteCookie: vi.fn(),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+}))
+
+vi.mock("next/headers", () => ({ cookies: mocks.cookies }))
+vi.mock("@/auth", () => ({ signIn: mocks.signIn, signOut: mocks.signOut }))
+
+import { signInWithGoogle, signOutUser } from "@/app/actions/auth"
+
+describe("authentication server actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.cookies.mockResolvedValue({ delete: mocks.deleteCookie })
+    mocks.signIn.mockResolvedValue(undefined)
+    mocks.signOut.mockResolvedValue(undefined)
+  })
+
+  it("continues to send Google sign-in to the role landing resolver (AC-14)", async () => {
+    await signInWithGoogle()
+
+    expect(mocks.signIn).toHaveBeenCalledWith("google", { redirectTo: "/" })
+  })
+
+  it("clears the sidebar preference and redirects through Auth.js on sign out (AC-5, AC-13)", async () => {
+    await signOutUser()
+
+    expect(mocks.cookies).toHaveBeenCalledOnce()
+    expect(mocks.deleteCookie).toHaveBeenCalledWith("sidebar_state")
+    expect(mocks.signOut).toHaveBeenCalledWith({ redirectTo: "/login" })
+  })
+
+  it("surfaces Auth.js sign-out failures (AC-5, AC-13)", async () => {
+    mocks.signOut.mockRejectedValue(new Error("Auth.js sign out failed"))
+
+    await expect(signOutUser()).rejects.toThrow("Auth.js sign out failed")
+  })
+})

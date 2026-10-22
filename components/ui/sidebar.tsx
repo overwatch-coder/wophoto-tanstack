@@ -7,6 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { shouldDismissMobileSidebar } from "@/lib/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -188,6 +189,17 @@ function Sidebar({
           data-slot="sidebar"
           data-mobile="true"
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          onKeyDownCapture={(event) => {
+            const target = event.target
+
+            const focusIsInsideMenu =
+              target instanceof HTMLElement &&
+              target.closest('[role="menu"]') !== null
+
+            if (shouldDismissMobileSidebar(event.key, focusIsInsideMenu)) {
+              setOpenMobile(false)
+            }
+          }}
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
