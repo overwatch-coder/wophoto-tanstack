@@ -14,7 +14,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 1 | Stack & testing architecture | Foundation | done |
 | 2 | Design system & orange theme | Foundation | done |
 | 3 | Data model & Google Auth | Foundation | in-progress |
-| 4 | Navigation sidebar & layout shell | Slice 1 | planned |
+| 4 | Navigation sidebar & layout shell | Slice 1 | in-progress |
 | 5 | Task management & daily work log | Slice 2 | planned |
 | 6 | Performance dashboard & team analytics | Slice 3 | planned |
 | 7 | Client portal & feedback system | Slice 4 | planned |
@@ -44,10 +44,18 @@ Database schema and authentication service supporting Google social sign in and 
 
 ## Slice 1: Navigation sidebar & layout shell
 
-### 4. Navigation sidebar & layout shell · needs a decision
-Responsive collapsible navigation sidebar matching the reference UI, displaying role-aware links (Tasks, Dashboard, Reviews, Briefs, Inventory, Calendar, Theme toggle, and User Profile).
-**Done when:** sidebar navigation shows active state, collapses smoothly, switches dark/light mode, and adapts items to the current user role.
-- [ ] Design it (spec): `/architect navigation sidebar & layout shell`
+### 4. Navigation sidebar & layout shell · in-progress
+Shared workspace shell for managers, workers, and clients, using shadcn's `sidebar-07` icon collapsing layout and role specific destinations.
+**Done when:** each role reaches its agreed landing page, sees only its navigation, and can use the responsive shell, theme control, account menu, and sign out safely.
+- [x] Design it (spec): `/architect navigation sidebar & layout shell`
+- [ ] Build it: `/develop navigation sidebar & layout shell`
+  - [x] Add and adapt the `sidebar-07` components to WoPhoto's visual theme.
+  - [x] Build the shared role navigation, active page title, theme control, account menu, and sign out action.
+  - [x] Integrate role landing routes, manager invitations, worker and client placeholders, and disabled future destinations.
+  - [ ] Add focused coverage for role access, responsive behavior, identity/theme fallbacks, and auth regressions.
+- [ ] Verify it: `/check verify navigation sidebar & layout shell`
+- [ ] Test it: `/test navigation sidebar & layout shell`
+Spec 0003 · `docs/specs/0003-role-aware-navigation-shell/index.md` · code in `app/(workspace)/`, `app/actions/auth.ts`, `components/workspace/`, `lib/navigation.ts`
 
 ## Slice 2: Task management & daily work log
 

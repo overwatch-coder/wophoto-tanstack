@@ -23,18 +23,17 @@ async function ManagerInvitationsContent() {
   });
 
   return (
-    <main className="mx-auto min-h-svh w-full max-w-3xl space-y-8 px-6 py-12">
+    <div className="mx-auto w-full max-w-3xl space-y-8">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Team invitations</h1>
         <p className="mt-3 max-w-xl text-sm text-muted-foreground">
           Invite a worker or client with a one-time link. The invited person must accept the link before signing in with the same Google email.
         </p>
       </header>
-      <section className="rounded-lg border bg-card p-6 shadow-sm">
+      <section className="rounded-md border bg-card p-6 shadow-sm">
         <h2 className="mb-5 text-lg font-semibold">Create an invitation</h2>
         <InvitationForm />
       </section>
-      <section className="rounded-lg border bg-card p-6 shadow-sm">
+      <section className="rounded-md border bg-card p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold">Recent invitations</h2>
         {invitations.length === 0 ? (
           <p className="text-sm text-muted-foreground">No active invitations yet.</p>
@@ -51,6 +50,6 @@ async function ManagerInvitationsContent() {
           </ul>
         )}
       </section>
-    </main>
+    </div>
   );
 }
