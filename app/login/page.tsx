@@ -29,7 +29,7 @@ async function LoginContent({ searchParams }: LoginPageProps) {
 
   return (
     <LoginForm
-      blocked={error === "AccessDenied"}
+      error={error}
       invitationStatus={invite}
     />
   );

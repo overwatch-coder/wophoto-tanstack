@@ -17,16 +17,20 @@ type WorkspaceShellProps = {
   children: React.ReactNode
   defaultSidebarOpen: boolean
   email?: string | null
+  image?: string | null
   name?: string | null
   role: WorkspaceRole
+  userId: string
 }
 
 export function WorkspaceShell({
   children,
   defaultSidebarOpen,
   email,
+  image,
   name,
   role,
+  userId,
 }: WorkspaceShellProps) {
   const pathname = usePathname()
   const title = getWorkspacePageTitle(role, pathname)
@@ -46,7 +50,7 @@ export function WorkspaceShell({
       defaultOpen={defaultSidebarOpen}
       className="workspace-shell"
     >
-      <AppSidebar email={email} name={name} role={role} />
+      <AppSidebar email={email} image={image} name={name} role={role} userId={userId} />
       <SidebarInset className="min-h-svh rounded-none">
         <header className="flex min-h-16 shrink-0 items-center gap-3 border-b bg-background px-3 sm:px-5">
           <SidebarTrigger
@@ -94,7 +98,7 @@ function ThemeToggle() {
       onClick={() => {
         if (mounted) setTheme(resolvedTheme === "dark" ? "light" : "dark")
       }}
-      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-md border bg-background px-3 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-transparent px-3 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
     >
       {mounted ? (
         resolvedTheme === "dark" ? (

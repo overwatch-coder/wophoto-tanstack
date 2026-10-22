@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { acceptInvitation } from "@/app/actions/invitations";
@@ -33,11 +33,16 @@ async function InvitationContent({
   const invitation = await prisma.invitation.findFirst({
     where: {
       tokenHash: createHash("sha256").update(token).digest("hex"),
-      status: InvitationStatus.PENDING,
+      status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
+      usedAt: null,
       expiresAt: { gt: new Date() },
     },
-    select: { email: true, role: true },
+    select: { email: true, role: true, status: true },
   });
+
+  if (invitation?.status === InvitationStatus.ACCEPTED) {
+    redirect("/login?invite=accepted");
+  }
 
   if (!invitation) {
     return (

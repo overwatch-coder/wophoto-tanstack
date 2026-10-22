@@ -25,8 +25,10 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
   return (
     <WorkspaceShell
       role={user.role}
+      userId={user.id}
       name={user.name}
       email={user.email}
+      image={user.image}
       defaultSidebarOpen={defaultSidebarOpen}
     >
       {children}

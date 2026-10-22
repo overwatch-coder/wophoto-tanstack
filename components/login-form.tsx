@@ -9,11 +9,18 @@ import {
 } from "@/components/ui/field";
 
 type LoginFormProps = {
-  blocked: boolean;
+  error?: string;
   invitationStatus?: string;
 };
 
-export function LoginForm({ blocked, invitationStatus }: LoginFormProps) {
+export function LoginForm({ error, invitationStatus }: LoginFormProps) {
+  const errorMessage = error === "InvitationRequired"
+    ? "This Google account does not have an accepted WoPhoto invitation. Accept the invitation sent to this email address before signing in."
+    : error === "AccountMismatch" || error === "OAuthAccountNotLinked"
+      ? "This Google account is linked to a different WoPhoto account. Ask your manager to resolve the account link before trying again."
+      : error === "AccountSuspended"
+        ? "Your WoPhoto account is suspended. Contact your manager to restore access."
+        : error ? "Google sign-in could not be completed. Choose the invited Google account and try again. If this continues, contact your manager." : undefined;
   return (
     <div className="flex flex-col gap-5">
       <Card className="overflow-hidden rounded-lg p-0 shadow-sm">
@@ -28,9 +35,9 @@ export function LoginForm({ blocked, invitationStatus }: LoginFormProps) {
                   </p>
                 </div>
 
-                {blocked ? (
+                {errorMessage ? (
                   <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                    This Google account does not have an accepted WoPhoto invitation. Ask your manager to invite this email address first.
+                    {errorMessage}
                   </p>
                 ) : null}
                 {invitationStatus === "accepted" ? (

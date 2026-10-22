@@ -32,6 +32,11 @@ enum TaskStatus {
   COMPLETED
 }
 
+enum TaskType {
+  ASSIGNED
+  DAILY_ENTRY
+}
+
 enum TaskPriority {
   LOW
   MEDIUM
@@ -119,6 +124,7 @@ model Invitation {
   email          String
   role           UserRole
   tokenHash      String           @unique
+  tokenEncrypted String?          @db.Text
   status         InvitationStatus @default(PENDING)
   expiresAt      DateTime
   acceptedAt     DateTime?
@@ -157,6 +163,8 @@ model Task {
   id          String       @id @default(cuid())
   title       String
   description String?      @db.Text
+  type        TaskType     @default(ASSIGNED)
+  workDate    DateTime?    @db.Date
   status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
   startAt     DateTime?
@@ -182,9 +190,12 @@ model Task {
 }
 
 model TaskAssignee {
-  taskId     String
-  userId     String
-  assignedAt DateTime @default(now())
+  taskId      String
+  userId      String
+  assignedAt  DateTime   @default(now())
+  status      TaskStatus @default(TODO)
+  submittedAt DateTime?
+  managerNote String?    @db.Text
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

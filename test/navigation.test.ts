@@ -17,31 +17,34 @@ describe("role aware workspace navigation", () => {
     expect(isWorkspaceRole("")).toBe(false)
   })
 
-  it("provides only the specified available routes to each role (AC-1, AC-2, AC-3)", () => {
-    const availableRoutes = (role: keyof typeof workspaceNavigation) =>
-      workspaceNavigation[role]
-        .filter((item) => item.status === "available")
-        .map(({ title, href }) => [title, href])
-
-    expect(availableRoutes("MANAGER")).toEqual([
+  it("lists each role's routes in a useful order (AC-1, AC-2, AC-3)", () => {
+    expect(workspaceNavigation.MANAGER.map(({ title, href }) => [title, href])).toEqual([
+      ["Dashboard", "/manager"],
+      ["Projects", "/manager/projects"],
+      ["Tasks", "/manager/tasks"],
+      ["Schedule", "/manager/schedule"],
+      ["Brief Review", "/manager/brief-review"],
+      ["Explore Briefs", "/manager/explore-briefs"],
+      ["Reviews", "/manager/reviews"],
+      ["Brand Assets", "/manager/brand-assets"],
+      ["Inventory", "/manager/inventory"],
+      ["Deleted Tasks", "/manager/deleted-tasks"],
+      ["Notifications", "/manager/notifications"],
       ["Team Invitations", "/manager/invitations"],
+      ["Settings", "/settings"],
     ])
-    expect(availableRoutes("WORKER")).toEqual([["Workspace", "/worker"]])
-    expect(availableRoutes("CLIENT")).toEqual([["Dashboard", "/client"]])
+    expect(workspaceNavigation.WORKER[0]).toMatchObject({ title: "Dashboard", href: "/worker" })
+    expect(workspaceNavigation.CLIENT[0]).toMatchObject({ title: "Dashboard", href: "/client" })
   })
 
-  it("keeps every unbuilt destination disabled without a route (AC-6)", () => {
+  it("gives each navigation destination a route (AC-6)", () => {
     for (const items of Object.values(workspaceNavigation)) {
-      for (const item of items.filter(
-        (entry) => entry.status === "coming-soon"
-      )) {
-        expect(item.href).toBeNull()
-      }
+      for (const item of items) expect(item.href).toMatch(/^\//)
     }
   })
 
   it("routes each supported role to its landing page (AC-2, AC-3)", () => {
-    expect(getWorkspaceHome("MANAGER")).toBe("/manager/invitations")
+    expect(getWorkspaceHome("MANAGER")).toBe("/manager")
     expect(getWorkspaceHome("WORKER")).toBe("/worker")
     expect(getWorkspaceHome("CLIENT")).toBe("/client")
   })
@@ -62,11 +65,11 @@ describe("role aware workspace navigation", () => {
     expect(getWorkspacePageTitle("MANAGER", "/manager/invitations")).toBe(
       "Team Invitations"
     )
-    expect(getWorkspacePageTitle("WORKER", "/worker")).toBe("Workspace")
+    expect(getWorkspacePageTitle("WORKER", "/worker")).toBe("Dashboard")
     expect(getWorkspacePageTitle("CLIENT", "/client")).toBe("Dashboard")
   })
 
-  it("uses Workspace when a protected route has no available title mapping (AC-5)", () => {
+  it("uses Workspace when a protected route has no title mapping (AC-5)", () => {
     expect(getWorkspacePageTitle("MANAGER", "/manager/future-area")).toBe(
       "Workspace"
     )

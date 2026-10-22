@@ -15,7 +15,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 2 | Design system & orange theme | Foundation | done |
 | 3 | Data model & Google Auth | Foundation | in-progress |
 | 4 | Navigation sidebar & layout shell | Slice 1 | in-progress |
-| 5 | Task management & daily work log | Slice 2 | planned |
+| 5 | Task management & daily work log | Slice 2 | done |
 | 6 | Performance dashboard & team analytics | Slice 3 | planned |
 | 7 | Client portal & feedback system | Slice 4 | planned |
 
@@ -59,10 +59,18 @@ Spec 0003 · `docs/specs/0003-role-aware-navigation-shell/index.md` · code in `
 
 ## Slice 2: Task management & daily work log
 
-### 5. Task management & daily work log · needs a decision
+### 5. Task management & daily work log · done
 Task list and grid view where workers log daily tasks, update status, track deadlines, and administrators assign work and review progress.
 **Done when:** workers can create and update tasks, filter by priority and status, and view due dates in table and board views.
-- [ ] Design it (spec): `/architect task management & daily work log`
+- [x] Design it (spec): `/architect task management & daily work log`
+- [x] Build it: `/develop task management & daily work log`
+  - [x] Extend task records and migrate assignment-level progress and daily entry dates. (AC-1, AC-3, AC-5, AC-6)
+  - [x] Build role-scoped task reads and create, edit, and progress actions. (AC-1, AC-2, AC-3, AC-4, AC-10)
+  - [x] Implement transactional review, return, approval, and soft deletion. (AC-5, AC-6, AC-7, AC-10)
+  - [x] Build Table, Board, and Daybook views with filters, grouping, and accessible drag and drop. (AC-8, AC-9)
+- [x] Verify it: `/check verify task management & daily work log`
+- [x] Test it: `/test task management & daily work log`
+Spec 0004 · `../specs/0004-task-management-and-daily-work-log.md` · code in `app/(workspace)/`, `app/actions/`, `components/tasks/`, `lib/`
 
 ## Slice 3: Performance dashboard & team analytics
 

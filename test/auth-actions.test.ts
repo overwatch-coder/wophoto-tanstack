@@ -23,7 +23,15 @@ describe("authentication server actions", () => {
   it("continues to send Google sign-in to the role landing resolver (AC-14)", async () => {
     await signInWithGoogle()
 
+    expect(mocks.signOut).toHaveBeenCalledWith({ redirect: false })
+    expect(mocks.signOut.mock.invocationCallOrder[0]).toBeLessThan(mocks.signIn.mock.invocationCallOrder[0])
     expect(mocks.signIn).toHaveBeenCalledWith("google", { redirectTo: "/" })
+  })
+
+  it("does not begin OAuth if the previous session cannot be cleared", async () => {
+    mocks.signOut.mockRejectedValue(new Error("Unable to clear session"))
+    await expect(signInWithGoogle()).rejects.toThrow("Unable to clear session")
+    expect(mocks.signIn).not.toHaveBeenCalled()
   })
 
   it("clears the sidebar preference and redirects through Auth.js on sign out (AC-5, AC-13)", async () => {
