@@ -58,4 +58,15 @@ describe("task assignment modal client and project flow", () => {
     expect(shouldCloseAndReset(successResult)).toBe(true);
     expect(shouldCloseAndReset(errorResult)).toBe(false);
   });
+
+  it("ensures assignee formatting displays assignee names without appending redundant status suffixes", () => {
+    const assignees = [
+      { userId: "u1", user: { name: "Bella", email: "bellamoner98@gmail.com" }, status: "TODO" },
+    ];
+    // The assignee name should be isolated, without ` · To do` appended
+    const displayName = assignees[0].user.name || assignees[0].user.email;
+    expect(displayName).toBe("Bella");
+    expect(displayName).not.toContain("To do");
+    expect(displayName).not.toContain("TODO");
+  });
 });

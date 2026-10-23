@@ -64,7 +64,7 @@ export function TasksWorkspace({ role, initialData, options }: { role: "MANAGER"
     startLoading(async () => { const next = await loadMoreTasks(data.nextCursor!, status === "ALL" ? undefined : status, priority === "ALL" ? undefined : priority); setData((current) => ({ ...current, tasks: [...current.tasks, ...next.tasks], nextCursor: next.nextCursor })); });
   }
   return <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-    <header className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">{role === "MANAGER" ? "Team tasks" : "My tasks"}</h1><p className="mt-2 text-sm text-muted-foreground">Assigned work and daily entries in one view.</p></div><CreateTaskDialog role={role} options={options} /></header>
+    <header className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">{role === "MANAGER" ? "Team Workboard" : "Workboard"}</h1><p className="mt-2 text-sm text-muted-foreground">Assigned work and daily entries in one view.</p></div><CreateTaskDialog role={role} options={options} /></header>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{([TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW, TaskStatus.COMPLETED] as const).map((state) => <button key={state} type="button" onClick={() => applyFilters(status === state ? "ALL" : state, priority)} className={`rounded-md border bg-card px-4 py-3 text-left ${status === state ? "border-primary" : ""}`}><span className="block text-xs text-muted-foreground">{labels[state]}</span><span className="mt-1 block text-xl font-semibold">{data.counts[state] ?? 0}</span></button>)}</div>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap gap-2">
@@ -309,7 +309,7 @@ function ViewTaskDialog({ task }: { task: TaskItem }) {
         }
       />
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+        <DialogHeader className="pr-10">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
               {task.type === TaskType.DAILY_ENTRY ? "Daily entry" : "Assigned task"}
@@ -376,20 +376,38 @@ function ViewTaskDialog({ task }: { task: TaskItem }) {
           {task.assignees.length > 0 ? (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assignees</h4>
-              <div className="divide-y rounded-md border bg-background">
-                {task.assignees.map((a) => (
-                  <div key={a.userId} className="flex flex-col gap-1 p-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-medium">{a.user.name || a.user.email}</p>
-                      {a.managerNote ? (
-                        <p className="text-xs text-destructive">Manager note: {a.managerNote}</p>
-                      ) : null}
+              <div className="divide-y divide-border rounded-md border border-border bg-background">
+                {task.assignees.map((a) => {
+                  const displayName = a.user.name || a.user.email || "Unknown";
+                  const initial = displayName.charAt(0).toUpperCase();
+                  const colorClass = getAssigneeColor(displayName);
+
+                  return (
+                    <div key={a.userId} className="flex items-center justify-between p-2.5 text-sm">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${colorClass}`}
+                        >
+                          {a.user.image ? (
+                            <img
+                              src={a.user.image}
+                              alt={displayName}
+                              className="size-full rounded-full object-cover"
+                            />
+                          ) : (
+                            initial
+                          )}
+                        </span>
+                        <div>
+                          <p className="font-medium text-foreground">{displayName}</p>
+                          {a.managerNote ? (
+                            <p className="text-xs text-destructive">Manager note: {a.managerNote}</p>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
-                    <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      {labels[a.status]}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -413,6 +431,131 @@ function ViewTaskDialog({ task }: { task: TaskItem }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const AVATAR_COLORS = [
+  "bg-orange-600 text-white",
+  "bg-blue-600 text-white",
+  "bg-purple-600 text-white",
+  "bg-emerald-600 text-white",
+  "bg-rose-600 text-white",
+  "bg-amber-600 text-white",
+  "bg-indigo-600 text-white",
+  "bg-teal-600 text-white",
+];
+
+function getAssigneeColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function AssigneeAvatars({
+  assignees,
+}: {
+  assignees: Array<{
+    userId: string;
+    user: { name: string | null; email: string | null; image?: string | null };
+    managerNote?: string | null;
+  }>;
+}) {
+  if (assignees.length === 0) {
+    return <span className="text-xs italic text-muted-foreground">Unassigned</span>;
+  }
+
+  // Single assignee
+  if (assignees.length === 1) {
+    const a = assignees[0];
+    const displayName = a.user.name || a.user.email || "Unknown";
+    const initial = displayName.charAt(0).toUpperCase();
+    const colorClass = getAssigneeColor(displayName);
+
+    return (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span
+            className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${colorClass}`}
+          >
+            {a.user.image ? (
+              <img
+                src={a.user.image}
+                alt={displayName}
+                className="size-full rounded-full object-cover"
+              />
+            ) : (
+              initial
+            )}
+          </span>
+          <span className="font-medium text-sm text-foreground">{displayName}</span>
+        </div>
+        {a.managerNote ? (
+          <p className="max-w-48 text-xs text-destructive">Manager note: {a.managerNote}</p>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Multiple assignees: shadcn stacked avatar grouping
+  const visible = assignees.slice(0, 3);
+  const remaining = assignees.length - 3;
+  const allNames = assignees.map((a) => a.user.name || a.user.email).join(", ");
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <div className="flex -space-x-2 overflow-hidden py-0.5" title={allNames}>
+          {visible.map((a) => {
+            const displayName = a.user.name || a.user.email || "Unknown";
+            const initial = displayName.charAt(0).toUpperCase();
+            const colorClass = getAssigneeColor(displayName);
+
+            return (
+              <span
+                key={a.userId}
+                title={displayName}
+                className={`relative inline-flex size-6 shrink-0 items-center justify-center rounded-full ring-2 ring-card text-[10px] font-bold ${colorClass}`}
+              >
+                {a.user.image ? (
+                  <img
+                    src={a.user.image}
+                    alt={displayName}
+                    className="size-full rounded-full object-cover"
+                  />
+                ) : (
+                  initial
+                )}
+              </span>
+            );
+          })}
+          {remaining > 0 ? (
+            <span
+              title={allNames}
+              className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-full ring-2 ring-card bg-muted text-[10px] font-semibold text-muted-foreground"
+            >
+              +{remaining}
+            </span>
+          ) : null}
+        </div>
+        <span className="text-xs text-muted-foreground truncate max-w-[130px]" title={allNames}>
+          {allNames}
+        </span>
+      </div>
+
+      {assignees.some((a) => a.managerNote) && (
+        <div className="space-y-0.5">
+          {assignees
+            .filter((a) => a.managerNote)
+            .map((a) => (
+              <p key={a.userId} className="max-w-48 text-xs text-destructive">
+                {a.user.name || a.user.email}: {a.managerNote}
+              </p>
+            ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -449,15 +592,7 @@ function TaskTable({ tasks, role, options }: { tasks: TaskItem[]; role: "MANAGER
                 ) : null}
               </td>
               <td className="px-4 py-4">
-                {task.assignees.map((a) => (
-                  <div key={a.userId} className="mb-1">
-                    <span className="font-medium">{a.user.name || a.user.email}</span>
-                    <span className="text-xs text-muted-foreground"> · {labels[a.status]}</span>
-                    {a.managerNote ? (
-                      <p className="max-w-48 text-xs text-destructive">Manager note: {a.managerNote}</p>
-                    ) : null}
-                  </div>
-                ))}
+                <AssigneeAvatars assignees={task.assignees} />
               </td>
               <td className="px-4 py-4">
                 <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
