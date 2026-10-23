@@ -57,7 +57,7 @@ export async function getTaskFormOptions() {
         orderBy: { name: "asc" },
         select: { id: true, name: true, clientId: true, client: { select: { id: true, name: true } } },
       }),
-      prisma.user.findMany({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE }, orderBy: [{ name: "asc" }, { email: "asc" }], select: { id: true, name: true, email: true } }),
+      prisma.user.findMany({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE }, orderBy: [{ name: "asc" }, { email: "asc" }], select: { id: true, name: true, email: true, image: true } }),
     ]);
 
     const clientsMap = new Map<string, string>();

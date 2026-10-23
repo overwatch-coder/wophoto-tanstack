@@ -441,12 +441,7 @@ export function ProjectManagement({
       {/* Top Header Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Projects</h1>
-            <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-0.5 text-xs font-semibold text-orange-600 dark:text-orange-400">
-              {activeCount} Active
-            </span>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Projects</h1>
           <p className="text-xs text-muted-foreground">
             Manage productions, track task progress, and collaborate with assigned clients.
           </p>

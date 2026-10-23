@@ -13,13 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { getProfileImageSrc } from "@/lib/profile-image";
 
 type TasksResult = Awaited<ReturnType<typeof loadMoreTasks>>;
 type TaskItem = TasksResult["tasks"][number];
 type Options = {
   projects: { id: string; name: string; clientId?: string; clientName?: string | null }[];
   clients: { id: string; name: string }[];
-  workers: { id: string; name: string | null; email: string }[];
+  workers: { id: string; name: string | null; email: string; image?: string | null }[];
 };
 const initial: TaskActionState = {};
 const labels: Record<TaskStatus, string> = { TODO: "To do", IN_PROGRESS: "In progress", IN_REVIEW: "In review", COMPLETED: "Completed" };
@@ -260,12 +261,25 @@ function CreateTaskDialog({ role, options }: { role: "MANAGER" | "WORKER"; optio
                 <fieldset className="space-y-2">
                   <legend className="text-sm font-medium">Assign workers</legend>
                   <div className="max-h-36 divide-y overflow-y-auto rounded-md border">
-                    {options.workers.length ? options.workers.map((worker) => (
-                      <label key={worker.id} className="flex min-h-11 cursor-pointer items-center gap-3 px-3 text-sm hover:bg-muted/50">
-                        <input type="checkbox" name="workerId" value={worker.id} className="size-4 accent-primary" />
-                        <span className="min-w-0 flex-1 truncate">{worker.name || worker.email}</span>
-                      </label>
-                    )) : <p className="px-3 py-4 text-sm text-muted-foreground">No active workers available.</p>}
+                    {options.workers.length ? options.workers.map((worker) => {
+                      const avatarSrc = getProfileImageSrc(worker.image, worker.id) ?? worker.image;
+                      const initial = (worker.name || worker.email || "?").charAt(0).toUpperCase();
+                      const colorClass = getAssigneeColor(worker.name || worker.email || "");
+
+                      return (
+                        <label key={worker.id} className="flex min-h-11 cursor-pointer items-center gap-3 px-3 text-sm hover:bg-muted/50">
+                          <input type="checkbox" name="workerId" value={worker.id} className="size-4 accent-primary" />
+                          <span className={`flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${colorClass}`}>
+                            {avatarSrc ? (
+                              <img src={avatarSrc} alt="" className="size-full rounded-full object-cover" />
+                            ) : (
+                              initial
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">{worker.name || worker.email}</span>
+                        </label>
+                      );
+                    }) : <p className="px-3 py-4 text-sm text-muted-foreground">No active workers available.</p>}
                   </div>
                 </fieldset>
                 <fieldset className="space-y-2">
@@ -381,16 +395,17 @@ function ViewTaskDialog({ task }: { task: TaskItem }) {
                   const displayName = a.user.name || a.user.email || "Unknown";
                   const initial = displayName.charAt(0).toUpperCase();
                   const colorClass = getAssigneeColor(displayName);
+                  const avatarSrc = getProfileImageSrc(a.user.image, a.userId) ?? a.user.image;
 
                   return (
                     <div key={a.userId} className="flex items-center justify-between p-2.5 text-sm">
                       <div className="flex items-center gap-2.5">
                         <span
-                          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${colorClass}`}
+                          className={`flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${colorClass}`}
                         >
-                          {a.user.image ? (
+                          {avatarSrc ? (
                             <img
-                              src={a.user.image}
+                              src={avatarSrc}
                               alt={displayName}
                               className="size-full rounded-full object-cover"
                             />
@@ -472,16 +487,17 @@ function AssigneeAvatars({
     const displayName = a.user.name || a.user.email || "Unknown";
     const initial = displayName.charAt(0).toUpperCase();
     const colorClass = getAssigneeColor(displayName);
+    const avatarSrc = getProfileImageSrc(a.user.image, a.userId) ?? a.user.image;
 
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <span
-            className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${colorClass}`}
+            className={`flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${colorClass}`}
           >
-            {a.user.image ? (
+            {avatarSrc ? (
               <img
-                src={a.user.image}
+                src={avatarSrc}
                 alt={displayName}
                 className="size-full rounded-full object-cover"
               />
@@ -511,16 +527,17 @@ function AssigneeAvatars({
             const displayName = a.user.name || a.user.email || "Unknown";
             const initial = displayName.charAt(0).toUpperCase();
             const colorClass = getAssigneeColor(displayName);
+            const avatarSrc = getProfileImageSrc(a.user.image, a.userId) ?? a.user.image;
 
             return (
               <span
                 key={a.userId}
                 title={displayName}
-                className={`relative inline-flex size-6 shrink-0 items-center justify-center rounded-full ring-2 ring-card text-[10px] font-bold ${colorClass}`}
+                className={`relative inline-flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full ring-2 ring-card text-[10px] font-bold ${colorClass}`}
               >
-                {a.user.image ? (
+                {avatarSrc ? (
                   <img
-                    src={a.user.image}
+                    src={avatarSrc}
                     alt={displayName}
                     className="size-full rounded-full object-cover"
                   />
@@ -748,12 +765,25 @@ function EditTaskDialog({ task, role, options }: { task: TaskItem; role: "MANAGE
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Assign workers</legend>
                 <div className="max-h-40 space-y-2 overflow-auto rounded-md border p-3">
-                  {options.workers.map((worker) => (
-                    <label key={worker.id} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" name="workerId" value={worker.id} defaultChecked={task.assignees.some((a) => a.userId === worker.id)} />
-                      {worker.name || worker.email}
-                    </label>
-                  ))}
+                  {options.workers.map((worker) => {
+                    const avatarSrc = getProfileImageSrc(worker.image, worker.id) ?? worker.image;
+                    const initial = (worker.name || worker.email || "?").charAt(0).toUpperCase();
+                    const colorClass = getAssigneeColor(worker.name || worker.email || "");
+
+                    return (
+                      <label key={worker.id} className="flex items-center gap-2.5 text-sm">
+                        <input type="checkbox" name="workerId" value={worker.id} defaultChecked={task.assignees.some((a) => a.userId === worker.id)} />
+                        <span className={`flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${colorClass}`}>
+                          {avatarSrc ? (
+                            <img src={avatarSrc} alt="" className="size-full rounded-full object-cover" />
+                          ) : (
+                            initial
+                          )}
+                        </span>
+                        <span>{worker.name || worker.email}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </fieldset>
               <fieldset className="space-y-2">

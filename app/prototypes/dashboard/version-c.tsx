@@ -180,14 +180,9 @@ export function VersionC() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             {/* Heatmap */}
             <div className="rounded-lg border border-border bg-card p-5 shadow-xs lg:col-span-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-card-foreground">Weekly Load Trend</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Workload density by month & week (Trailing 6 Months)</p>
-                </div>
-                <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                  Heatmap
-                </span>
+              <div>
+                <h3 className="text-sm font-semibold text-card-foreground">Weekly Load Trend</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">Workload density by month & week (Trailing 6 Months)</p>
               </div>
 
               <div className="mt-4 overflow-x-auto">
@@ -251,14 +246,9 @@ export function VersionC() {
 
             {/* Workload By Service */}
             <div className="rounded-lg border border-border bg-card p-5 shadow-xs lg:col-span-7">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-card-foreground">Workload By Service</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Delivery turnaround by creative stream</p>
-                </div>
-                <span className="rounded-md border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                  Deliverables overview
-                </span>
+              <div>
+                <h3 className="text-sm font-semibold text-card-foreground">Workload By Service</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">Delivery turnaround by creative stream</p>
               </div>
 
               <div className="mt-4 overflow-x-auto">

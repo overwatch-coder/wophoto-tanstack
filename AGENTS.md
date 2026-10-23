@@ -27,3 +27,9 @@ WoPhoto is a management and tracking application for photography and multimedia 
 - All unit and integration tests live in the `test/` directory.
 - Test files follow the `*.test.ts` or `*.test.tsx` naming convention.
 - Run `npm test` before committing any feature changes.
+
+## UI Design Standards
+
+- **No Eyebrow/Subrow Pill Badges:** Never add decorative badge pills, subrow tags, or eyebrow labels (e.g. "Production Live", "Guaranteed SLA", "Heatmap") above or next to section titles. Keep headers clean, confident, and minimal.
+- **Avatar Images:** Always route user images through `getProfileImageSrc(image, userId)` to ensure private Vercel blob avatars load properly across all tables and modals.
+- **Minimal, Cohesive Color Palette:** Keep dashboards clean, calm, and uncluttered without competing rainbow colors. Ensure high-contrast legibility in both light and dark modes.
