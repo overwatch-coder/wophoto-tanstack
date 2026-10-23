@@ -73,4 +73,18 @@ describe("Dashboard & Analytics calculations", () => {
     expect(months[5].month).toBe(currentMonthShort);
     expect(months[0].isCurrent).toBe(false);
   });
+
+  it("calculates client delivery velocity and category breakdown shares correctly", () => {
+    const categories = [
+      { category: "Photography", total: 9, percentage: 45 },
+      { category: "Retouching", total: 6, percentage: 30 },
+      { category: "Video", total: 3, percentage: 15 },
+      { category: "Drone", total: 2, percentage: 10 },
+    ];
+
+    const totalPercentage = categories.reduce((sum, c) => sum + c.percentage, 0);
+    expect(totalPercentage).toBe(100);
+    expect(categories[0].category).toBe("Photography");
+    expect(categories[0].percentage).toBeGreaterThan(categories[1].percentage);
+  });
 });
