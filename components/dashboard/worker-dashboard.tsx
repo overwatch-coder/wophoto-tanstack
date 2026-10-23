@@ -29,7 +29,7 @@ export function WorkerDashboard({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button render={<Link href="/worker/tasks" />} className="gap-1.5 shadow-xs">
+          <Button nativeButton={false} render={<Link href="/worker/tasks" />} className="gap-1.5 shadow-xs">
             <Plus className="size-4" />
             <span>Log daily work</span>
           </Button>
@@ -176,7 +176,7 @@ export function WorkerDashboard({
             ) : (
               <div className="py-8 text-center">
                 <p className="text-xs text-muted-foreground">No daily work entries recorded yet.</p>
-                <Button render={<Link href="/worker/tasks" />} variant="outline" size="sm" className="mt-3 text-xs">
+                <Button nativeButton={false} render={<Link href="/worker/tasks" />} variant="outline" size="sm" className="mt-3 text-xs">
                   Log your first entry
                 </Button>
               </div>

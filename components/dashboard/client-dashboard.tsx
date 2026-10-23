@@ -29,7 +29,7 @@ export function ClientDashboard({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button render={<Link href="/client/project-feedback" />} variant="outline" className="gap-1.5 shadow-xs">
+          <Button nativeButton={false} render={<Link href="/client/project-feedback" />} variant="outline" className="gap-1.5 shadow-xs">
             <MessageSquareText className="size-4" />
             <span>Send feedback</span>
           </Button>
