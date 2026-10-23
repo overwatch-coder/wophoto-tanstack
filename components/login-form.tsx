@@ -1,12 +1,16 @@
+"use client";
+
+import { useFormStatus } from "react-dom";
+import {
+  Camera,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldAlert,
+  HelpCircle,
+  Loader2,
+} from "lucide-react";
 import { signInWithGoogle } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldSeparator,
-} from "@/components/ui/field";
 
 type LoginFormProps = {
   error?: string;
@@ -14,125 +18,228 @@ type LoginFormProps = {
 };
 
 export function LoginForm({ error, invitationStatus }: LoginFormProps) {
-  const errorMessage = error === "InvitationRequired"
-    ? "This Google account does not have an accepted WoPhoto invitation. Accept the invitation sent to this email address before signing in."
-    : error === "AccountMismatch" || error === "OAuthAccountNotLinked"
-      ? "This Google account is linked to a different WoPhoto account. Ask your manager to resolve the account link before trying again."
-      : error === "AccountSuspended"
-        ? "Your WoPhoto account is suspended. Contact your manager to restore access."
-        : error ? "Google sign-in could not be completed. Choose the invited Google account and try again. If this continues, contact your manager." : undefined;
+  const errorMessage =
+    error === "InvitationRequired"
+      ? "This Google account does not have an accepted WoPhoto invitation. Accept the invitation sent to this email address before signing in."
+      : error === "AccountMismatch" || error === "OAuthAccountNotLinked"
+        ? "This Google account is linked to a different WoPhoto account. Ask your manager to resolve the account link before trying again."
+        : error === "AccountSuspended"
+          ? "Your WoPhoto account is suspended. Contact your manager to restore access."
+          : error
+            ? "Google sign-in could not be completed. Choose the invited Google account and try again. If this continues, contact your manager."
+            : undefined;
+
   return (
-    <div className="flex flex-col gap-5">
-      <Card className="overflow-hidden rounded-lg p-0 shadow-sm">
-        <CardContent className="grid p-0 md:grid-cols-2">
-          <div className="flex items-center p-6 sm:p-8 md:p-10">
-            <form action={signInWithGoogle} className="w-full">
-              <FieldGroup>
-                <div className="flex flex-col gap-2 text-center">
-                  <h1 className="text-2xl font-semibold tracking-tight">Welcome to WoPhoto</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Sign in with the Google account your manager invited.
-                  </p>
-                </div>
+    <div className="flex w-full overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:min-h-[640px]">
+      {/* Left Side: Editorial Photography Canvas */}
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-zinc-950 p-10 text-white lg:flex">
+        {/* Subtle Background Photography */}
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-luminosity transition-transform duration-700 hover:scale-105"
+          style={{
+            backgroundImage:
+              "url('https://images.unsplash.com/photo-1542038784456-1ea8e935640e?auto=format&fit=crop&w=1600&q=80')",
+          }}
+        />
+        {/* Gradient Scrim */}
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-zinc-950/30" />
 
-                {errorMessage ? (
-                  <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                    {errorMessage}
-                  </p>
-                ) : null}
-                {invitationStatus === "accepted" ? (
-                  <p role="status" className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
-                    Invitation accepted. Continue with the Google account that received it.
-                  </p>
-                ) : null}
-                {invitationStatus === "invalid" ? (
-                  <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                    That invitation could not be accepted. It may have expired or already been used. Ask your manager for a new invitation.
-                  </p>
-                ) : null}
+        {/* Top Brand & Metadata */}
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-orange-600 text-white shadow-md shadow-orange-600/30">
+              <Camera className="size-4" />
+            </div>
+            <span className="text-lg font-bold tracking-tight">WoPhoto</span>
+          </div>
+          <div className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-zinc-300 backdrop-blur-xs">
+            50mm ƒ/1.4 · 1/250s · ISO 100
+          </div>
+        </div>
 
-                <Field>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    className="h-11 w-full gap-3 bg-background text-foreground hover:bg-muted"
-                  >
-                    <GoogleMark />
-                    Continue with Google
-                  </Button>
-                </Field>
+        {/* Center Visual Element */}
+        <div className="relative z-10 my-auto max-w-md py-8">
+          <h2 className="text-3xl font-semibold tracking-tight text-white leading-tight">
+            Precision workflow for high-volume studio productions.
+          </h2>
+          <p className="mt-3 text-sm text-zinc-300 leading-relaxed">
+            From creative briefs and shoot schedules to multi-role daily task logs and direct client approvals.
+          </p>
+        </div>
 
-                <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
-                  Invitation required
-                </FieldSeparator>
+        {/* Bottom Quote */}
+        <div className="relative z-10 border-t border-white/10 pt-6">
+          <blockquote className="text-xs italic text-zinc-300 leading-relaxed">
+            &ldquo;WoPhoto replaced messy email chains and ad-hoc spreadsheets with one crystal-clear production pipeline.&rdquo;
+          </blockquote>
+          <p className="mt-2 text-[11px] font-medium text-zinc-400">
+            Marcus Chen — Head of Photography, Studio Lumière
+          </p>
+        </div>
+      </div>
 
-                <FieldDescription className="text-center leading-5">
-                  WoPhoto currently supports Google sign in for invited members. Email and password sign in is not available yet.
-                </FieldDescription>
-              </FieldGroup>
-            </form>
+      {/* Right Side: Clean Sign-In Form */}
+      <div className="flex flex-1 flex-col justify-between p-6 sm:p-10 lg:p-12">
+        {/* Top Brand (Visible on mobile/tablet) */}
+        <div className="flex items-center justify-between lg:hidden">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-orange-600 text-white">
+              <Camera className="size-4" />
+            </div>
+            <span className="text-base font-bold tracking-tight">WoPhoto</span>
+          </div>
+          <span className="text-xs text-muted-foreground">Studio Access</span>
+        </div>
+
+        {/* Center Form Content */}
+        <div className="my-auto mx-auto w-full max-w-md py-6">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              Sign in to Studio
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Welcome back. Access your active shoots, team tasks, and asset deliveries.
+            </p>
           </div>
 
-          <aside className="relative hidden min-h-[32rem] overflow-hidden border-l bg-muted/40 p-8 sm:p-10 md:flex md:items-center md:justify-center">
-            <div aria-hidden="true" className="absolute -right-24 -top-24 size-72 rounded-full bg-primary/10 blur-3xl" />
-            <div className="relative w-full max-w-sm">
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                A clear path from brief to delivery.
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Keep the work, the team, and client feedback connected at every stage.
-              </p>
-
-              <ol className="relative mt-8 space-y-0">
-                <div aria-hidden="true" className="absolute bottom-8 left-4 top-8 border-l border-border" />
-                <li className="relative flex gap-4 pb-6">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-semibold text-card-foreground">01</span>
-                  <div className="pt-0.5">
-                    <h3 className="text-sm font-semibold">Brief</h3>
-                    <p className="mt-1 text-sm leading-5 text-muted-foreground">Set the goals and gather the references.</p>
-                  </div>
-                </li>
-                <li className="relative flex gap-4 pb-6">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-semibold text-card-foreground">02</span>
-                  <div className="pt-0.5">
-                    <h3 className="text-sm font-semibold">Production</h3>
-                    <p className="mt-1 text-sm leading-5 text-muted-foreground">Assign tasks and follow the work.</p>
-                  </div>
-                </li>
-                <li className="relative flex gap-4 pb-6">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-semibold text-card-foreground">03</span>
-                  <div className="pt-0.5">
-                    <h3 className="text-sm font-semibold">Review</h3>
-                    <p className="mt-1 text-sm leading-5 text-muted-foreground">Keep client feedback with the project.</p>
-                  </div>
-                </li>
-                <li className="relative flex gap-4">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-semibold text-card-foreground">04</span>
-                  <div className="pt-0.5">
-                    <h3 className="text-sm font-semibold">Delivery</h3>
-                    <p className="mt-1 text-sm leading-5 text-muted-foreground">Bring the finished work together.</p>
-                  </div>
-                </li>
-              </ol>
+          {/* Alert Messages */}
+          {invitationStatus === "accepted" && (
+            <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-900 dark:text-emerald-200">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold">Invitation Accepted</p>
+                  <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                    Your invitation has been registered. Continue with your invited Google account to access your studio workspace.
+                  </p>
+                </div>
+              </div>
             </div>
-          </aside>
-        </CardContent>
-      </Card>
+          )}
 
-      <FieldDescription className="px-6 text-center">
-        Need access? Ask your project manager for an invitation.
-      </FieldDescription>
+          {invitationStatus === "invalid" && (
+            <div className="mb-6 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold">Invalid or Expired Invitation</p>
+                  <p className="mt-1 text-xs leading-relaxed opacity-90">
+                    That invitation could not be accepted. It may have expired or already been used. Ask your manager for a new invitation.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error === "AccountSuspended" ? (
+            <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="size-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold">Account Suspended</p>
+                  <p className="mt-1 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                    {errorMessage}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : errorMessage ? (
+            <div className="mb-6 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold">Sign-In Notice</p>
+                  <p className="mt-1 text-xs leading-relaxed opacity-90">
+                    {errorMessage}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Real Form using signInWithGoogle */}
+          <form action={signInWithGoogle} className="space-y-4">
+            <GoogleSubmitButton />
+
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-card px-3 text-muted-foreground">
+                  Private Studio Access
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 text-xs text-muted-foreground leading-relaxed">
+              <div className="flex items-center gap-1.5 font-medium text-foreground mb-1">
+                <HelpCircle className="size-3.5 text-orange-600 dark:text-orange-400" />
+                <span>Invitation Required</span>
+              </div>
+              WoPhoto currently supports Google sign-in for invited members. Email and password sign-in is not available yet.
+            </div>
+          </form>
+        </div>
+
+        {/* Bottom Security & Help Footer */}
+        <div className="border-t border-border/50 pt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span>© 2026 WoPhoto Studio</span>
+          <div className="flex items-center gap-4">
+            <span className="hover:text-foreground transition-colors cursor-default">Privacy</span>
+            <span className="hover:text-foreground transition-colors cursor-default">Terms</span>
+            <span className="hover:text-foreground transition-colors cursor-default">Support</span>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function GoogleSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button
+      type="submit"
+      variant="outline"
+      disabled={pending}
+      className="h-11 w-full gap-3 bg-card text-foreground hover:bg-muted font-medium text-sm transition-all duration-150 shadow-xs border-border"
+    >
+      {pending ? (
+        <>
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          <span>Connecting to Google...</span>
+        </>
+      ) : (
+        <>
+          <GoogleMark />
+          <span>Continue with Google</span>
+        </>
+      )}
+    </Button>
   );
 }
 
 function GoogleMark() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 shrink-0">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.09-1.92 3.27-4.74 3.27-8.1Z" />
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.99.66-2.25 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.15v2.84A11 11 0 0 0 12 23Z" />
-      <path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.15a11 11 0 0 0 0 9.9l3.69-2.84Z" />
-      <path fill="#EA4335" d="M12 4.36c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.09 14.97 0 12 0a11 11 0 0 0-9.85 7.05l3.69 2.84C6.71 7.29 9.14 4.36 12 4.36Z" />
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.09-1.92 3.27-4.74 3.27-8.1Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.99.66-2.25 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.15v2.84A11 11 0 0 0 12 23Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.15a11 11 0 0 0 0 9.9l3.69-2.84Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.36c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.09 14.97 0 12 0a11 11 0 0 0-9.85 7.05l3.69 2.84C6.71 7.29 9.14 4.36 12 4.36Z"
+      />
     </svg>
   );
 }
