@@ -54,7 +54,7 @@ export function VersionC() {
             onClick={() => setActiveTab("internal")}
             className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 font-medium transition-all ${
               activeTab === "internal"
-                ? "bg-background text-foreground shadow-xs font-semibold"
+                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -67,7 +67,7 @@ export function VersionC() {
             onClick={() => setActiveTab("roster")}
             className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 font-medium transition-all ${
               activeTab === "roster"
-                ? "bg-background text-foreground shadow-xs font-semibold"
+                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -80,7 +80,7 @@ export function VersionC() {
             onClick={() => setActiveTab("demand")}
             className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 font-medium transition-all ${
               activeTab === "demand"
-                ? "bg-background text-foreground shadow-xs font-semibold"
+                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -98,17 +98,17 @@ export function VersionC() {
           <span className="text-muted-foreground">·</span>
           <span>{mockCollaborators.length} collaborators across 4 services</span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="inline-flex items-center rounded-lg border border-border bg-muted/60 p-1 text-xs">
           {["Last 7 Days", "Last 30 Days", "This Quarter", "Year to Date"].map(
             (range) => (
               <button
                 key={range}
                 type="button"
                 onClick={() => setTimeRange(range)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
                   timeRange === range
-                    ? "bg-primary/10 font-semibold text-primary border border-primary/25"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {range}
