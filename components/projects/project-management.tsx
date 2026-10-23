@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Eye } from "lucide-react";
+import Link from "next/link";
+import { Eye, Sparkles } from "lucide-react";
 import { createProject, type ProjectActionState } from "@/app/actions/projects";
 import { cleanClientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -99,11 +100,20 @@ export function ProjectManagement({
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Create projects to organize assigned work and connect it to a client.
-        </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Create projects to organize assigned work and connect it to a client.
+          </p>
+        </div>
+        <Link
+          href="/prototypes/projects"
+          className="inline-flex items-center gap-1.5 self-start rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-500/20 dark:text-orange-400"
+        >
+          <Sparkles className="size-3.5" />
+          <span>Preview 3 New Prototypes →</span>
+        </Link>
       </header>
 
       <section className="space-y-5 rounded-md border bg-card p-5 sm:p-6">
