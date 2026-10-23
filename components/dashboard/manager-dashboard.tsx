@@ -309,7 +309,7 @@ export function ManagerDashboard({
                   key={status}
                   type="button"
                   onClick={() => setFilterCapacity(status)}
-                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     filterCapacity === status
                       ? "bg-primary text-primary-foreground shadow-xs"
                       : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border/40"

@@ -432,7 +432,7 @@ function ViewTaskDialog({ task }: { task: TaskItem }) {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Specializations</h4>
               <div className="flex flex-wrap gap-1.5">
                 {task.specializations.map((item) => (
-                  <span key={item.specialization} className="inline-flex items-center rounded-md border bg-muted/40 px-2.5 py-1 text-xs capitalize">
+                  <span key={item.specialization} className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-1 text-xs capitalize">
                     {item.specialization.replaceAll("_", " ").toLowerCase()}
                   </span>
                 ))}

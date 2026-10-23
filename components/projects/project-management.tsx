@@ -258,7 +258,7 @@ function CreateProjectDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button className="h-9 gap-2 rounded-lg bg-orange-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-orange-700">
+          <Button className="h-9 gap-2 rounded-full bg-orange-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-orange-700">
             <Plus className="size-4" />
             <span>Add Project</span>
           </Button>
