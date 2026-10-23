@@ -132,14 +132,10 @@ export function AppSidebar({
         </nav>
       </SidebarContent>
 
-      <SidebarFooter className="gap-3 border-t border-sidebar-border px-2 pt-3 pb-3">
+      <SidebarFooter className="gap-2 border-t border-sidebar-border px-2 pt-2.5 pb-2.5 group-data-[collapsible=icon]:px-1.5">
         <ThemeModeToggle />
         <SidebarSeparator className="mx-0" />
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <AccountIdentity email={email} image={image} name={name} role={role} userId={userId} />
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <AccountIdentity email={email} image={image} name={name} role={role} userId={userId} />
       </SidebarFooter>
 
       <SidebarRail />
@@ -167,6 +163,7 @@ function ThemeModeToggle() {
             tooltip={label}
             aria-label={label}
             onClick={() => mounted && setTheme(dark ? "light" : "dark")}
+            className="size-8 justify-center p-0"
           >
             {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             <span>Theme</span>
@@ -217,15 +214,63 @@ function AccountIdentity({
   role: WorkspaceRole
   userId: string
 }) {
+  const { state, isMobile } = useSidebar()
+  const compact = state === "collapsed" && !isMobile
   const displayName = name?.trim() || email?.trim() || "Account"
   const roleLabel = role.charAt(0) + role.slice(1).toLowerCase()
 
+  if (compact) {
+    return (
+      <SidebarMenu className="gap-1.5">
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            tooltip={`${displayName} (${roleLabel})`}
+            aria-label={`${displayName}, ${roleLabel}`}
+            render={<Link href="/settings" />}
+            className="size-8 justify-center p-0 rounded-full hover:bg-sidebar-accent"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
+              {image ? (
+                <Image
+                  src={getProfileImageSrc(image, userId) ?? image}
+                  alt=""
+                  width={32}
+                  height={32}
+                  unoptimized
+                  className="size-full object-cover"
+                />
+              ) : (
+                <UserRound aria-hidden="true" className="size-4" />
+              )}
+            </span>
+            <span className="sr-only">{displayName}</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <form action={signOutUser} className="w-full">
+            <SidebarMenuButton
+              tooltip="Log out"
+              aria-label="Log out"
+              render={<button type="submit" />}
+              className="size-8 justify-center p-0 rounded-full hover:bg-sidebar-accent text-muted-foreground hover:text-foreground"
+            >
+              <LogOut aria-hidden="true" className="size-4" />
+              <span className="sr-only">Log out</span>
+            </SidebarMenuButton>
+          </form>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
+  }
+
   return (
-    <div className="flex items-center gap-1">
-      <div
+    <div className="flex w-full items-center justify-between gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
+      <Link
+        href="/settings"
         role="group"
         aria-label={`${displayName}, ${roleLabel}`}
-        className="flex min-h-12 min-w-0 flex-1 items-center gap-2 px-2 py-1.5 sm:gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        title={`${displayName} (${roleLabel})`}
+        className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
       >
         <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
           {image ? (
@@ -245,15 +290,15 @@ function AccountIdentity({
           <span className="truncate text-sm font-medium">{displayName}</span>
           <span className="text-xs text-muted-foreground">{roleLabel}</span>
         </span>
-      </div>
-      <form action={signOutUser}>
+      </Link>
+      <form action={signOutUser} className="shrink-0 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
         <SidebarMenuButton
           tooltip="Log out"
           aria-label="Log out"
           render={<button type="submit" />}
-          className="size-10 justify-center px-0"
+          className="size-8 justify-center p-0 rounded-full text-muted-foreground hover:text-foreground"
         >
-          <LogOut aria-hidden="true" />
+          <LogOut aria-hidden="true" className="size-4" />
         </SidebarMenuButton>
       </form>
     </div>
