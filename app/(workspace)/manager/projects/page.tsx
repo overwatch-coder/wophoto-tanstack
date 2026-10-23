@@ -21,7 +21,23 @@ async function ManagerProjectsContent() {
         id: true,
         name: true,
         description: true,
-        client: { select: { name: true } },
+        createdAt: true,
+        updatedAt: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        tasks: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            status: true,
+            dueAt: true,
+          },
+        },
       },
       orderBy: { updatedAt: "desc" },
     }),
@@ -36,7 +52,7 @@ async function ManagerProjectsContent() {
           },
         },
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, email: true },
       orderBy: [{ name: "asc" }, { email: "asc" }],
     }),
   ]);
