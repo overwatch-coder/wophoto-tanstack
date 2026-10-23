@@ -131,9 +131,10 @@ function ViewProjectDialog({
         }
       />
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-2">
+        <DialogHeader className="pr-10">
+          <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Project Details</span>
+            <span className="text-muted-foreground/30">•</span>
             <span
               className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                 status === "COMPLETED"
@@ -179,9 +180,9 @@ function ViewProjectDialog({
           </div>
 
           {/* Progress Section */}
-          <div className="space-y-1.5 rounded-lg border border-border p-3 text-xs">
+          <div className="space-y-2.5 rounded-lg border border-border bg-card/60 p-3.5 text-xs shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1 font-medium text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
                 <Layers className="size-3.5 text-orange-500" />
                 <span>Task Progress</span>
               </span>
@@ -189,7 +190,7 @@ function ViewProjectDialog({
                 {completedTasks} / {totalTasks} tasks ({percentComplete}%)
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border/60">
               <div
                 className="h-full rounded-full bg-orange-600 transition-all duration-300"
                 style={{ width: `${percentComplete}%` }}
@@ -264,7 +265,7 @@ function CreateProjectDialog({
         }
       />
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+        <DialogHeader className="pr-10">
           <div className="flex items-center gap-2.5">
             <span className="flex size-8 items-center justify-center rounded-lg bg-orange-600/15 text-orange-600 dark:text-orange-400">
               <FolderPlus className="size-4" />

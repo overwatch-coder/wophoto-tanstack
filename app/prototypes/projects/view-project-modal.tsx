@@ -33,13 +33,14 @@ export function ViewProjectModal({ project }: { project: PrototypeProject }) {
         }
       />
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-2">
+        <DialogHeader className="pr-10">
+          <div className="flex items-center gap-2">
             <span className="rounded-md border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] font-semibold text-orange-600 dark:text-orange-400">
               {project.category}
             </span>
+            <span className="text-muted-foreground/30">•</span>
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+              className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                 project.status === "COMPLETED"
                   ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                   : project.status === "REVIEW"
@@ -52,7 +53,7 @@ export function ViewProjectModal({ project }: { project: PrototypeProject }) {
               {project.status.replace("_", " ")}
             </span>
           </div>
-          <DialogTitle className="mt-1 text-lg font-semibold text-foreground">
+          <DialogTitle className="mt-1.5 text-lg font-semibold text-foreground">
             {project.name}
           </DialogTitle>
         </DialogHeader>
@@ -91,9 +92,9 @@ export function ViewProjectModal({ project }: { project: PrototypeProject }) {
           </div>
 
           {/* Progress Bar */}
-          <div className="space-y-1.5 rounded-lg border border-border p-3 text-xs">
+          <div className="space-y-2.5 rounded-lg border border-border bg-card/60 p-3.5 text-xs shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1 text-muted-foreground font-medium">
+              <span className="flex items-center gap-1 font-medium text-muted-foreground">
                 <Layers className="size-3.5 text-orange-500" />
                 <span>Task Progress</span>
               </span>
@@ -101,7 +102,7 @@ export function ViewProjectModal({ project }: { project: PrototypeProject }) {
                 {project.completedTasks} / {project.totalTasks} ({percentComplete}%)
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border/60">
               <div
                 className="h-full rounded-full bg-orange-600 transition-all duration-300"
                 style={{ width: `${percentComplete}%` }}

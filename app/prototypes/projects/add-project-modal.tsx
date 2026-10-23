@@ -77,7 +77,7 @@ export function AddProjectModal({
         }
       />
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+        <DialogHeader className="pr-10">
           <div className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-lg bg-orange-600/15 text-orange-600 dark:text-orange-400">
               <FolderPlus className="size-4" />
