@@ -157,16 +157,20 @@ function ThemeModeToggle() {
   if (compact) {
     const label = dark ? "Switch to light mode" : "Switch to dark mode"
     return (
-      <SidebarMenu>
-        <SidebarMenuItem>
+      <SidebarMenu className="items-center">
+        <SidebarMenuItem className="flex justify-center">
           <SidebarMenuButton
             tooltip={label}
             aria-label={label}
             onClick={() => mounted && setTheme(dark ? "light" : "dark")}
-            className="size-8 justify-center p-0"
+            className="flex size-8 items-center justify-center p-0 rounded-full"
           >
-            {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-            <span>Theme</span>
+            {dark ? (
+              <Sun aria-hidden="true" className="size-4 shrink-0" />
+            ) : (
+              <Moon aria-hidden="true" className="size-4 shrink-0" />
+            )}
+            <span className="sr-only">{label}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
