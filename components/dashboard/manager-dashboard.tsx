@@ -9,6 +9,7 @@ import {
   Calendar,
   ArrowUpRight,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ManagerSubView = "internal" | "roster" | "demand";
 
@@ -47,45 +48,21 @@ export function ManagerDashboard({
         </div>
 
         {/* View Toggle Tabs: Switch between Internal Performance, Team Roster, and Demand Analysis */}
-        <div className="inline-flex items-center rounded-lg border border-border bg-muted p-1 text-xs">
-          <button
-            type="button"
-            onClick={() => setActiveTab("internal")}
-            className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 font-medium transition-all ${
-              activeTab === "internal"
-                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <BarChart3 className="size-3.5" />
-            <span>Internal Performance</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("roster")}
-            className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 font-medium transition-all ${
-              activeTab === "roster"
-                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Users className="size-3.5" />
-            <span>Team Roster</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("demand")}
-            className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 font-medium transition-all ${
-              activeTab === "demand"
-                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span>Demand Analysis</span>
-          </button>
-        </div>
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab((val as ManagerSubView) || "internal")}>
+          <TabsList>
+            <TabsTrigger value="internal">
+              <BarChart3 className="size-3.5" />
+              <span>Internal Performance</span>
+            </TabsTrigger>
+            <TabsTrigger value="roster">
+              <Users className="size-3.5" />
+              <span>Team Roster</span>
+            </TabsTrigger>
+            <TabsTrigger value="demand">
+              <span>Demand Analysis</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Date Range & Summary Ribbon */}
@@ -97,24 +74,17 @@ export function ManagerDashboard({
           <span className="text-muted-foreground">·</span>
           <span>{data.collaborators.length} collaborators across {data.serviceWorkloads.length} services</span>
         </div>
-        <div className="inline-flex items-center rounded-lg border border-border bg-muted/60 p-1 text-xs">
-          {["Last 7 Days", "Last 30 Days", "This Quarter", "Year to Date"].map(
-            (range) => (
-              <button
-                key={range}
-                type="button"
-                onClick={() => setTimeRange(range)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                  timeRange === range
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {range}
-              </button>
-            )
-          )}
-        </div>
+        <Tabs value={timeRange} onValueChange={(val) => val && setTimeRange(val)}>
+          <TabsList className="bg-muted/60">
+            {["Last 7 Days", "Last 30 Days", "This Quarter", "Year to Date"].map(
+              (range) => (
+                <TabsTrigger key={range} value={range} className="px-2.5 py-1">
+                  {range}
+                </TabsTrigger>
+              )
+            )}
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Persistent Top KPI Metric Cards */}
