@@ -15,6 +15,7 @@ WoPhoto is a management and tracking application for photography and multimedia 
 ## Commands
 
 - **Development:** `npm run dev`
+- **Database (Start/Status/Stop):** `npm run db:start` | `npm run db:status` | `npm run db:stop`
 - **Build:** `npm run build`
 - **Lint:** `npm run lint`
 - **Typecheck:** `npm run typecheck`
