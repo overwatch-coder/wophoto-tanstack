@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { Moon, Sun } from "lucide-react"
 
 import { AppSidebar } from "@/components/workspace/app-sidebar"
+import { Button } from "@/components/ui/button"
 import {
   SidebarInset,
   SidebarProvider,
@@ -91,24 +92,26 @@ function ThemeToggle() {
     : "Theme"
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon"
       aria-label={label}
       title={label}
       onClick={() => {
         if (mounted) setTheme(resolvedTheme === "dark" ? "light" : "dark")
       }}
-      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-transparent px-3 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+      className="flex size-9 items-center justify-center p-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
     >
       {mounted ? (
         resolvedTheme === "dark" ? (
-          <Sun aria-hidden="true" className="size-4" />
+          <Sun aria-hidden="true" className="size-4 shrink-0 text-orange-400" />
         ) : (
-          <Moon aria-hidden="true" className="size-4" />
+          <Moon aria-hidden="true" className="size-4 shrink-0 text-foreground" />
         )
       ) : (
-        <span className="px-2 text-sm">Theme</span>
+        <span className="size-4 shrink-0" />
       )}
-    </button>
+      <span className="sr-only">{label}</span>
+    </Button>
   )
 }
