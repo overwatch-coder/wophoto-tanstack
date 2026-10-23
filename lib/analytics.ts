@@ -1,11 +1,15 @@
 import "server-only";
 
-import { TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
+import { Prisma, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { cleanClientName } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination";
 
 export type ManagerAnalyticsData = {
+  collaboratorsPage: number;
+  collaboratorsPageCount: number;
+  collaboratorsTotal: number;
   kpis: {
     activeTasksPerPerson: number;
     activeTasksBenchmark: number;
@@ -120,382 +124,142 @@ export type ClientAnalyticsData = {
   }>;
 };
 
-export async function getManagerAnalytics(): Promise<ManagerAnalyticsData> {
-  const user = await requireRole(UserRole.MANAGER);
-
-  const projects = await prisma.project.findMany({
-    where: { managerId: user.id },
-    select: { id: true, name: true },
+export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAnalyticsData> {
+  const manager = await requireRole(UserRole.MANAGER);
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  const [statusCounts, workerCount] = await Promise.all([
+    prisma.task.groupBy({ by: ["status"], where: { deletedAt: null, project: { managerId: manager.id } }, _count: { _all: true } }),
+    prisma.user.count({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: manager.id } } } }),
+  ]);
+  const pageCount = getPageCount(workerCount);
+  const page = Math.min(Math.max(1, requestedPage), pageCount);
+  const [workers, weeklyRows, serviceRows] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: manager.id } } },
+      select: { id: true, name: true, email: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: DEFAULT_PAGE_SIZE, skip: (page - 1) * DEFAULT_PAGE_SIZE,
+    }),
+    prisma.$queryRaw<Array<{ month: Date; week: number; count: number }>>(Prisma.sql`
+      SELECT date_trunc('month', COALESCE(t."workDate", t."dueAt", t."createdAt")) AS month,
+        LEAST(4, CEIL(EXTRACT(DAY FROM COALESCE(t."workDate", t."dueAt", t."createdAt")) / 7.0))::int AS week,
+        COUNT(*)::int AS count
+      FROM "Task" t JOIN "Project" p ON p."id" = t."projectId"
+      WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL
+        AND COALESCE(t."workDate", t."dueAt", t."createdAt") >= ${sixMonthsAgo}
+        AND COALESCE(t."workDate", t."dueAt", t."createdAt") < NOW()
+      GROUP BY 1, 2
+    `),
+    prisma.$queryRaw<Array<{ specialization: string; total: number; open: number; late: number; on_time: number }>>(Prisma.sql`
+      SELECT COALESCE(ts."specialization"::text, 'POST_PRODUCTION') AS specialization,
+        COUNT(DISTINCT t."id")::int AS total,
+        COUNT(DISTINCT t."id") FILTER (WHERE t."status" <> 'COMPLETED')::int AS open,
+        COUNT(DISTINCT t."id") FILTER (WHERE t."status" <> 'COMPLETED' AND t."dueAt" < NOW())::int AS late,
+        COUNT(DISTINCT t."id") FILTER (WHERE t."status" = 'COMPLETED' AND (t."dueAt" IS NULL OR t."completedAt" <= t."dueAt"))::int AS on_time
+      FROM "Task" t JOIN "Project" p ON p."id" = t."projectId"
+      LEFT JOIN "TaskSpecialization" ts ON ts."taskId" = t."id"
+      WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL
+      GROUP BY 1
+    `),
+  ]);
+  const byStatus = Object.fromEntries(statusCounts.map((item) => [item.status, item._count._all])) as Partial<Record<TaskStatus, number>>;
+  const deliveryTotals = await prisma.$queryRaw<Array<{ total: number; onTime: number }>>(Prisma.sql`
+    SELECT COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime"
+    FROM "Task" t JOIN "Project" p ON p."id" = t."projectId"
+    WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL AND t."status" = 'COMPLETED'
+  `);
+  const assignmentRows = workers.length ? await prisma.$queryRaw<Array<{ userId: string; status: TaskStatus; total: number; onTime: number }>>(Prisma.sql`
+    SELECT a."userId", a."status", COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR a."submittedAt" IS NULL OR a."submittedAt" <= t."dueAt")::int AS "onTime"
+    FROM "TaskAssignee" a JOIN "Task" t ON t."id" = a."taskId"
+    JOIN "Project" p ON p."id" = t."projectId"
+    WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL
+      AND a."userId" IN (${Prisma.join(workers.map((worker) => worker.id))})
+    GROUP BY a."userId", a."status"
+  `) : [];
+  const assignmentMap = new Map<string, { active: number; completed: number; onTime: number }>();
+  for (const row of assignmentRows) {
+    const item = assignmentMap.get(row.userId) ?? { active: 0, completed: 0, onTime: 0 };
+    if (row.status === TaskStatus.COMPLETED) { item.completed += row.total; item.onTime += row.onTime; }
+    else item.active += row.total;
+    assignmentMap.set(row.userId, item);
+  }
+  const collaborators = workers.map((worker) => {
+    const stats = assignmentMap.get(worker.id) ?? { active: 0, completed: 0, onTime: 0 };
+    const name = worker.name || worker.email;
+    const initials = name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+    return {
+      id: worker.id, name, role: "Creative Specialist", initials: initials || "W",
+      completedTasks: stats.completed, avgDurationDays: 0,
+      onTimeRate: stats.completed ? Math.round((stats.onTime / stats.completed) * 1000) / 10 : 0,
+      activeTasks: stats.active,
+      capacityStatus: stats.active > 15 ? "heavy" as const : stats.active < 5 ? "light" as const : "optimal" as const,
+    };
   });
-
-  const projectIds = projects.map((p) => p.id);
-
-  const allTasks = await prisma.task.findMany({
-    where: { projectId: { in: projectIds }, deletedAt: null },
-    include: {
-      assignees: {
-        include: {
-          user: { select: { id: true, name: true, email: true } },
-        },
-      },
-      specializations: true,
-    },
-  });
-
-  const activeWorkers = await prisma.user.findMany({
-    where: { role: UserRole.WORKER, status: UserStatus.ACTIVE },
-    select: { id: true, name: true, email: true },
-  });
-
-  const completedTasks = allTasks.filter((t) => t.status === TaskStatus.COMPLETED);
-  const activeTasks = allTasks.filter((t) => t.status !== TaskStatus.COMPLETED);
-
-  const totalCompleted = completedTasks.length;
-  const onTimeCompleted = completedTasks.filter((t) => {
-    if (!t.dueAt || !t.completedAt) return true;
-    return t.completedAt <= t.dueAt;
-  }).length;
-
-  const onTimeRate =
-    totalCompleted > 0
-      ? Math.round((onTimeCompleted / totalCompleted) * 100 * 10) / 10
-      : 84.7;
-
-  const workerCount = activeWorkers.length > 0 ? activeWorkers.length : 1;
-  const activeTasksPerPerson =
-    activeWorkers.length > 0
-      ? Math.round((activeTasks.length / workerCount) * 10) / 10
-      : 11.1;
-
-  // Build collaborator stats
-  const collaboratorMap = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      role: string;
-      initials: string;
-      completedTasks: number;
-      avgDurationDays: number;
-      onTimeRate: number;
-      activeTasks: number;
-      capacityStatus: "optimal" | "heavy" | "light";
-    }
-  >();
-
-  for (const worker of activeWorkers) {
-    const workerAssignments = allTasks.flatMap((t) =>
-      t.assignees
-        .filter((a) => a.userId === worker.id)
-        .map((a) => ({ ...a, task: t }))
-    );
-
-    const completed = workerAssignments.filter(
-      (a) => a.status === TaskStatus.COMPLETED
-    );
-    const active = workerAssignments.filter(
-      (a) => a.status !== TaskStatus.COMPLETED
-    );
-
-    const onTime = completed.filter((a) => {
-      if (!a.task.dueAt || !a.submittedAt) return true;
-      return a.submittedAt <= a.task.dueAt;
-    }).length;
-
-    const rate =
-      completed.length > 0
-        ? Math.round((onTime / completed.length) * 100 * 10) / 10
-        : 88.5;
-
-    const initials = (worker.name || worker.email)
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-
-    const capacityStatus: "optimal" | "heavy" | "light" =
-      active.length > 15
-        ? "heavy"
-        : active.length < 5
-          ? "light"
-          : "optimal";
-
-    collaboratorMap.set(worker.id, {
-      id: worker.id,
-      name: worker.name || worker.email,
-      role: "Creative Specialist",
-      initials: initials || "W",
-      completedTasks: completed.length,
-      avgDurationDays: 2.4,
-      onTimeRate: rate,
-      activeTasks: active.length,
-      capacityStatus,
-    });
-  }
-
-  // Fallback realistic collaborators if team is newly created
-  let collaboratorsList = Array.from(collaboratorMap.values());
-  if (collaboratorsList.length === 0) {
-    collaboratorsList = [
-      {
-        id: "c-1",
-        name: "Ilyass Bessal",
-        role: "Senior Multimedia Officer · Content Specialist",
-        initials: "IB",
-        completedTasks: 72,
-        avgDurationDays: 2.6,
-        onTimeRate: 77.8,
-        activeTasks: 38,
-        capacityStatus: "heavy",
-      },
-      {
-        id: "c-2",
-        name: "Abdelaziz Ourkiya",
-        role: "Multimedia Officer · Lead Photographer",
-        initials: "AO",
-        completedTasks: 56,
-        avgDurationDays: 3.2,
-        onTimeRate: 89.3,
-        activeTasks: 13,
-        capacityStatus: "optimal",
-      },
-      {
-        id: "c-3",
-        name: "Amine Azmi",
-        role: "Motion & Graphic Designer",
-        initials: "AA",
-        completedTasks: 53,
-        avgDurationDays: 1.7,
-        onTimeRate: 90.6,
-        activeTasks: 5,
-        capacityStatus: "light",
-      },
-      {
-        id: "c-4",
-        name: "Boutaina Cheraibi",
-        role: "Videographer & Video Editor",
-        initials: "BC",
-        completedTasks: 51,
-        avgDurationDays: 1.8,
-        onTimeRate: 80.4,
-        activeTasks: 26,
-        capacityStatus: "heavy",
-      },
-      {
-        id: "c-5",
-        name: "Imad Ouzrar",
-        role: "Senior Multimedia Services Officer",
-        initials: "IO",
-        completedTasks: 41,
-        avgDurationDays: 1.2,
-        onTimeRate: 97.6,
-        activeTasks: 8,
-        capacityStatus: "optimal",
-      },
-      {
-        id: "c-6",
-        name: "Bright Aboagye-Asare",
-        role: "Media & Production Specialist",
-        initials: "BA",
-        completedTasks: 35,
-        avgDurationDays: 0.9,
-        onTimeRate: 91.4,
-        activeTasks: 14,
-        capacityStatus: "optimal",
-      },
-    ];
-  }
-
-  // Workload by service
-  const serviceMap = new Map<string, { total: number; open: number; late: number; onTime: number }>();
-  const defaultServices = ["Photography", "Videography", "Content Creation", "Graphic Design", "Post Production"];
-
-  for (const s of defaultServices) {
-    serviceMap.set(s, { total: 0, open: 0, late: 0, onTime: 0 });
-  }
-
-  for (const t of allTasks) {
-    const serviceName =
-      t.specializations[0]?.specialization === "PHOTOGRAPHY"
-        ? "Photography"
-        : t.specializations[0]?.specialization === "VIDEOGRAPHY"
-          ? "Videography"
-          : t.specializations[0]?.specialization === "CONTENT_CREATION"
-            ? "Content Creation"
-            : t.specializations[0]?.specialization === "GRAPHIC_DESIGN"
-              ? "Graphic Design"
-              : "Post Production";
-
-    const entry = serviceMap.get(serviceName) ?? { total: 0, open: 0, late: 0, onTime: 0 };
-    entry.total += 1;
-    if (t.status !== TaskStatus.COMPLETED) {
-      entry.open += 1;
-      if (t.dueAt && t.dueAt < new Date()) {
-        entry.late += 1;
-      }
-    } else {
-      entry.onTime += 1;
-    }
-    serviceMap.set(serviceName, entry);
-  }
-
-  const serviceWorkloads = Array.from(serviceMap.entries()).map(([service, stats]) => ({
-    service,
-    total: stats.total > 0 ? stats.total : service === "Photography" ? 185 : service === "Videography" ? 94 : 36,
-    open: stats.open > 0 ? stats.open : service === "Photography" ? 42 : service === "Videography" ? 18 : 6,
-    late: stats.late > 0 ? stats.late : service === "Photography" ? 12 : service === "Videography" ? 6 : 2,
-    onTime: stats.onTime > 0 ? stats.onTime : service === "Photography" ? 131 : service === "Videography" ? 70 : 28,
-    avgTime: service === "Photography" ? "2.3 D" : service === "Videography" ? "2.8 D" : "1.5 D",
-  }));
-
-  // Dynamically calculate weekly load trends for the trailing 6 months ending in the current month
+  const totalTasks = Object.values(byStatus).reduce((sum, value) => sum + (value ?? 0), 0);
+  const totalCompleted = byStatus[TaskStatus.COMPLETED] ?? 0;
+  const completedAssignments = deliveryTotals[0]?.total ?? 0;
+  const onTimeRate = completedAssignments ? Math.round(((deliveryTotals[0]?.onTime ?? 0) / completedAssignments) * 1000) / 10 : 0;
+  const activeTasks = totalTasks - totalCompleted;
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonthIdx = now.getMonth();
-
-  const baselineDistributions = [
-    { w1: 18.5, w2: 32.0, w3: 27.5, w4: 22.0 },
-    { w1: 24.0, w2: 28.5, w3: 31.0, w4: 16.5 },
-    { w1: 30.0, w2: 25.0, w3: 25.0, w4: 20.0 },
-    { w1: 15.0, w2: 35.0, w3: 30.0, w4: 20.0 },
-    { w1: 22.5, w2: 27.5, w3: 32.5, w4: 17.5 },
-    { w1: 28.0, w2: 34.0, w3: 23.0, w4: 15.0 },
-  ];
-
-  const weeklyLoad: Array<{
-    month: string;
-    isCurrent?: boolean;
-    week1: number;
-    week2: number;
-    week3: number;
-    week4: number;
-  }> = [];
-
-  for (let offset = 5; offset >= 0; offset--) {
-    const targetDate = new Date(currentYear, currentMonthIdx - offset, 1);
-    const targetYear = targetDate.getFullYear();
-    const targetMonthIdx = targetDate.getMonth();
-    const isCurrent = offset === 0;
-    const monthShort = targetDate.toLocaleDateString("en-US", { month: "short" });
-
-    // Filter tasks whose workDate, dueAt, or createdAt falls into this target month
-    const tasksInMonth = allTasks.filter((t) => {
-      const d = t.workDate || t.dueAt || t.createdAt;
-      if (!d) return false;
-      const taskDate = new Date(d);
-      return (
-        taskDate.getFullYear() === targetYear &&
-        taskDate.getMonth() === targetMonthIdx
-      );
-    });
-
-    if (tasksInMonth.length > 0) {
-      let w1 = 0;
-      let w2 = 0;
-      let w3 = 0;
-      let w4 = 0;
-      for (const t of tasksInMonth) {
-        const d = new Date(t.workDate || t.dueAt || t.createdAt);
-        const day = d.getDate();
-        if (day <= 7) w1++;
-        else if (day <= 14) w2++;
-        else if (day <= 21) w3++;
-        else w4++;
-      }
-      const total = tasksInMonth.length;
-      weeklyLoad.push({
-        month: monthShort,
-        isCurrent,
-        week1: Math.round((w1 / total) * 100 * 10) / 10,
-        week2: Math.round((w2 / total) * 100 * 10) / 10,
-        week3: Math.round((w3 / total) * 100 * 10) / 10,
-        week4: Math.round((w4 / total) * 100 * 10) / 10,
-      });
-    } else {
-      const base = baselineDistributions[5 - offset];
-      weeklyLoad.push({
-        month: monthShort,
-        isCurrent,
-        week1: base.w1,
-        week2: base.w2,
-        week3: base.w3,
-        week4: base.w4,
-      });
-    }
-  }
-
+  const weeklyLoad = Array.from({ length: 6 }, (_, offset) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - 5 + offset, 1);
+    const month = date.toLocaleDateString("en-US", { month: "short" });
+    const matching = weeklyRows.filter((row) => row.month.getFullYear() === date.getFullYear() && row.month.getMonth() === date.getMonth());
+    const counts = [1, 2, 3, 4].map((week) => matching.find((row) => row.week === week)?.count ?? 0);
+    const total = counts.reduce((sum, value) => sum + value, 0);
+    const pct = (count: number) => total ? Math.round((count / total) * 1000) / 10 : 0;
+    return { month, isCurrent: offset === 5, week1: pct(counts[0]), week2: pct(counts[1]), week3: pct(counts[2]), week4: pct(counts[3]) };
+  });
+  const labels: Record<string, string> = { PHOTOGRAPHY: "Photography", VIDEOGRAPHY: "Videography", CONTENT_CREATION: "Content Creation", GRAPHIC_DESIGN: "Graphic Design", WEB_CREATION: "Web Creation", POST_PRODUCTION: "Post Production" };
+  const serviceMap = new Map(serviceRows.map((row) => [row.specialization, row]));
+  const serviceWorkloads = Object.entries(labels).map(([key, service]) => {
+    const row = serviceMap.get(key);
+    return { service, total: row?.total ?? 0, open: row?.open ?? 0, late: row?.late ?? 0, onTime: row?.on_time ?? 0, avgTime: "—" };
+  });
   return {
+    collaboratorsPage: page,
+    collaboratorsPageCount: pageCount,
+    collaboratorsTotal: workerCount,
     kpis: {
-      activeTasksPerPerson: activeTasksPerPerson > 0 ? activeTasksPerPerson : 11.1,
-      activeTasksBenchmark: 8.0,
-      teamProductivity: totalCompleted > 0 ? Math.round((totalCompleted / 4) * 10) / 10 : 1.0,
-      avgTaskDurationDays: 2.4,
-      onTimeDeliveryRate: onTimeRate,
-      workloadBalanceIndex: 7.89,
+      activeTasksPerPerson: workerCount ? Math.round((activeTasks / workerCount) * 10) / 10 : 0,
+      activeTasksBenchmark: 8, teamProductivity: totalCompleted, avgTaskDurationDays: 0,
+      onTimeDeliveryRate: onTimeRate, workloadBalanceIndex: 0,
     },
-    weeklyLoad,
-    serviceWorkloads,
-    collaborators: collaboratorsList,
+    weeklyLoad, serviceWorkloads, collaborators,
   };
 }
 
 export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
   const user = await requireRole(UserRole.WORKER);
-
-  const assignments = await prisma.taskAssignee.findMany({
-    where: { userId: user.id },
-    include: {
-      task: {
-        include: {
-          project: { select: { name: true } },
-        },
-      },
-    },
-    orderBy: { assignedAt: "desc" },
-  });
-
-  const active = assignments.filter(
-    (a) => a.status === TaskStatus.TODO || a.status === TaskStatus.IN_PROGRESS
+  const [statusCounts, upcomingRows, dailyLogs] = await Promise.all([
+    prisma.taskAssignee.groupBy({ by: ["status"], where: { userId: user.id, task: { deletedAt: null } }, _count: { _all: true } }),
+    prisma.taskAssignee.findMany({
+      where: { userId: user.id, status: { in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS] }, task: { deletedAt: null, type: TaskType.ASSIGNED } },
+      include: { task: { select: { id: true, title: true, priority: true, dueAt: true, project: { select: { name: true } } } } },
+      orderBy: [{ assignedAt: "desc" }, { taskId: "desc" }], take: 5,
+    }),
+    prisma.task.findMany({
+      where: { createdById: user.id, type: TaskType.DAILY_ENTRY, deletedAt: null },
+      select: { id: true, title: true, workDate: true, status: true, project: { select: { name: true } } },
+      orderBy: [{ workDate: "desc" }, { id: "desc" }], take: 5,
+    }),
+  ]);
+  const byStatus = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all])) as Partial<Record<TaskStatus, number>>;
+  const activeTasksCount = (byStatus[TaskStatus.TODO] ?? 0) + (byStatus[TaskStatus.IN_PROGRESS] ?? 0);
+  const completedTasksCount = byStatus[TaskStatus.COMPLETED] ?? 0;
+  const onTimeStats = await prisma.$queryRawUnsafe<Array<{ total: number; onTime: number }>>(
+    'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR a."submittedAt" IS NULL OR a."submittedAt" <= t."dueAt")::int AS "onTime" FROM "TaskAssignee" a JOIN "Task" t ON t."id" = a."taskId" WHERE a."userId" = $1 AND a."status" = \'COMPLETED\' AND t."deletedAt" IS NULL',
+    user.id,
   );
-  const completed = assignments.filter((a) => a.status === TaskStatus.COMPLETED);
-
-  const onTime = completed.filter((a) => {
-    if (!a.task.dueAt || !a.submittedAt) return true;
-    return a.submittedAt <= a.task.dueAt;
-  }).length;
-
-  const onTimeRate =
-    completed.length > 0
-      ? Math.round((onTime / completed.length) * 100 * 10) / 10
-      : 92.5;
-
-  const upcomingTasks = active.slice(0, 5).map((a) => ({
-    id: a.task.id,
-    title: a.task.title,
-    projectName: a.task.project.name,
-    priority: a.task.priority,
-    dueAt: a.task.dueAt ? a.task.dueAt.toISOString() : null,
-    status: a.status,
-  }));
-
-  const dailyLogs = await prisma.task.findMany({
-    where: {
-      createdById: user.id,
-      type: TaskType.DAILY_ENTRY,
-      deletedAt: null,
-    },
-    include: { project: { select: { name: true } } },
-    orderBy: { workDate: "desc" },
-    take: 5,
-  });
+  const completedTotal = onTimeStats[0]?.total ?? 0;
+  const onTimeRate = completedTotal ? Math.round(((onTimeStats[0]?.onTime ?? 0) / completedTotal) * 1000) / 10 : 0;
+  const upcomingTasks = upcomingRows.map(({ task, status }) => ({ id: task.id, title: task.title, projectName: task.project.name, priority: task.priority, dueAt: task.dueAt?.toISOString() ?? null, status }));
 
   const recentDailyLogs = dailyLogs.map((t) => ({
-    id: t.id,
-    title: t.title,
-    projectName: t.project.name,
-    workDate: t.workDate ? t.workDate.toISOString() : null,
-    status: t.status,
+    id: t.id, title: t.title, projectName: t.project.name,
+    workDate: t.workDate?.toISOString() ?? null, status: t.status,
   }));
 
   // Generate rolling 6 months task velocity ending in current month
@@ -504,12 +268,12 @@ export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
   const currentMonthIdx = now.getMonth();
 
   const baselineWorkerActivity = [
-    { completed: 5, active: 1 },
-    { completed: 8, active: 2 },
-    { completed: 6, active: 1 },
-    { completed: 9, active: 2 },
-    { completed: 7, active: 1 },
-    { completed: Math.max(completed.length, 4), active: Math.max(active.length, 1) },
+    { completed: 0, active: 0 },
+    { completed: 0, active: 0 },
+    { completed: 0, active: 0 },
+    { completed: 0, active: 0 },
+    { completed: 0, active: 0 },
+    { completed: completedTasksCount, active: activeTasksCount },
   ];
 
   const taskTrend = [];
@@ -529,8 +293,8 @@ export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
 
   return {
     kpis: {
-      activeTasksCount: active.length,
-      completedTasksCount: completed.length,
+      activeTasksCount,
+      completedTasksCount,
       onTimeRate,
       avgDurationDays: 1.8,
     },
@@ -542,148 +306,88 @@ export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
 
 export async function getClientAnalytics(): Promise<ClientAnalyticsData> {
   const user = await requireRole(UserRole.CLIENT);
-
-  const projects = await prisma.project.findMany({
-    where: { clientId: user.id },
-    include: {
-      manager: { select: { name: true, email: true } },
-      tasks: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          priority: true,
-          completedAt: true,
-          dueAt: true,
-          updatedAt: true,
-        },
+  const [activeProjectsCount, statusCounts, projects] = await Promise.all([
+    prisma.project.count({ where: { clientId: user.id } }),
+    prisma.task.groupBy({
+      by: ["status"],
+      where: { project: { clientId: user.id }, deletedAt: null },
+      _count: { _all: true },
+    }),
+    prisma.project.findMany({
+      where: { clientId: user.id },
+      select: {
+        id: true, name: true, updatedAt: true,
+        manager: { select: { name: true } },
       },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  const allClientTasks = projects.flatMap((p) =>
-    p.tasks.map((t) => ({ ...t, projectName: p.name }))
-  );
-
-  const completed = allClientTasks.filter((t) => t.status === TaskStatus.COMPLETED);
-  const inProgress = allClientTasks.filter((t) => t.status !== TaskStatus.COMPLETED);
-
-  const onTime = completed.filter((t) => {
-    if (!t.dueAt || !t.completedAt) return true;
-    return t.completedAt <= t.dueAt;
-  }).length;
-
-  const onTimeDeliveryRate =
-    completed.length > 0
-      ? Math.round((onTime / completed.length) * 100 * 10) / 10
-      : 95.0;
-
-  const projectSummaries = projects.map((p) => {
-    const total = p.tasks.length;
-    const comp = p.tasks.filter((t) => t.status === TaskStatus.COMPLETED).length;
-    const pct = total > 0 ? Math.round((comp / total) * 100) : 0;
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: 6,
+    }),
+  ]);
+  const byStatus = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all])) as Partial<Record<TaskStatus, number>>;
+  const completedCount = byStatus[TaskStatus.COMPLETED] ?? 0;
+  const inProgressCount = Object.values(byStatus).reduce((sum, count) => sum + (count ?? 0), 0) - completedCount;
+  const projectIds = projects.map((project) => project.id);
+  const projectStatusCounts = projectIds.length
+    ? await prisma.task.groupBy({ by: ["projectId", "status"], where: { projectId: { in: projectIds }, deletedAt: null }, _count: { _all: true } })
+    : [];
+  const taskCounts = new Map<string, { total: number; completed: number }>();
+  for (const row of projectStatusCounts) {
+    const summary = taskCounts.get(row.projectId) ?? { total: 0, completed: 0 };
+    summary.total += row._count._all;
+    if (row.status === TaskStatus.COMPLETED) summary.completed = row._count._all;
+    taskCounts.set(row.projectId, summary);
+  }
+  const projectSummaries = projects.map((project) => {
+    const summary = taskCounts.get(project.id) ?? { total: 0, completed: 0 };
     return {
-      id: p.id,
-      name: p.name,
-      managerName: cleanClientName(p.manager.name) || p.manager.email,
-      totalTasks: total,
-      completedTasks: comp,
-      progressPercentage: pct,
-      updatedAt: p.updatedAt.toISOString(),
+      id: project.id, name: project.name, managerName: cleanClientName(project.manager.name),
+      totalTasks: summary.total, completedTasks: summary.completed,
+      progressPercentage: summary.total ? Math.round((summary.completed / summary.total) * 100) : 0,
+      updatedAt: project.updatedAt.toISOString(),
     };
   });
-
-  const recentDeliverables = completed.slice(0, 5).map((t) => ({
-    id: t.id,
-    title: t.title,
-    projectName: t.projectName,
-    completedAt: t.completedAt ? t.completedAt.toISOString() : null,
-    priority: t.priority,
-  }));
-
-  // Generate rolling 6 months delivery trend ending in current month
+  const recentRows = await prisma.task.findMany({
+    where: { project: { clientId: user.id }, deletedAt: null, status: TaskStatus.COMPLETED },
+    select: { id: true, title: true, priority: true, completedAt: true, project: { select: { name: true } } },
+    orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+    take: 5,
+  });
+  const onTimeStats = await prisma.$queryRawUnsafe<Array<{ total: number; onTime: number }>>(
+    'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime" FROM "Task" t JOIN "Project" p ON p."id" = t."projectId" WHERE p."clientId" = $1 AND t."deletedAt" IS NULL AND t."status" = \'COMPLETED\'',
+    user.id,
+  );
+  const completedTotal = onTimeStats[0]?.total ?? 0;
+  const onTimeDeliveryRate = completedTotal ? Math.round(((onTimeStats[0]?.onTime ?? 0) / completedTotal) * 1000) / 10 : 0;
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonthIdx = now.getMonth();
-
-  const baselineDeliveryCounts = [
-    { delivered: 4, inProg: 1, rate: 100 },
-    { delivered: 6, inProg: 2, rate: 95 },
-    { delivered: 5, inProg: 1, rate: 92 },
-    { delivered: 8, inProg: 3, rate: 96 },
-    { delivered: 7, inProg: 2, rate: 94 },
-    { delivered: Math.max(completed.length, 3), inProg: Math.max(inProgress.length, 1), rate: onTimeDeliveryRate },
-  ];
-
-  const deliveryTrend = [];
-  for (let offset = 5; offset >= 0; offset--) {
-    const targetDate = new Date(currentYear, currentMonthIdx - offset, 1);
-    const monthShort = targetDate.toLocaleDateString("en-US", { month: "short" });
-    const isCurrent = offset === 0;
-
-    const base = baselineDeliveryCounts[5 - offset];
-    deliveryTrend.push({
-      month: monthShort,
-      isCurrent,
-      deliveredCount: base.delivered,
-      inProductionCount: base.inProg,
-      onTimeRate: base.rate,
-    });
-  }
-
-  // Creative stream breakdown
-  const totalDeliverablesCount = Math.max(allClientTasks.length, 12);
+  const deliveryTrend = Array.from({ length: 6 }, (_, offset) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - 5 + offset, 1);
+    return {
+      month: date.toLocaleDateString("en-US", { month: "short" }),
+      isCurrent: offset === 5,
+      deliveredCount: offset === 5 ? completedCount : 0,
+      inProductionCount: offset === 5 ? inProgressCount : 0,
+      onTimeRate: offset === 5 ? onTimeDeliveryRate : 0,
+    };
+  });
+  const totalDeliverables = completedCount + inProgressCount;
   const categoryBreakdown = [
-    {
-      category: "Photography & Ceremony Stills",
-      total: Math.round(totalDeliverablesCount * 0.45) || 5,
-      completed: Math.round(completed.length * 0.5) || 4,
-      percentage: 45,
-      onTimeRate: 98.0,
-    },
-    {
-      category: "Retouching & Color Grading",
-      total: Math.round(totalDeliverablesCount * 0.3) || 4,
-      completed: Math.round(completed.length * 0.3) || 3,
-      percentage: 30,
-      onTimeRate: 95.5,
-    },
-    {
-      category: "4K Motion Teasers & Highlights",
-      total: Math.round(totalDeliverablesCount * 0.15) || 2,
-      completed: Math.round(completed.length * 0.15) || 2,
-      percentage: 15,
-      onTimeRate: 92.0,
-    },
-    {
-      category: "Aerial & Venue Drone Cinematography",
-      total: Math.round(totalDeliverablesCount * 0.1) || 1,
-      completed: Math.round(completed.length * 0.05) || 1,
-      percentage: 10,
-      onTimeRate: 100.0,
-    },
+    { category: "Photography & Ceremony Stills", total: Math.round(totalDeliverables * 0.45), completed: Math.round(completedCount * 0.45), percentage: 45, onTimeRate: onTimeDeliveryRate },
+    { category: "Retouching & Color Grading", total: Math.round(totalDeliverables * 0.3), completed: Math.round(completedCount * 0.3), percentage: 30, onTimeRate: onTimeDeliveryRate },
+    { category: "4K Motion Teasers & Highlights", total: Math.round(totalDeliverables * 0.15), completed: Math.round(completedCount * 0.15), percentage: 15, onTimeRate: onTimeDeliveryRate },
+    { category: "Aerial & Venue Drone Cinematography", total: Math.round(totalDeliverables * 0.1), completed: Math.round(completedCount * 0.1), percentage: 10, onTimeRate: onTimeDeliveryRate },
   ];
-
   return {
     kpis: {
-      activeProjectsCount: projects.length,
-      completedDeliverablesCount: completed.length,
-      inProgressDeliverablesCount: inProgress.length,
-      onTimeDeliveryRate,
-      avgTurnaroundDays: 2.4,
-      clientSatisfactionScore: 98.6,
+      activeProjectsCount, completedDeliverablesCount: completedCount,
+      inProgressDeliverablesCount: inProgressCount, onTimeDeliveryRate,
+      avgTurnaroundDays: 0, clientSatisfactionScore: 0,
     },
-    deliveryTrend,
-    categoryBreakdown,
-    qualityMetrics: {
-      onTimeFulfillment: onTimeDeliveryRate,
-      firstPassAcceptance: 94.2,
-      avgTurnaroundDays: 2.4,
-      revisionCycleAvg: 1.1,
-    },
+    deliveryTrend, categoryBreakdown,
+    qualityMetrics: { onTimeFulfillment: onTimeDeliveryRate, firstPassAcceptance: 0, avgTurnaroundDays: 0, revisionCycleAvg: 0 },
     projects: projectSummaries,
-    recentDeliverables,
+    recentDeliverables: recentRows.map((task) => ({
+      id: task.id, title: task.title, projectName: task.project.name,
+      completedAt: task.completedAt?.toISOString() ?? null, priority: task.priority,
+    })),
   };
 }

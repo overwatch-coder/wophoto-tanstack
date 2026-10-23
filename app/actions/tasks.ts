@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { Prisma, Specialization, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { getTasks } from "@/lib/tasks";
 
 export type TaskActionState = { error?: string; success?: string; taskId?: string };
 const paths = ["/manager/tasks", "/worker/tasks"];
@@ -56,14 +55,6 @@ async function recompute(tx: Prisma.TransactionClient, taskId: string) {
   await tx.task.update({ where: { id: taskId }, data: { status, completedAt: null } });
 }
 const invalidateTasks = () => paths.forEach((path) => revalidatePath(path));
-
-export async function loadMoreTasks(cursor: string, status?: string, priority?: string) {
-  return getTasks({ cursor, status, priority });
-}
-
-export async function filterTasks(status?: string, priority?: string) {
-  return getTasks({ status, priority });
-}
 
 export async function createAssignedTask(_state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {

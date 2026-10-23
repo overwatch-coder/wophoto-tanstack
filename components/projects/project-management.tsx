@@ -1,6 +1,15 @@
-"use client";
+"use client"
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Briefcase,
   Calendar,
@@ -14,11 +23,10 @@ import {
   Search,
   Sparkles,
   User,
-  X,
-} from "lucide-react";
-import { createProject, type ProjectActionState } from "@/app/actions/projects";
-import { cleanClientName } from "@/lib/format";
-import { Button } from "@/components/ui/button";
+} from "lucide-react"
+import { createProject, type ProjectActionState } from "@/app/actions/projects"
+import { cleanClientName } from "@/lib/format"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogClose,
@@ -28,39 +36,55 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Pagination } from "@/components/ui/pagination"
+import type { SearchParamsRecord } from "@/lib/pagination"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
-export type ClientOption = { id: string; name: string | null; email?: string | null };
+export type ClientOption = {
+  id: string
+  name: string | null
+  email?: string | null
+}
 
 export type ProjectTask = {
-  id: string;
-  status: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED";
-  dueAt: Date | string | null;
-};
+  id: string
+  status: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED"
+  dueAt: Date | string | null
+}
 
 export type ProjectItem = {
-  id: string;
-  name: string;
-  description: string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-  client: {
-    id: string;
-    name: string | null;
-    email?: string | null;
-  };
-  tasks?: ProjectTask[];
-};
+  id: string
+  name: string
+  description: string | null
+  createdAt: Date | string
+  updatedAt: Date | string
+  client: { id: string; name: string | null }
+  taskSummary: {
+    total: number
+    completed: number
+    review: boolean
+    latestDueAt: Date | null
+  }
+  status: "PLANNING" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED"
+}
 
 function getClientAvatarColor(name: string): string {
   const colors = [
@@ -70,34 +94,23 @@ function getClientAvatarColor(name: string): string {
     "bg-emerald-600 text-white",
     "bg-rose-600 text-white",
     "bg-amber-600 text-white",
-  ];
-  let hash = 0;
+  ]
+  let hash = 0
   for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
   }
-  return colors[Math.abs(hash) % colors.length];
-}
-
-function computeProjectStatus(tasks: ProjectTask[] = []): "PLANNING" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED" {
-  if (tasks.length === 0) return "PLANNING";
-  const completed = tasks.filter((t) => t.status === "COMPLETED").length;
-  if (completed === tasks.length) return "COMPLETED";
-  const inReview = tasks.filter((t) => t.status === "IN_REVIEW").length;
-  if (inReview > 0) return "IN_REVIEW";
-  const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS").length;
-  if (inProgress > 0) return "IN_PROGRESS";
-  return "IN_PROGRESS";
+  return colors[Math.abs(hash) % colors.length]
 }
 
 function formatDate(dateValue: Date | string | null | undefined): string {
-  if (!dateValue) return "No date set";
-  const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue;
-  if (Number.isNaN(date.getTime())) return "No date set";
+  if (!dateValue) return "No date set"
+  const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue
+  if (Number.isNaN(date.getTime())) return "No date set"
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  });
+  })
 }
 
 function ViewProjectDialog({
@@ -107,14 +120,15 @@ function ViewProjectDialog({
   totalTasks,
   percentComplete,
 }: {
-  project: ProjectItem;
-  status: "PLANNING" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED";
-  completedTasks: number;
-  totalTasks: number;
-  percentComplete: number;
+  project: ProjectItem
+  status: "PLANNING" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED"
+  completedTasks: number
+  totalTasks: number
+  percentComplete: number
 }) {
-  const [open, setOpen] = useState(false);
-  const clientDisplayName = cleanClientName(project.client.name) || "Unnamed client";
+  const [open, setOpen] = useState(false)
+  const clientDisplayName =
+    cleanClientName(project.client.name) || "Unnamed client"
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -133,23 +147,25 @@ function ViewProjectDialog({
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader className="pr-10">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Project Details</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Project Details
+            </span>
             <span className="text-muted-foreground/30">•</span>
             <span
-              className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+              className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase ${
                 status === "COMPLETED"
                   ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                   : status === "IN_REVIEW"
-                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                  : status === "IN_PROGRESS"
-                  ? "bg-sky-500/15 text-sky-700 dark:text-sky-400"
-                  : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                    : status === "IN_PROGRESS"
+                      ? "bg-sky-500/15 text-sky-700 dark:text-sky-400"
+                      : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
               }`}
             >
               {status.replace("_", " ")}
             </span>
           </div>
-          <DialogTitle className="mt-1 text-xl font-semibold leading-snug text-foreground">
+          <DialogTitle className="mt-1 text-xl leading-snug font-semibold text-foreground">
             {project.name}
           </DialogTitle>
         </DialogHeader>
@@ -162,10 +178,9 @@ function ViewProjectDialog({
                 <User className="size-3" />
                 <span>Client</span>
               </span>
-              <p className="mt-0.5 font-semibold text-foreground">{clientDisplayName}</p>
-              {project.client.email && (
-                <p className="text-[10px] text-muted-foreground">{project.client.email}</p>
-              )}
+              <p className="mt-0.5 font-semibold text-foreground">
+                {clientDisplayName}
+              </p>
             </div>
 
             <div>
@@ -190,7 +205,7 @@ function ViewProjectDialog({
                 {completedTasks} / {totalTasks} tasks ({percentComplete}%)
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border/60">
+            <div className="h-2 w-full overflow-hidden rounded-full border border-border/60 bg-muted">
               <div
                 className="h-full rounded-full bg-orange-600 transition-all duration-300"
                 style={{ width: `${percentComplete}%` }}
@@ -200,38 +215,40 @@ function ViewProjectDialog({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h4 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Description
             </h4>
             {project.description ? (
-              <div className="whitespace-pre-wrap rounded-md border border-border bg-background p-3 text-xs leading-relaxed text-foreground">
+              <div className="rounded-md border border-border bg-background p-3 text-xs leading-relaxed whitespace-pre-wrap text-foreground">
                 {project.description}
               </div>
             ) : (
-              <p className="text-xs italic text-muted-foreground">
+              <p className="text-xs text-muted-foreground italic">
                 No description provided for this project.
               </p>
             )}
           </div>
         </div>
 
-        <DialogFooter className="-mx-4 -mb-4 mt-4 border-t border-border bg-muted/40 px-4 py-3">
-          <DialogClose render={<Button variant="outline" className="h-8 text-xs">Close</Button>} />
+        <DialogFooter className="-mx-4 mt-4 -mb-4 border-t border-border bg-muted/40 px-4 py-3">
+          <DialogClose
+            render={
+              <Button variant="outline" className="h-8 text-xs">
+                Close
+              </Button>
+            }
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
-function CreateProjectDialog({
-  clients,
-}: {
-  clients: ClientOption[];
-}) {
-  const [open, setOpen] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [state, setState] = useState<ProjectActionState>({});
-  const [pending, startTransition] = useTransition();
+function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
+  const [open, setOpen] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const [state, setState] = useState<ProjectActionState>({})
+  const [pending, startTransition] = useTransition()
 
   const clientItems = useMemo(
     () =>
@@ -240,25 +257,25 @@ function CreateProjectDialog({
         label: cleanClientName(client.name) || "Unnamed client",
       })),
     [clients]
-  );
+  )
 
   const handleSubmit = (formData: FormData) => {
-    setState({});
+    setState({})
     startTransition(async () => {
-      const res = await createProject({}, formData);
-      setState(res);
+      const res = await createProject({}, formData)
+      setState(res)
       if (res.success) {
-        formRef.current?.reset();
-        setOpen(false);
+        formRef.current?.reset()
+        setOpen(false)
       }
-    });
-  };
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button className="h-9 gap-2 rounded-full bg-orange-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-orange-700">
+          <Button className="h-9 w-full gap-2 rounded-full bg-orange-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-orange-700 sm:w-auto">
             <Plus className="size-4" />
             <span>Add Project</span>
           </Button>
@@ -275,7 +292,8 @@ function CreateProjectDialog({
                 Create New Project
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Set up a new production project and assign it to an active client.
+                Set up a new production project and assign it to an active
+                client.
               </DialogDescription>
             </div>
           </div>
@@ -283,13 +301,17 @@ function CreateProjectDialog({
 
         {clients.length === 0 ? (
           <div className="my-2 rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">
-            No eligible clients found. Go to <strong>Team Invitations</strong> to invite a client
-            and ensure they have accepted before creating a project.
+            No eligible clients found. Go to <strong>Team Invitations</strong>{" "}
+            to invite a client and ensure they have accepted before creating a
+            project.
           </div>
         ) : (
           <form ref={formRef} action={handleSubmit} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label htmlFor="create-project-name" className="text-xs font-medium text-foreground">
+              <Label
+                htmlFor="create-project-name"
+                className="text-xs font-medium text-foreground"
+              >
                 Project Name <span className="text-rose-500">*</span>
               </Label>
               <Input
@@ -303,16 +325,26 @@ function CreateProjectDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="create-project-client" className="text-xs font-medium text-foreground">
+              <Label
+                htmlFor="create-project-client"
+                className="text-xs font-medium text-foreground"
+              >
                 Client <span className="text-rose-500">*</span>
               </Label>
               <Select name="clientId" required items={clientItems}>
-                <SelectTrigger id="create-project-client" className="h-9 w-full text-xs">
+                <SelectTrigger
+                  id="create-project-client"
+                  className="h-9 w-full text-xs"
+                >
                   <SelectValue placeholder="Choose an active client" />
                 </SelectTrigger>
                 <SelectContent>
                   {clientItems.map((client) => (
-                    <SelectItem key={client.value} value={client.value} className="text-xs">
+                    <SelectItem
+                      key={client.value}
+                      value={client.value}
+                      className="text-xs"
+                    >
                       {client.label}
                     </SelectItem>
                   ))}
@@ -321,8 +353,14 @@ function CreateProjectDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="create-project-desc" className="text-xs font-medium text-foreground">
-                Description <span className="font-normal text-muted-foreground">(optional)</span>
+              <Label
+                htmlFor="create-project-desc"
+                className="text-xs font-medium text-foreground"
+              >
+                Description{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
               </Label>
               <Textarea
                 id="create-project-desc"
@@ -340,10 +378,14 @@ function CreateProjectDialog({
               </p>
             ) : null}
 
-            <DialogFooter className="-mx-4 -mb-4 mt-5 border-t border-border bg-muted/30 px-4 py-3">
+            <DialogFooter className="-mx-4 mt-5 -mb-4 border-t border-border bg-muted/30 px-4 py-3">
               <DialogClose
                 render={
-                  <Button type="button" variant="outline" className="h-8 px-3 text-xs">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
+                  >
                     Cancel
                   </Button>
                 }
@@ -361,93 +403,120 @@ function CreateProjectDialog({
         )}
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 export function ProjectManagement({
   projects,
   clients,
+  summary,
+  page,
+  totalPages,
+  totalProjects,
+  searchParams,
 }: {
-  projects: ProjectItem[];
-  clients: ClientOption[];
+  projects: ProjectItem[]
+  clients: ClientOption[]
+  summary: {
+    active: number
+    inReview: number
+    completed: number
+    totalTasks: number
+    completedTasks: number
+  }
+  page: number
+  totalPages: number
+  totalProjects: number
+  searchParams: SearchParamsRecord
 }) {
-  const [search, setSearch] = useState("");
-  const [clientFilter, setClientFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-
-  // Calculate project metrics and status
+  const router = useRouter()
   const projectsWithMeta = useMemo(() => {
     return projects.map((p) => {
-      const tasks = p.tasks ?? [];
-      const totalTasks = tasks.length;
-      const completedTasks = tasks.filter((t) => t.status === "COMPLETED").length;
+      const totalTasks = p.taskSummary.total
+      const completedTasks = p.taskSummary.completed
       const percentComplete =
-        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-      const status = computeProjectStatus(tasks);
-
-      // Latest target date
-      const taskDueDates = tasks
-        .map((t) => (t.dueAt ? new Date(t.dueAt).getTime() : 0))
-        .filter((d) => d > 0);
-      const latestDueTimestamp =
-        taskDueDates.length > 0 ? Math.max(...taskDueDates) : null;
-      const targetDateStr = latestDueTimestamp
-        ? formatDate(new Date(latestDueTimestamp))
-        : formatDate(p.updatedAt);
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+      const targetDateStr = p.taskSummary.latestDueAt
+        ? formatDate(p.taskSummary.latestDueAt)
+        : formatDate(p.updatedAt)
 
       return {
         ...p,
-        status,
+        status: p.status,
         totalTasks,
         completedTasks,
         percentComplete,
         targetDateStr,
-      };
-    });
-  }, [projects]);
+      }
+    })
+  }, [projects])
 
-  // Overall KPI metrics
-  const activeCount = projectsWithMeta.filter((p) => p.status === "IN_PROGRESS").length;
-  const inReviewCount = projectsWithMeta.filter((p) => p.status === "IN_REVIEW").length;
-  const completedCount = projectsWithMeta.filter((p) => p.status === "COMPLETED").length;
-  const totalTasksCount = projectsWithMeta.reduce((acc, p) => acc + p.totalTasks, 0);
-  const totalCompletedTasks = projectsWithMeta.reduce(
-    (acc, p) => acc + p.completedTasks,
-    0
-  );
+  const filteredProjects = projectsWithMeta
+  const search = typeof searchParams.q === "string" ? searchParams.q : ""
+  const clientFilter =
+    typeof searchParams.client === "string" ? searchParams.client : "ALL"
+  const [searchDraft, setSearchDraft] = useState({
+    source: search,
+    value: search,
+  })
+  const [clientDraft, setClientDraft] = useState({
+    source: clientFilter,
+    value: clientFilter,
+  })
+  const searchInput = searchDraft.source === search ? searchDraft.value : search
+  const selectedClient =
+    clientDraft.source === clientFilter ? clientDraft.value : clientFilter
+  const clientFilterOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          clients.map(
+            (client) => cleanClientName(client.name) || "Unnamed client"
+          )
+        )
+      ),
+    [clients]
+  )
 
-  // Filtered projects
-  const filteredProjects = useMemo(() => {
-    return projectsWithMeta.filter((p) => {
-      const clientName = cleanClientName(p.client.name) || "";
-      const matchesSearch =
-        !search ||
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(search.toLowerCase())) ||
-        clientName.toLowerCase().includes(search.toLowerCase());
+  const updateProjectFilters = useCallback(
+    (nextSearch: string, nextClient: string) => {
+      const params = new URLSearchParams()
+      const trimmedSearch = nextSearch.trim()
+      if (trimmedSearch) params.set("q", trimmedSearch)
+      if (nextClient !== "ALL") params.set("client", nextClient)
+      const query = params.toString()
+      router.replace(
+        query ? `/manager/projects?${query}` : "/manager/projects",
+        { scroll: false }
+      )
+    },
+    [router]
+  )
 
-      const matchesClient =
-        clientFilter === "ALL" || p.client.id === clientFilter;
-
-      const matchesStatus =
-        statusFilter === "ALL" || p.status === statusFilter;
-
-      return matchesSearch && matchesClient && matchesStatus;
-    });
-  }, [projectsWithMeta, search, clientFilter, statusFilter]);
+  useEffect(() => {
+    if (searchInput.trim() === search) return
+    const timeout = window.setTimeout(
+      () => updateProjectFilters(searchInput, selectedClient),
+      350
+    )
+    return () => window.clearTimeout(timeout)
+  }, [searchInput, search, selectedClient, updateProjectFilters])
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       {/* Top Header Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Projects</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Projects
+          </h1>
           <p className="text-xs text-muted-foreground">
-            Manage productions, track task progress, and collaborate with assigned clients.
+            Manage productions, track task progress, and collaborate with
+            assigned clients.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="w-full sm:w-auto">
           <CreateProjectDialog clients={clients} />
         </div>
       </div>
@@ -464,7 +533,7 @@ export function ProjectManagement({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-foreground">
-              {activeCount}
+              {summary.active}
             </span>
             <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               Active projects
@@ -482,7 +551,7 @@ export function ProjectManagement({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-foreground">
-              {inReviewCount}
+              {summary.inReview}
             </span>
             <span className="text-[11px] font-medium text-muted-foreground">
               With clients
@@ -500,7 +569,7 @@ export function ProjectManagement({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-foreground">
-              {totalCompletedTasks}/{totalTasksCount}
+              {summary.completedTasks}/{summary.totalTasks}
             </span>
             <span className="text-[11px] font-medium text-muted-foreground">
               Tasks logged
@@ -518,7 +587,7 @@ export function ProjectManagement({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold tracking-tight text-foreground">
-              {completedCount}
+              {summary.completed}
             </span>
             <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               Delivered
@@ -527,69 +596,83 @@ export function ProjectManagement({
         </div>
       </div>
 
-      {/* Control Filters Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-xs lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative flex-1 lg:max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search projects or clients..."
-            className="h-8.5 pl-8 pr-8 text-xs bg-background"
+      <section
+        aria-label="Project filters"
+        className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center"
+      >
+        <div className="relative min-w-0 flex-1">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
           />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          <Input
+            type="search"
+            value={searchInput}
+            onChange={(event) =>
+              setSearchDraft({ source: search, value: event.target.value })
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                updateProjectFilters(searchInput, selectedClient)
+              }
+            }}
+            placeholder="Search projects or clients"
+            aria-label="Search projects or clients"
+            className="h-10 bg-background pl-10"
+          />
+        </div>
+        <div className="w-full shrink-0 sm:w-56">
+          <Label htmlFor="project-client-filter" className="sr-only">
+            Filter by client
+          </Label>
+          <Select
+            value={selectedClient}
+            onValueChange={(value) => {
+              const nextClient = value ?? "ALL"
+              setClientDraft({ source: clientFilter, value: nextClient })
+              updateProjectFilters(searchInput, nextClient)
+            }}
+            items={[
+              { value: "ALL", label: "All clients" },
+              ...clientFilterOptions.map((name) => ({
+                value: name,
+                label: name,
+              })),
+            ]}
+          >
+            <SelectTrigger
+              id="project-client-filter"
+              className="h-10 w-full bg-background"
             >
-              <X className="size-3.5" />
-            </button>
-          )}
+              <SelectValue placeholder="All clients" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All clients</SelectItem>
+              {clientFilterOptions.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Client Filter */}
-          <select
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            className="h-8 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground outline-none focus:border-orange-500"
-          >
-            <option value="ALL">All Clients ({clients.length})</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {cleanClientName(c.name) || "Unnamed client"}
-              </option>
-            ))}
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-8 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground outline-none focus:border-orange-500"
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="IN_REVIEW">In Review</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="PLANNING">Planning</option>
-          </select>
-        </div>
-      </div>
+      </section>
 
       {/* Projects Table */}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
         {filteredProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-center">
-            <FolderKanban className="size-10 text-muted-foreground/40 mb-3" />
+            <FolderKanban className="mb-3 size-10 text-muted-foreground/40" />
             <p className="text-sm font-semibold text-foreground">
-              {projects.length === 0 ? "No projects created yet" : "No projects found"}
+              {projects.length === 0
+                ? "No projects created yet"
+                : "No projects found"}
             </p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+            <p className="mt-1 max-w-xs text-xs text-muted-foreground">
               {projects.length === 0
                 ? "Click the button below to set up your first production project."
-                : "No projects match your current search or filter criteria. Try resetting filters."}
+                : "No projects match your current search. Try another search."}
             </p>
             {projects.length === 0 ? (
               <div className="mt-4">
@@ -597,13 +680,10 @@ export function ProjectManagement({
               </div>
             ) : (
               <Button
+                nativeButton={false}
+                render={<Link href="/manager/projects" />}
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setSearch("");
-                  setClientFilter("ALL");
-                  setStatusFilter("ALL");
-                }}
                 className="mt-4 text-xs"
               >
                 Reset Filters
@@ -611,154 +691,283 @@ export function ProjectManagement({
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="px-5 py-3">Project Title</th>
-                  <th className="px-4 py-3">Client</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Progress</th>
-                  <th className="px-4 py-3">Target Date / Updated</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredProjects.map((p) => {
-                  const clientDisplayName =
-                    cleanClientName(p.client.name) || "Unnamed client";
-                  const avatarColor = getClientAvatarColor(clientDisplayName);
+          <>
+            <div className="space-y-3 p-3 lg:hidden">
+              {filteredProjects.map((p) => {
+                const clientDisplayName =
+                  cleanClientName(p.client.name) || "Unnamed client"
+                const avatarColor = getClientAvatarColor(clientDisplayName)
 
-                  return (
-                    <tr key={p.id} className="transition-colors hover:bg-muted/30">
-                      {/* Project Title */}
-                      <td className="px-5 py-3.5">
-                        <div className="space-y-0.5">
-                          <span className="font-semibold text-foreground text-sm hover:text-orange-600 dark:hover:text-orange-400 cursor-pointer">
-                            {p.name}
-                          </span>
-                          {p.description ? (
-                            <p className="line-clamp-1 max-w-sm text-xs text-muted-foreground">
-                              {p.description}
-                            </p>
-                          ) : (
-                            <p className="text-[11px] italic text-muted-foreground/70">
-                              No description
-                            </p>
-                          )}
-                        </div>
-                      </td>
+                return (
+                  <article
+                    key={p.id}
+                    className="min-w-0 rounded-lg border border-border bg-background p-3.5 shadow-xs"
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h2 className="text-sm leading-snug font-semibold break-words text-foreground">
+                          {p.name}
+                        </h2>
+                        {p.description ? (
+                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            {p.description}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                          p.status === "COMPLETED"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : p.status === "IN_REVIEW"
+                              ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                              : p.status === "IN_PROGRESS"
+                                ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+                                : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        <span
+                          className={`size-1.5 rounded-full ${
+                            p.status === "COMPLETED"
+                              ? "bg-emerald-500"
+                              : p.status === "IN_REVIEW"
+                                ? "bg-amber-500"
+                                : p.status === "IN_PROGRESS"
+                                  ? "bg-sky-500"
+                                  : "bg-muted-foreground/60"
+                          }`}
+                        />
+                        {p.status === "IN_PROGRESS"
+                          ? "In progress"
+                          : p.status === "IN_REVIEW"
+                            ? "In review"
+                            : p.status === "COMPLETED"
+                              ? "Completed"
+                              : "Planning"}
+                      </span>
+                    </div>
 
-                      {/* Client with Avatar */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarColor}`}
-                          >
-                            {clientDisplayName.charAt(0).toUpperCase()}
-                          </span>
-                          <div>
-                            <p className="text-xs font-semibold text-foreground">
-                              {clientDisplayName}
-                            </p>
-                            {p.client.email && (
-                              <p className="text-[10px] text-muted-foreground">
-                                {p.client.email}
+                    <div className="mt-3 flex min-w-0 items-center gap-2 border-t border-border pt-3">
+                      <span
+                        className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarColor}`}
+                      >
+                        {clientDisplayName.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 truncate text-xs font-medium text-foreground">
+                        {clientDisplayName}
+                      </span>
+                      <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                        {p.targetDateStr}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-1.5">
+                      <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                        <span>
+                          {p.completedTasks} of {p.totalTasks} tasks
+                        </span>
+                        <span className="font-semibold text-foreground tabular-nums">
+                          {p.percentComplete}%
+                        </span>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label={`${p.name} progress`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={p.percentComplete}
+                        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                      >
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${p.percentComplete}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex justify-end border-t border-border pt-2.5">
+                      <ViewProjectDialog
+                        project={p}
+                        status={p.status}
+                        completedTasks={p.completedTasks}
+                        totalTasks={p.totalTasks}
+                        percentComplete={p.percentComplete}
+                      />
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+            <div className="hidden min-w-0 lg:block">
+              <Table className="table-fixed text-left text-sm">
+                <colgroup>
+                  <col className="w-[28%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
+                <TableHeader className="border-b border-border bg-muted/40 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                  <TableRow>
+                    <TableHead className="px-5 py-3">Project Title</TableHead>
+                    <TableHead className="px-4 py-3">Client</TableHead>
+                    <TableHead className="px-4 py-3">Status</TableHead>
+                    <TableHead className="px-4 py-3">Progress</TableHead>
+                    <TableHead className="px-4 py-3">
+                      Target Date / Updated
+                    </TableHead>
+                    <TableHead className="px-5 py-3 text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-border">
+                  {filteredProjects.map((p) => {
+                    const clientDisplayName =
+                      cleanClientName(p.client.name) || "Unnamed client"
+                    const avatarColor = getClientAvatarColor(clientDisplayName)
+
+                    return (
+                      <TableRow
+                        key={p.id}
+                        className="transition-colors hover:bg-muted/30"
+                      >
+                        {/* Project Title */}
+                        <TableCell className="px-5 py-3.5">
+                          <div className="space-y-0.5">
+                            <span className="cursor-pointer text-sm font-semibold text-foreground hover:text-orange-600 dark:hover:text-orange-400">
+                              {p.name}
+                            </span>
+                            {p.description ? (
+                              <p className="line-clamp-1 max-w-sm text-xs text-muted-foreground">
+                                {p.description}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-muted-foreground/70 italic">
+                                No description
                               </p>
                             )}
                           </div>
-                        </div>
-                      </td>
+                        </TableCell>
 
-                      {/* Status */}
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                            p.status === "COMPLETED"
-                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                              : p.status === "IN_REVIEW"
-                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                              : p.status === "IN_PROGRESS"
-                              ? "bg-sky-500/15 text-sky-700 dark:text-sky-400"
-                              : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
-                          }`}
-                        >
+                        {/* Client with Avatar */}
+                        <TableCell className="px-4 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarColor}`}
+                            >
+                              {clientDisplayName.charAt(0).toUpperCase()}
+                            </span>
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">
+                                {clientDisplayName}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {/* Status */}
+                        <TableCell className="px-4 py-3.5">
                           <span
-                            className={`size-1.5 rounded-full ${
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                               p.status === "COMPLETED"
-                                ? "bg-emerald-500"
+                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                 : p.status === "IN_REVIEW"
-                                ? "bg-amber-500"
-                                : p.status === "IN_PROGRESS"
-                                ? "bg-sky-500"
-                                : "bg-slate-400"
+                                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                                  : p.status === "IN_PROGRESS"
+                                    ? "bg-sky-500/15 text-sky-700 dark:text-sky-400"
+                                    : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
                             }`}
-                          />
-                          {p.status === "IN_PROGRESS"
-                            ? "In Progress"
-                            : p.status === "IN_REVIEW"
-                            ? "In Review"
-                            : p.status === "COMPLETED"
-                            ? "Completed"
-                            : "Planning"}
-                        </span>
-                      </td>
-
-                      {/* Progress Bar */}
-                      <td className="px-4 py-3.5">
-                        <div className="w-28 space-y-1">
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                            <span>
-                              {p.completedTasks}/{p.totalTasks} tasks
-                            </span>
-                            <span className="font-semibold text-foreground">
-                              {p.percentComplete}%
-                            </span>
-                          </div>
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full rounded-full bg-orange-600 transition-all duration-300"
-                              style={{ width: `${p.percentComplete}%` }}
+                          >
+                            <span
+                              className={`size-1.5 rounded-full ${
+                                p.status === "COMPLETED"
+                                  ? "bg-emerald-500"
+                                  : p.status === "IN_REVIEW"
+                                    ? "bg-amber-500"
+                                    : p.status === "IN_PROGRESS"
+                                      ? "bg-sky-500"
+                                      : "bg-slate-400"
+                              }`}
                             />
+                            {p.status === "IN_PROGRESS"
+                              ? "In Progress"
+                              : p.status === "IN_REVIEW"
+                                ? "In Review"
+                                : p.status === "COMPLETED"
+                                  ? "Completed"
+                                  : "Planning"}
+                          </span>
+                        </TableCell>
+
+                        {/* Progress Bar */}
+                        <TableCell className="px-4 py-3.5">
+                          <div className="w-28 space-y-1">
+                            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                              <span>
+                                {p.completedTasks}/{p.totalTasks} tasks
+                              </span>
+                              <span className="font-semibold text-foreground">
+                                {p.percentComplete}%
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full rounded-full bg-orange-600 transition-all duration-300"
+                                style={{ width: `${p.percentComplete}%` }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      </td>
+                        </TableCell>
 
-                      {/* Target Date / Updated */}
-                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="size-3.5 text-muted-foreground/70" />
-                          <span>{p.targetDateStr}</span>
-                        </div>
-                      </td>
+                        {/* Target Date / Updated */}
+                        <TableCell className="px-4 py-3.5 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="size-3.5 text-muted-foreground/70" />
+                            <span>{p.targetDateStr}</span>
+                          </div>
+                        </TableCell>
 
-                      {/* Actions */}
-                      <td className="px-5 py-3.5 text-right">
-                        <ViewProjectDialog
-                          project={p}
-                          status={p.status}
-                          completedTasks={p.completedTasks}
-                          totalTasks={p.totalTasks}
-                          percentComplete={p.percentComplete}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {/* Actions */}
+                        <TableCell className="px-5 py-3.5 text-right">
+                          <ViewProjectDialog
+                            project={p}
+                            status={p.status}
+                            completedTasks={p.completedTasks}
+                            totalTasks={p.totalTasks}
+                            percentComplete={p.percentComplete}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
 
         {/* Table Footer */}
-        <div className="flex items-center justify-between border-t border-border bg-muted/20 px-5 py-3 text-xs text-muted-foreground">
-          <span>
-            Showing <strong className="text-foreground">{filteredProjects.length}</strong> of{" "}
-            {projects.length} projects
+        <div className="flex flex-col gap-1.5 border-t border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <span className="min-w-0">
+            Showing{" "}
+            <strong className="text-foreground">
+              {filteredProjects.length}
+            </strong>{" "}
+            of {totalProjects} projects
           </span>
-          <span className="text-[11px]">Sorted by most recently updated</span>
+          <span className="text-[11px] sm:text-right">
+            Sorted by most recently updated
+          </span>
         </div>
       </div>
+      <Pagination
+        pathname="/manager/projects"
+        searchParams={searchParams}
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalProjects}
+      />
     </div>
-  );
+  )
 }

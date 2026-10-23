@@ -10,7 +10,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
 
 import { decryptInvitationToken, encryptInvitationToken } from "@/lib/invitation-token";
-import { acceptInvitation, getInvitationLink, replaceInvitationLink } from "@/app/actions/invitations";
+import { acceptInvitation, getInvitationLink, replaceInvitationLink, revokeInvitation } from "@/app/actions/invitations";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -93,5 +93,25 @@ describe("invitation link actions", () => {
     await expect(acceptInvitation(data)).rejects.toThrow("redirect:/login?invite=accepted");
     mocks.findFirst.mockResolvedValue(null);
     await expect(acceptInvitation(data)).rejects.toThrow("redirect:/login?invite=invalid");
+  });
+
+  it("revokes an owned unused invitation and revalidates path", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    const result = await revokeInvitation("invitation-1");
+    expect(result).toEqual({ success: true });
+    expect(mocks.requireRole).toHaveBeenCalledWith("MANAGER");
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "invitation-1",
+        invitedById: "manager-1",
+        usedAt: null,
+        status: { in: ["PENDING", "ACCEPTED"] },
+      },
+      data: {
+        status: "REVOKED",
+        tokenEncrypted: null,
+      },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/invitations");
   });
 });

@@ -52,7 +52,7 @@ export function WorkspaceShell({
       className="workspace-shell"
     >
       <AppSidebar email={email} image={image} name={name} role={role} userId={userId} />
-      <SidebarInset className="min-h-svh rounded-none">
+      <SidebarInset className="min-h-svh w-full max-w-full min-w-0 overflow-x-hidden rounded-none">
         <header className="flex min-h-16 shrink-0 items-center gap-3 border-b bg-background px-3 sm:px-5">
           <SidebarTrigger
             aria-label="Toggle navigation sidebar"
@@ -70,7 +70,7 @@ export function WorkspaceShell({
         </header>
         <div
           id="workspace-content"
-          className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8"
+          className="w-full max-w-full min-w-0 flex-1 overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8"
         >
           {children}
         </div>

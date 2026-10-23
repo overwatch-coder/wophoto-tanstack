@@ -3,18 +3,21 @@ import { UserRole } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { getManagerAnalytics } from "@/lib/analytics";
 import { ManagerDashboard } from "@/components/dashboard/manager-dashboard";
+import { parsePage } from "@/lib/pagination";
 
-export default function ManagerDashboardPage() {
+export default function ManagerDashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   return (
     <Suspense fallback={<main className="min-h-[60vh]" />}>
-      <ManagerDashboardContent />
+      <ManagerDashboardContent searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function ManagerDashboardContent() {
+async function ManagerDashboardContent({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireRole(UserRole.MANAGER);
-  const data = await getManagerAnalytics();
+  const params = await searchParams;
+  const rawPage = Array.isArray(params.page) ? params.page[0] : params.page;
+  const data = await getManagerAnalytics(parsePage(rawPage));
 
   return <ManagerDashboard data={data} />;
 }

@@ -119,6 +119,27 @@ export async function replaceInvitationLink(id: string): Promise<InvitationFormS
   return { invitePath: `/invite/${token}` };
 }
 
+export async function revokeInvitation(id: string): Promise<{ success?: boolean; error?: string }> {
+  const manager = await requireRole(UserRole.MANAGER);
+  const updated = await prisma.invitation.updateMany({
+    where: {
+      id,
+      invitedById: manager.id,
+      usedAt: null,
+      status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
+    },
+    data: {
+      status: InvitationStatus.REVOKED,
+      tokenEncrypted: null,
+    },
+  });
+  if (updated.count !== 1) {
+    return { error: "This invitation could not be revoked." };
+  }
+  revalidatePath("/manager/invitations");
+  return { success: true };
+}
+
 export async function acceptInvitation(formData: FormData) {
   const token = formData.get("token");
 
