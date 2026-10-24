@@ -16,6 +16,22 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   messageId?: string;
   error?: string;
 }> {
+  const deliveryMode = process.env.EMAIL_DELIVERY_MODE?.trim().toLowerCase() === "test" ? "test" : "live";
+  const configuredTestRecipient = process.env.EMAIL_TEST_RECIPIENT?.trim();
+  const from = process.env.EMAIL_FROM?.trim() || "WoPhoto Studio <notifications@wophoto.studio>";
+
+  // In test mode, never send to the notification's real recipient. A missing
+  // test inbox is a configuration error rather than a reason to fall through.
+  if (deliveryMode === "test" && !configuredTestRecipient) {
+    return {
+      success: false,
+      status: "failed",
+      error: "EMAIL_TEST_RECIPIENT must be set when EMAIL_DELIVERY_MODE=test.",
+    };
+  }
+
+  const recipient = deliveryMode === "test" ? configuredTestRecipient! : input.to;
+  const subject = deliveryMode === "test" ? `[TEST] ${input.subject}` : input.subject;
   const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3000";
   const fullLink = safeNotificationLink(baseUrl, input.link);
 
@@ -24,7 +40,7 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>${escapeHtml(input.subject)}</title>
+  <title>${escapeHtml(subject)}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f7f8; margin: 0; padding: 24px; color: #1a1a1a; }
     .card { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e5e5e7; padding: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
@@ -39,6 +55,7 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
 </head>
 <body>
   <div class="card">
+    ${deliveryMode === "test" ? `<div style="margin-bottom:20px;padding:12px 14px;border:1px solid #fdba74;border-radius:10px;background:#fff7ed;color:#9a3412;font-size:13px;line-height:1.5"><strong>Test notification</strong><br/>Intended recipient: ${escapeHtml(input.to)}</div>` : ""}
     <div class="brand">
       <span class="brand-pill">WoPhoto Studio</span>
     </div>
@@ -66,7 +83,7 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
 </html>
   `;
 
-  // Production Resend API dispatch if RESEND_API_KEY is available
+  // Resend dispatch if RESEND_API_KEY is available.
   if (process.env.RESEND_API_KEY) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
@@ -77,9 +94,9 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || "WoPhoto Studio <notifications@wophoto.studio>",
-          to: [input.to],
-          subject: input.subject,
+          from,
+          to: [recipient],
+          subject,
           html: htmlContent,
         }),
       });
@@ -99,7 +116,7 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   }
 
   // Development / fallback preview log
-  console.log(`[email:preview] Dispatched to ${input.to} | Subject: "${input.subject}" | Link: ${fullLink}`);
+  console.log(`[email:preview] ${deliveryMode === "test" ? `Test delivery to ${recipient} (intended for ${input.to})` : `Dispatched to ${recipient}`} | Subject: "${subject}" | Link: ${fullLink}`);
   return { success: false, status: "preview", messageId: `preview-msg-${Date.now()}` };
 }
 

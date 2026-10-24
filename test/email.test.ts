@@ -13,6 +13,7 @@ describe("notification email delivery state", () => {
   it("marks email as sent only after Resend accepts the request", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test_key");
     vi.stubEnv("EMAIL_FROM", "WoPhoto Test <onboarding@resend.dev>");
+    vi.stubEnv("EMAIL_DELIVERY_MODE", "live");
     vi.stubEnv("APP_URL", "https://wophoto.example");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -38,8 +39,58 @@ describe("notification email delivery state", () => {
     expect(request.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("routes test-mode notifications to the configured inbox and labels the intended recipient", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    vi.stubEnv("EMAIL_FROM", "WoPhoto Studio <onboarding@resend.dev>");
+    vi.stubEnv("EMAIL_DELIVERY_MODE", "test");
+    vi.stubEnv("EMAIL_TEST_RECIPIENT", "devbrainy98@gmail.com");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "email_test_123" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendNotificationEmail({
+      to: "worker@example.test",
+      subject: "Task assigned",
+      title: "Task assigned",
+      message: "You have a new task",
+    });
+
+    expect(result).toEqual({ success: true, status: "sent", messageId: "email_test_123" });
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.from).toBe("WoPhoto Studio <onboarding@resend.dev>");
+    expect(body.to).toEqual(["devbrainy98@gmail.com"]);
+    expect(body.subject).toBe("[TEST] Task assigned");
+    expect(body.html).toContain("Test notification");
+    expect(body.html).toContain("Intended recipient: worker@example.test");
+  });
+
+  it("refuses test-mode delivery when the test inbox is not configured", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    vi.stubEnv("EMAIL_DELIVERY_MODE", "test");
+    vi.stubEnv("EMAIL_TEST_RECIPIENT", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendNotificationEmail({
+      to: "worker@example.test",
+      subject: "Task assigned",
+      title: "Task assigned",
+      message: "You have a new task",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      status: "failed",
+      error: "EMAIL_TEST_RECIPIENT must be set when EMAIL_DELIVERY_MODE=test.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("marks a local preview as preview, never as delivered", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("EMAIL_DELIVERY_MODE", "live");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -57,6 +108,7 @@ describe("notification email delivery state", () => {
 
   it("does not preserve a notification link to another origin", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    vi.stubEnv("EMAIL_DELIVERY_MODE", "live");
     vi.stubEnv("APP_URL", "https://wophoto.example");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
