@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { requireUser } from "@/lib/authz";
@@ -16,6 +17,10 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
 }
 
 async function AuthenticatedWorkspace({ children }: { children: React.ReactNode }) {
+  // NextAuth uses crypto.getRandomValues() while resolving a session. Ensure
+  // that request-specific work starts after prerendering has stopped.
+  await connection();
+
   const user = await requireUser();
   if (!isWorkspaceRole(user.role)) redirect("/forbidden");
 

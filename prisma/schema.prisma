@@ -56,6 +56,19 @@ enum CommentVisibility {
   CLIENT_VISIBLE
 }
 
+enum FeedbackType {
+  REVISION
+  REVIEW
+  COMPLAINT
+}
+
+enum FeedbackStatus {
+  NEW
+  ASSIGNED_TO_WORKER
+  IN_REVIEW
+  RESOLVED
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -78,6 +91,9 @@ model User {
   comments           Comment[]
   ratings            Rating[]
   specializations    UserSpecialization[]
+  clientFeedbacks    ClientFeedback[]     @relation("ClientFeedbacks")
+  resolvedFeedbacks  ClientFeedback[]     @relation("FeedbackResponses")
+  assignedFeedbacks  ClientFeedback[]     @relation("FeedbackAssignedWorker")
 
   @@index([role, status])
 }
@@ -151,9 +167,10 @@ model Project {
 
   manager  User      @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
   client   User      @relation("ProjectClient", fields: [clientId], references: [id], onDelete: Restrict)
-  tasks    Task[]
-  comments Comment[]
-  ratings  Rating[]
+  tasks     Task[]
+  comments  Comment[]
+  ratings   Rating[]
+  feedbacks ClientFeedback[]
 
   @@index([managerId, updatedAt])
   @@index([clientId, updatedAt])
@@ -183,6 +200,7 @@ model Task {
   specializations TaskSpecialization[]
   comments        Comment[]
   ratings         Rating[]
+  feedbacks       ClientFeedback[]
 
   @@index([projectId, status, dueAt])
   @@index([deletedAt, dueAt])
@@ -255,4 +273,43 @@ model Rating {
 
   @@unique([clientId, taskId])
   @@index([projectId, createdAt])
+}
+
+model ClientFeedback {
+  id           String         @id @default(cuid())
+  type         FeedbackType   @default(REVISION)
+  status       FeedbackStatus @default(NEW)
+  score        Int?
+  title        String
+  details      String         @db.Text
+  responseNote String?        @db.Text
+  respondedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  clientId String
+  client   User   @relation("ClientFeedbacks", fields: [clientId], references: [id], onDelete: Restrict)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  taskId String?
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  assignedWorkerId String?
+  assignedWorker   User?   @relation("FeedbackAssignedWorker", fields: [assignedWorkerId], references: [id], onDelete: SetNull)
+
+  delegationNote   String?   @db.Text
+  delegatedAt      DateTime?
+
+  workerNote       String?   @db.Text
+  workerSubmittedAt DateTime?
+
+  respondedById String?
+  respondedBy   User?   @relation("FeedbackResponses", fields: [respondedById], references: [id], onDelete: SetNull)
+
+  @@index([clientId, createdAt])
+  @@index([projectId, status, createdAt])
+  @@index([taskId, createdAt])
+  @@index([assignedWorkerId, status])
 }

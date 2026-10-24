@@ -1,23 +1,39 @@
-import { Suspense } from "react";
-import { UserRole } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
-import { getManagerAnalytics } from "@/lib/analytics";
-import { ManagerDashboard } from "@/components/dashboard/manager-dashboard";
-import { parsePage } from "@/lib/pagination";
+import { Suspense } from "react"
+import { UserRole } from "@/generated/prisma/client"
+import { requireRole } from "@/lib/authz"
+import { getManagerAnalytics } from "@/lib/analytics"
+import { ManagerDashboard } from "@/components/dashboard/manager-dashboard"
+import { parsePage } from "@/lib/pagination"
+import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
 
-export default function ManagerDashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default function ManagerDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   return (
-    <Suspense fallback={<main className="min-h-[60vh]" />}>
+    <Suspense
+      fallback={
+        <PageLoadingSkeleton
+          variant="dashboard"
+          label="Loading manager dashboard"
+        />
+      }
+    >
       <ManagerDashboardContent searchParams={searchParams} />
     </Suspense>
-  );
+  )
 }
 
-async function ManagerDashboardContent({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireRole(UserRole.MANAGER);
-  const params = await searchParams;
-  const rawPage = Array.isArray(params.page) ? params.page[0] : params.page;
-  const data = await getManagerAnalytics(parsePage(rawPage));
+async function ManagerDashboardContent({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  await requireRole(UserRole.MANAGER)
+  const params = await searchParams
+  const rawPage = Array.isArray(params.page) ? params.page[0] : params.page
+  const data = await getManagerAnalytics(parsePage(rawPage))
 
-  return <ManagerDashboard data={data} />;
+  return <ManagerDashboard data={data} />
 }

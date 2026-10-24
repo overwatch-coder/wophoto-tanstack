@@ -17,7 +17,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 4 | Navigation sidebar & layout shell | Slice 1 | in-progress |
 | 5 | Task management & daily work log | Slice 2 | done |
 | 6 | Performance dashboard & team analytics | Slice 3 | done |
-| 7 | Client portal & feedback system | Slice 4 | planned |
+| 7 | Client portal & feedback system | Slice 4 | done |
 
 ## Foundations
 
@@ -85,10 +85,14 @@ Spec 0005 · `docs/specs/0005-performance-dashboard-and-team-analytics.md` · co
 
 ## Slice 4: Client portal & feedback system
 
-### 7. Client portal & feedback system · needs a decision
+### 7. Client portal & feedback system · done
 Dedicated client view allowing clients to track their photo project progress, log comments, submit complaints, and view updates from the team.
 **Done when:** clients can access their dashboard, submit feedback or complaints, and administrators receive and respond to entries.
-- [ ] Design it (spec): `/architect client portal & feedback system`
+- [x] Design it (spec): Option C approved (`docs/specs/0006-client-feedback-system.md`)
+- [x] Build it: `/develop client portal & feedback system`
+- [x] Verify it: `/check verify client portal & feedback system`
+- [x] Test it: `/test client portal & feedback system`
+Spec 0006 · `docs/specs/0006-client-feedback-system.md` · code in `app/(workspace)/client/project-feedback/`, `app/(workspace)/manager/reviews/`, `components/feedback/`, `lib/feedback.ts`
 
 ## Deferred
 Out of scope for the initial MVP passes, kept so the plan stays honest.

@@ -7,6 +7,7 @@ import {
   InvitationsView,
   type InvitationStats,
 } from "@/components/invitations/invitations-view"
+import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
 
 export default function ManagerInvitationsPage({
   searchParams,
@@ -14,7 +15,14 @@ export default function ManagerInvitationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   return (
-    <Suspense fallback={<main className="min-h-svh bg-background" />}>
+    <Suspense
+      fallback={
+        <PageLoadingSkeleton
+          variant="invitations"
+          label="Loading invitations"
+        />
+      }
+    >
       <ManagerInvitationsContent searchParams={searchParams} />
     </Suspense>
   )
