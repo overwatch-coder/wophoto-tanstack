@@ -23,6 +23,7 @@ import {
   Undo2,
   SendHorizontal,
   Wrench,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ import {
 } from "@/lib/feedback";
 import {
   createClientFeedback,
+  updateClientFeedback,
   resolveFeedback,
   delegateFeedbackToWorker,
   submitWorkerRevision,
@@ -108,6 +110,7 @@ export function FeedbackWorkspace({
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activeDetailItem, setActiveDetailItem] = useState<ClientFeedbackViewItem | null>(null);
+  const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null);
 
   // Form states for creating request (Client)
   const [newProjectId, setNewProjectId] = useState<string>(projects[0]?.id || "");
@@ -133,16 +136,39 @@ export function FeedbackWorkspace({
   const [workerSubmissionNote, setWorkerSubmissionNote] = useState("");
   const [isWorkerSubmitting, startWorkerTransition] = useTransition();
 
+  const closeDetail = () => {
+    setActiveDetailItem(null);
+    setManagerReplyText("");
+    setDelegationInstructions("");
+    setWorkerSubmissionNote("");
+    setActionError(null);
+    setActionSuccess(null);
+  };
+
   const currentProjectForNew =
     projects.find((p) => p.id === newProjectId) || projects[0];
 
   const resetCreateForm = () => {
+    setEditingFeedbackId(null);
     setNewTitle("");
     setNewDetails("");
     setNewType(FeedbackType.REVISION);
     setNewScore(5);
     setNewTaskId("");
     setCreateError(null);
+  };
+
+  const openEditFeedback = (item: ClientFeedbackViewItem) => {
+    setEditingFeedbackId(item.id);
+    setNewProjectId(item.projectId);
+    setNewTaskId(item.taskId || "");
+    setNewType(item.type);
+    setNewScore(item.score ?? 5);
+    setNewTitle(item.type === FeedbackType.REVIEW ? "" : item.title);
+    setNewDetails(item.details);
+    setCreateError(null);
+    closeDetail();
+    setIsCreateModalOpen(true);
   };
 
   const openDetail = (item: ClientFeedbackViewItem) => {
@@ -184,8 +210,12 @@ export function FeedbackWorkspace({
     else formData.append("title", newTitle.trim());
     formData.append("details", newDetails.trim());
 
+    if (editingFeedbackId) formData.append("feedbackId", editingFeedbackId);
+
     startCreateTransition(async () => {
-      const result = await createClientFeedback({}, formData);
+      const result = editingFeedbackId
+        ? await updateClientFeedback({}, formData)
+        : await createClientFeedback({}, formData);
       if (result.error) {
         setCreateError(result.error);
       } else {
@@ -212,19 +242,7 @@ export function FeedbackWorkspace({
       if (result.error) {
         setActionError(result.error);
       } else {
-        setActionSuccess(result.success || "Request resolved successfully.");
-        setActiveDetailItem((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: FeedbackStatus.RESOLVED,
-                responseNote: managerReplyText.trim(),
-                respondedAt: "Just now",
-              }
-            : null
-        );
-        setManagerReplyText("");
-        setActionError(null);
+        closeDetail();
       }
     });
   };
@@ -252,24 +270,7 @@ export function FeedbackWorkspace({
       if (result.error) {
         setActionError(result.error);
       } else {
-        setActionSuccess(result.success || "Revision delegated to worker.");
-        const chosenWorker = workers.find((w) => w.id === selectedWorkerId);
-        setActiveDetailItem((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: FeedbackStatus.ASSIGNED_TO_WORKER,
-                assignedWorkerId: selectedWorkerId,
-                assignedWorkerName: chosenWorker?.name || "Assigned Worker",
-                assignedWorkerEmail: chosenWorker?.email || null,
-                delegationNote: delegationInstructions.trim(),
-                delegatedAt: "Just now",
-                workerNote: null,
-                workerSubmittedAt: null,
-              }
-            : null
-        );
-        setActionError(null);
+        closeDetail();
       }
     });
   };
@@ -291,19 +292,7 @@ export function FeedbackWorkspace({
       if (result.error) {
         setActionError(result.error);
       } else {
-        setActionSuccess(result.success || "Revisions submitted to manager for review.");
-        setActiveDetailItem((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: FeedbackStatus.IN_REVIEW,
-                workerNote: workerSubmissionNote.trim(),
-                workerSubmittedAt: "Just now",
-              }
-            : null
-        );
-        setWorkerSubmissionNote("");
-        setActionError(null);
+        closeDetail();
       }
     });
   };
@@ -800,10 +789,12 @@ export function FeedbackWorkspace({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <MessageSquareText className="size-4 text-primary" />
-              <span>New Revision or Feedback Request</span>
+              <span>{editingFeedbackId ? "Edit Feedback" : "New Revision or Feedback Request"}</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Share a project review, request a revision, or report an issue to the studio team.
+              {editingFeedbackId
+                ? "Update your feedback before the studio begins working on it."
+                : "Share a project review, request a revision, or report an issue to the studio team."}
             </DialogDescription>
           </DialogHeader>
 
@@ -975,7 +966,9 @@ export function FeedbackWorkspace({
                 disabled={isCreating}
                 className="h-8 rounded-full bg-primary font-medium text-xs text-primary-foreground shadow-xs hover:bg-primary/90"
               >
-                {isCreating ? "Submitting..." : "Submit Request to Studio"}
+                {isCreating
+                  ? editingFeedbackId ? "Saving..." : "Submitting..."
+                  : editingFeedbackId ? "Save Changes" : "Submit Request to Studio"}
               </Button>
             </DialogFooter>
           </form>
@@ -989,10 +982,7 @@ export function FeedbackWorkspace({
         open={Boolean(activeDetailItem)}
         onOpenChange={(open) => {
           if (!open) {
-            setActiveDetailItem(null);
-            setManagerReplyText("");
-            setActionError(null);
-            setActionSuccess(null);
+            closeDetail();
           }
         }}
       >
@@ -1334,10 +1324,22 @@ export function FeedbackWorkspace({
               </div>
 
               <DialogFooter>
+                {roleView === "CLIENT" &&
+                  activeDetailItem.status === FeedbackStatus.NEW && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditFeedback(activeDetailItem)}
+                      className="gap-1.5 rounded-full text-xs h-8"
+                    >
+                      <Pencil className="size-3.5" />
+                      Edit Feedback
+                    </Button>
+                  )}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setActiveDetailItem(null)}
+                  onClick={closeDetail}
                   className="rounded-full text-xs h-8"
                 >
                   Close

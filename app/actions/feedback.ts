@@ -450,14 +450,20 @@ export async function updateClientFeedback(
     const projectId = String(formData.get("projectId") ?? "").trim()
     const taskId = String(formData.get("taskId") ?? "").trim() || null
     const typeRaw = String(formData.get("type") ?? "").trim()
-    const scoreRaw = Number(formData.get("score") ?? 5)
-    const title = String(formData.get("title") ?? "").trim()
+    const scoreRaw = Number(formData.get("score") ?? 0)
+    const submittedTitle = String(formData.get("title") ?? "").trim()
+    const title = typeRaw === FeedbackType.REVIEW ? "Project review" : submittedTitle
     const details = String(formData.get("details") ?? "").trim()
 
     if (!feedbackId || !projectId) {
       throw new FeedbackValidationError("Choose a project for this request.")
     }
-    if (title.length < 3 || title.length > 150) {
+    if (!(Object.values(FeedbackType) as string[]).includes(typeRaw)) {
+      throw new FeedbackValidationError("Choose a valid request type.")
+    }
+    const type = typeRaw as FeedbackType
+
+    if (type !== FeedbackType.REVIEW && (title.length < 3 || title.length > 150)) {
       throw new FeedbackValidationError(
         "Request title must be between 3 and 150 characters."
       )
@@ -467,8 +473,11 @@ export async function updateClientFeedback(
         "Request details must be between 5 and 5,000 characters."
       )
     }
-    if (!(Object.values(FeedbackType) as string[]).includes(typeRaw)) {
-      throw new FeedbackValidationError("Choose a valid request type.")
+    if (
+      type === FeedbackType.REVIEW &&
+      (!Number.isInteger(scoreRaw) || scoreRaw < 1 || scoreRaw > 5)
+    ) {
+      throw new FeedbackValidationError("Choose a rating from 1 to 5 stars for your review.")
     }
 
     const feedback = await prisma.clientFeedback.findFirst({
@@ -505,16 +514,13 @@ export async function updateClientFeedback(
       }
     }
 
-    const score = Math.max(
-      1,
-      Math.min(5, Number.isFinite(scoreRaw) ? Math.round(scoreRaw) : 5)
-    )
+    const score = type === FeedbackType.REVIEW ? scoreRaw : null
     await prisma.clientFeedback.update({
       where: { id: feedback.id },
       data: {
         projectId: project.id,
         taskId,
-        type: typeRaw as FeedbackType,
+        type,
         score,
         title,
         details,
@@ -523,7 +529,11 @@ export async function updateClientFeedback(
 
     revalidatePath("/client/project-feedback")
     revalidatePath("/client")
-    return { success: "Feedback request updated." }
+    return {
+      success: type === FeedbackType.REVIEW
+        ? "Review updated."
+        : "Feedback request updated.",
+    }
   } catch (error) {
     return {
       error:
