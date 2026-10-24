@@ -37,3 +37,9 @@ Tracer Bullet: build each feature end to end through every layer, keeping each s
 - **No Eyebrow/Subrow Pill Badges:** Never add decorative badge pills, subrow tags, or eyebrow labels (e.g. "Production Live", "Guaranteed SLA", "Heatmap") above or next to section titles. Keep headers clean, confident, and minimal.
 - **Avatar Images:** Always route user images through `getProfileImageSrc(image, userId)` to ensure private Vercel blob avatars load properly across all tables and modals.
 - **Minimal, Cohesive Color Palette:** Keep dashboards clean, calm, and uncluttered without competing rainbow colors. Ensure high-contrast legibility in both light and dark modes.
+
+## Agent skills
+
+- [gemini-api-dev](.agents/skills/gemini-api-dev/): `google-gemini/gemini-skills`, guidance for the official `@google/genai` SDK.
+- [ai-sdk](.agents/skills/ai-sdk/): `vercel/ai`, use the documentation bundled with this project's installed AI SDK version.
+- MCP servers: OpenAI Developer Docs (connected), Gemini Docs (connected).
