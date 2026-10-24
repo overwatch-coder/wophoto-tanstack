@@ -8,8 +8,10 @@ import {
   UserStatus,
 } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
-import { DEFAULT_PAGE_SIZE, OPTION_PAGE_SIZE, getPageCount, parsePage, type SearchParamsRecord } from "@/lib/pagination";
+import { DEFAULT_PAGE_SIZE, OPTION_PAGE_SIZE, getPageCount, type SearchParamsRecord } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import { idSchema } from "@/lib/validation/common";
+import { parseFeedbackQuery } from "@/lib/validation/queries";
 
 export type FeedbackFilterState = {
   page: number;
@@ -25,21 +27,20 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function getFeedbackTargetId(params: FeedbackLoaderParams) {
+  const parsed = idSchema.safeParse(firstParam(params.feedbackId));
+  return parsed.success ? parsed.data : undefined;
+}
+
 function parseFeedbackFilters(params: FeedbackLoaderParams = {}): FeedbackFilterState {
-  const status = firstParam(params.status);
-  const type = firstParam(params.type);
-  const rawType = Object.values(FeedbackType).includes(type as FeedbackType)
-    ? (type as FeedbackType)
-    : "ALL";
+  const parsed = parseFeedbackQuery(params);
 
   return {
-    page: parsePage(params.page),
-    query: (firstParam(params.q) ?? "").trim().slice(0, 120),
-    status: status === "OPEN" || status === "DELEGATED" || status === "RESOLVED"
-      ? status
-      : "ALL",
-    type: rawType,
-    projectId: (firstParam(params.project) ?? "").slice(0, 100),
+    page: parsed.page,
+    query: parsed.query,
+    status: parsed.status,
+    type: parsed.type ?? "ALL",
+    projectId: parsed.projectId,
   };
 }
 
@@ -200,8 +201,11 @@ export async function getClientFeedbackData(
 ): Promise<FeedbackWorkspaceData> {
   const client = await requireRole(UserRole.CLIENT);
   const filters = parseFeedbackFilters(searchParams);
+  const targetId = getFeedbackTargetId(searchParams);
   const baseWhere: Prisma.ClientFeedbackWhereInput = { clientId: client.id };
-  const where = buildFeedbackWhere(baseWhere, filters);
+  const where = targetId
+    ? { AND: [baseWhere, { id: targetId }] }
+    : buildFeedbackWhere(baseWhere, filters);
 
   // Keep request form options bounded. Feedback records are paginated below.
   const projects = await prisma.project.findMany({
@@ -359,10 +363,13 @@ export async function getManagerFeedbackData(
 ): Promise<FeedbackWorkspaceData> {
   const manager = await requireRole(UserRole.MANAGER);
   const filters = parseFeedbackFilters(searchParams);
+  const targetId = getFeedbackTargetId(searchParams);
   const baseWhere: Prisma.ClientFeedbackWhereInput = {
     project: { managerId: manager.id },
   };
-  const where = buildFeedbackWhere(baseWhere, filters);
+  const where = targetId
+    ? { AND: [baseWhere, { id: targetId }] }
+    : buildFeedbackWhere(baseWhere, filters);
 
   // Keep form and filter options bounded. Feedback records are paginated below.
   const projects = await prisma.project.findMany({
@@ -569,6 +576,7 @@ export async function getWorkerFeedbackData(
 ): Promise<FeedbackWorkspaceData> {
   const worker = await requireRole(UserRole.WORKER);
   const filters = parseFeedbackFilters(searchParams);
+  const targetId = getFeedbackTargetId(searchParams);
 
   const baseWhere: Prisma.ClientFeedbackWhereInput = {
     OR: [
@@ -576,7 +584,9 @@ export async function getWorkerFeedbackData(
       { task: { assignees: { some: { userId: worker.id } } } },
     ],
   };
-  const where = buildFeedbackWhere(baseWhere, filters);
+  const where = targetId
+    ? { AND: [baseWhere, { id: targetId }] }
+    : buildFeedbackWhere(baseWhere, filters);
   const [totalItems, stats] = await Promise.all([
     prisma.clientFeedback.count({ where }),
     getFeedbackStats(baseWhere),

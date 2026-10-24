@@ -21,6 +21,7 @@ import {
 } from "@/components/invitations/invitation-link-actions"
 import { CreateInvitationDialog } from "@/components/invitations/create-invitation-dialog"
 import { Pagination } from "@/components/ui/pagination"
+import { useDebounce } from "@uidotdev/usehooks"
 import type { SearchParamsRecord } from "@/lib/pagination"
 import {
   Table,
@@ -75,30 +76,28 @@ export function InvitationsView({
   selectedFilter: string
 }) {
   const router = useRouter()
-  const [searchDraft, setSearchDraft] = useState({
-    source: searchQuery,
-    value: searchQuery,
-  })
+  const [searchTerm, setSearchTerm] = useState(searchQuery)
+  const debouncedSearchTerm = useDebounce(searchTerm, 350)
+  const [prevQuery, setPrevQuery] = useState(searchQuery)
+  if (prevQuery !== searchQuery) {
+    setPrevQuery(searchQuery)
+    setSearchTerm(searchQuery)
+  }
   const now = new Date()
-  const search =
-    searchDraft.source === searchQuery ? searchDraft.value : searchQuery
 
   useEffect(() => {
-    if (search.trim() === searchQuery) return
-    const timeout = window.setTimeout(() => {
-      const params = new URLSearchParams(window.location.search)
-      const query = search.trim()
-      if (query) params.set("q", query)
-      else params.delete("q")
-      params.delete("page")
-      const next = params.toString()
-      router.replace(
-        next ? `/manager/invitations?${next}` : "/manager/invitations",
-        { scroll: false }
-      )
-    }, 350)
-    return () => window.clearTimeout(timeout)
-  }, [router, search, searchQuery])
+    if (debouncedSearchTerm.trim() !== searchTerm.trim() || debouncedSearchTerm.trim() === searchQuery.trim()) return
+    const params = new URLSearchParams(window.location.search)
+    const query = debouncedSearchTerm.trim()
+    if (query) params.set("q", query)
+    else params.delete("q")
+    params.delete("page")
+    const next = params.toString()
+    router.replace(
+      next ? `/manager/invitations?${next}` : "/manager/invitations",
+      { scroll: false }
+    )
+  }, [debouncedSearchTerm, router, searchQuery, searchTerm])
 
   function updateFilter(nextFilter: string) {
     const params = new URLSearchParams(window.location.search)
@@ -171,10 +170,8 @@ export function InvitationsView({
           <Input
             aria-label="Search invitations by email or recipient"
             placeholder="Search email or recipient..."
-            value={search}
-            onChange={(e) =>
-              setSearchDraft({ source: searchQuery, value: e.target.value })
-            }
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="h-10 rounded-lg pl-9 text-sm"
           />
         </div>

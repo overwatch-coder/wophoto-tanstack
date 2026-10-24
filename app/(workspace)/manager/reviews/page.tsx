@@ -33,7 +33,9 @@ async function ManagerReviewsContent({
 }) {
   await connection()
   await requireRole(UserRole.MANAGER)
-  const data = await getManagerFeedbackData(await searchParams)
+  const params = await searchParams
+  const data = await getManagerFeedbackData(params)
+  const feedbackId = typeof params.feedbackId === "string" ? params.feedbackId : undefined
 
-  return <FeedbackWorkspace initialData={data} roleView="MANAGER" />
+  return <FeedbackWorkspace key={feedbackId ?? "feedback-list"} initialData={data} roleView="MANAGER" />
 }

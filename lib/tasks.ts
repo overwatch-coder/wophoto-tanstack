@@ -1,39 +1,91 @@
 import "server-only";
 
-import { Prisma, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
+import { Prisma, Specialization, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { cleanClientName } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination";
 
-export async function getTasks(input: { page?: number; status?: string; priority?: string } = {}) {
+export async function getTasks(input: {
+  page?: number;
+  status?: string;
+  priority?: string;
+  taskId?: string;
+  q?: string;
+  specialization?: string;
+} = {}) {
   const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const taskId = input.taskId?.trim().slice(0, 191) || undefined;
   const status = Object.values(TaskStatus).includes(input.status as TaskStatus) ? input.status as TaskStatus : undefined;
   const priority = Object.values(TaskPriority).includes(input.priority as TaskPriority) ? input.priority as TaskPriority : undefined;
+  const q = input.q?.trim().slice(0, 100) || undefined;
+  const spec = Object.values(Specialization).includes(input.specialization as Specialization)
+    ? (input.specialization as Specialization)
+    : undefined;
+
   const scope = user.role === UserRole.MANAGER
     ? { project: { managerId: user.id } }
     : { assignees: { some: { userId: user.id } } };
-  const assignmentFilter = user.role === UserRole.WORKER ? { assignees: { some: { userId: user.id, ...(status ? { status } : {}) } } } : {};
-  const where = { ...scope, ...assignmentFilter, deletedAt: null, ...(user.role === UserRole.MANAGER && status ? { status } : {}), ...(priority ? { priority } : {}) };
+  const assignmentFilter = user.role === UserRole.WORKER ? { assignees: { some: { userId: user.id, ...(!taskId && status ? { status } : {}) } } } : {};
+
+  const searchFilter = q
+    ? {
+        OR: [
+          { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
+          { description: { contains: q, mode: Prisma.QueryMode.insensitive } },
+          { project: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } },
+          { project: { client: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } } },
+        ],
+      }
+    : {};
+
+  const specFilter = spec
+    ? { specializations: { some: { specialization: spec } } }
+    : {};
+
+  const where = {
+    ...scope,
+    ...assignmentFilter,
+    deletedAt: null,
+    ...searchFilter,
+    ...specFilter,
+    ...(taskId ? { id: taskId } : {}),
+    ...(!taskId && user.role === UserRole.MANAGER && status ? { status } : {}),
+    ...(!taskId && priority ? { priority } : {}),
+  };
+
   const total = await prisma.task.count({ where });
   const totalPages = getPageCount(total);
   const page = Math.min(Math.max(1, input.page ?? 1), totalPages);
-  const [rows, counts] = await Promise.all([prisma.task.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: DEFAULT_PAGE_SIZE,
-    skip: (page - 1) * DEFAULT_PAGE_SIZE,
-    select: {
-      id: true, title: true, description: true, type: true, workDate: true, status: true, priority: true,
-      startAt: true, dueAt: true, completedAt: true, createdAt: true, updatedAt: true, projectId: true,
-      project: { select: { id: true, name: true, client: { select: { name: true } } } },
-      assignees: { select: { userId: true, status: true, submittedAt: true, managerNote: true, user: { select: { name: true, email: true, image: true } } } },
-      specializations: { select: { specialization: true } },
-    },
-  }), user.role === UserRole.MANAGER
-    ? prisma.task.groupBy({ by: ["status"], where: { ...scope, deletedAt: null }, _count: { _all: true } })
-    : prisma.taskAssignee.groupBy({ by: ["status"], where: { userId: user.id, task: { deletedAt: null } }, _count: { _all: true } })]);
-  const tasks = rows.map((task) => ({
+
+  const taskSelect = {
+    id: true, title: true, description: true, type: true, workDate: true, status: true, priority: true,
+    startAt: true, dueAt: true, completedAt: true, createdAt: true, updatedAt: true, projectId: true,
+    project: { select: { id: true, name: true, client: { select: { name: true } } } },
+    assignees: { select: { userId: true, status: true, submittedAt: true, managerNote: true, user: { select: { name: true, email: true, image: true } } } },
+    specializations: { select: { specialization: true } },
+  };
+
+  const [rows, boardRows, counts] = await Promise.all([
+    prisma.task.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: DEFAULT_PAGE_SIZE,
+      skip: (page - 1) * DEFAULT_PAGE_SIZE,
+      select: taskSelect,
+    }),
+    prisma.task.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 150,
+      select: taskSelect,
+    }),
+    user.role === UserRole.MANAGER
+      ? prisma.task.groupBy({ by: ["status"], where: { ...scope, deletedAt: null }, _count: { _all: true } })
+      : prisma.taskAssignee.groupBy({ by: ["status"], where: { userId: user.id, task: { deletedAt: null } }, _count: { _all: true } }),
+  ]);
+
+  const formatTask = (task: typeof rows[number]) => ({
     ...task,
     project: {
       ...task.project,
@@ -45,8 +97,19 @@ export async function getTasks(input: { page?: number; status?: string; priority
       isCurrentUser: assignment.userId === user.id,
     })),
     myStatus: task.assignees.find((assignment) => assignment.userId === user.id)?.status ?? null,
-  }));
-  return { tasks, page, total, totalPages, counts: Object.fromEntries(counts.map((row) => [row.status, row._count._all])) as Partial<Record<TaskStatus, number>> };
+  });
+
+  const tasks = rows.map(formatTask);
+  const boardTasks = boardRows.map(formatTask);
+
+  return {
+    tasks,
+    boardTasks,
+    page,
+    total,
+    totalPages,
+    counts: Object.fromEntries(counts.map((row) => [row.status, row._count._all])) as Partial<Record<TaskStatus, number>>,
+  };
 }
 
 export type TasksPageData = Awaited<ReturnType<typeof getTasks>>;
@@ -60,7 +123,7 @@ export async function getTaskFormOptions() {
         orderBy: { name: "asc" }, take: 100,
         select: { id: true, name: true, clientId: true, client: { select: { id: true, name: true } } },
       }),
-      prisma.user.findMany({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: user.id } } }, orderBy: [{ name: "asc" }, { email: "asc" }], take: 100, select: { id: true, name: true, email: true, image: true } }),
+      prisma.user.findMany({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: user.id } } }, orderBy: [{ name: "asc" }, { email: "asc" }], take: 100, select: { id: true, name: true, email: true, image: true, preferences: { select: { workerAvailability: true } } } }),
     ]);
 
     const clientsMap = new Map<string, string>();
@@ -81,7 +144,10 @@ export async function getTaskFormOptions() {
         clientName: cleanClientName(p.client?.name),
       })),
       clients,
-      workers,
+      workers: workers.map(({ preferences, ...worker }) => ({
+        ...worker,
+        availability: preferences?.workerAvailability ?? "AVAILABLE",
+      })),
     };
   }
   const projects = await prisma.project.findMany({

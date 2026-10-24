@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/login-form";
 import { Suspense } from "react";
+import { parseLoginQuery } from "@/lib/validation/queries";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string; invite?: string }>;
@@ -22,7 +23,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
 }
 
 async function LoginContent({ searchParams }: LoginPageProps) {
-  const { error, invite } = await searchParams;
+  const { error, invite } = parseLoginQuery(await searchParams);
 
   return <LoginForm error={error} invitationStatus={invite} />;
 }

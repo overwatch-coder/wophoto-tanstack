@@ -10,7 +10,6 @@ const sectionTitles: Record<string, string> = {
   "brief-review": "Brief Review",
   "brand-assets": "Brand Assets",
   schedule: "Schedule",
-  notifications: "Notifications",
 }
 
 export default function WorkerSectionPage({

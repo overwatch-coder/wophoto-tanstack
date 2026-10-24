@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { InvitationStatus, UserRole } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { decryptInvitationToken, encryptInvitationToken } from "@/lib/invitation-token";
+import { createInvitationSchema, invitationIdSchema, invitationTokenSchema } from "@/lib/validation/invitations";
+import { InputValidationError, parseInput } from "@/lib/validation/common";
 
 export type InvitationFormState = {
   error?: string;
@@ -20,22 +22,15 @@ export async function createInvitation(
   formData: FormData,
 ): Promise<InvitationFormState> {
   const manager = await requireRole(UserRole.MANAGER);
-  const rawEmail = formData.get("email");
-  const rawRole = formData.get("role");
-
-  if (typeof rawEmail !== "string" || typeof rawRole !== "string") {
-    return { error: "Enter an email address and choose a role." };
-  }
-
-  const email = rawEmail.trim().toLowerCase();
-  const role = rawRole as UserRole;
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { error: "Enter a valid email address." };
-  }
-
-  if (role !== UserRole.WORKER && role !== UserRole.CLIENT) {
-    return { error: "Choose Worker or Client. Manager access is provisioned separately." };
+  let email: string;
+  let role: UserRole;
+  try {
+    ({ email, role } = parseInput(createInvitationSchema, {
+      email: formData.get("email"),
+      role: formData.get("role"),
+    }));
+  } catch (error) {
+    return { error: error instanceof InputValidationError ? error.message : "Enter an email address and choose a role." };
   }
 
   const existingUser = await prisma.user.findUnique({
@@ -79,9 +74,11 @@ export async function createInvitation(
 
 export async function getInvitationLink(id: string): Promise<InvitationFormState> {
   const manager = await requireRole(UserRole.MANAGER);
+  const parsedId = invitationIdSchema.safeParse(id);
+  if (!parsedId.success) return { error: parsedId.error.issues[0]?.message ?? "This invitation is unavailable." };
   const invitation = await prisma.invitation.findFirst({
     where: {
-      id, invitedById: manager.id, usedAt: null,
+      id: parsedId.data, invitedById: manager.id, usedAt: null,
       status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
       expiresAt: { gt: new Date() },
     },
@@ -102,10 +99,12 @@ export async function getInvitationLink(id: string): Promise<InvitationFormState
 
 export async function replaceInvitationLink(id: string): Promise<InvitationFormState> {
   const manager = await requireRole(UserRole.MANAGER);
+  const parsedId = invitationIdSchema.safeParse(id);
+  if (!parsedId.success) return { error: parsedId.error.issues[0]?.message ?? "This invitation is unavailable." };
   const token = randomBytes(32).toString("base64url");
   const updated = await prisma.invitation.updateMany({
     where: {
-      id, invitedById: manager.id, usedAt: null,
+      id: parsedId.data, invitedById: manager.id, usedAt: null,
       status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
       expiresAt: { gt: new Date() },
     },
@@ -121,9 +120,11 @@ export async function replaceInvitationLink(id: string): Promise<InvitationFormS
 
 export async function revokeInvitation(id: string): Promise<{ success?: boolean; error?: string }> {
   const manager = await requireRole(UserRole.MANAGER);
+  const parsedId = invitationIdSchema.safeParse(id);
+  if (!parsedId.success) return { error: parsedId.error.issues[0]?.message ?? "This invitation could not be revoked." };
   const updated = await prisma.invitation.updateMany({
     where: {
-      id,
+      id: parsedId.data,
       invitedById: manager.id,
       usedAt: null,
       status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
@@ -142,12 +143,12 @@ export async function revokeInvitation(id: string): Promise<{ success?: boolean;
 
 export async function acceptInvitation(formData: FormData) {
   const token = formData.get("token");
-
-  if (typeof token !== "string" || token.length < 32 || token.length > 256) {
+  const parsedToken = invitationTokenSchema.safeParse(token);
+  if (!parsedToken.success) {
     redirect("/login?invite=invalid");
   }
 
-  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const tokenHash = createHash("sha256").update(parsedToken.data).digest("hex");
   const now = new Date();
   const updated = await prisma.invitation.updateMany({
     where: {

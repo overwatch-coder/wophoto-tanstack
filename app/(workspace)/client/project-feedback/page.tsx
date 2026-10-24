@@ -36,7 +36,9 @@ async function ClientFeedbackContent({
 }) {
   await connection()
   await requireRole(UserRole.CLIENT)
-  const data = await getClientFeedbackData(await searchParams)
+  const params = await searchParams
+  const data = await getClientFeedbackData(params)
+  const feedbackId = typeof params.feedbackId === "string" ? params.feedbackId : undefined
 
-  return <FeedbackWorkspace initialData={data} roleView="CLIENT" />
+  return <FeedbackWorkspace key={feedbackId ?? "feedback-list"} initialData={data} roleView="CLIENT" />
 }

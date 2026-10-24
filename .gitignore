@@ -47,5 +47,10 @@ next-env.d.ts
 .vscode/
 
 # prototypes
-/app/prototypes/
-/prototypes/
+**/prototypes/
+
+# local Impeccable preview state
+.impeccable/
+
+# playwright-mcp
+.playwright-mcp/

@@ -1,41 +1,37 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { Prisma, Specialization, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
+import { Prisma, NotificationType, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
+import { notificationActionLink } from "@/lib/notification-links";
+import { parseInput } from "@/lib/validation/common";
+import {
+  assignmentStatusSchema,
+  createAssignedTaskSchema,
+  dailyEntrySchema,
+  restoreTaskIdsSchema,
+  reviewTaskSchema,
+  taskIdSchema,
+  taskStatusSchema,
+  updateAssignedTaskSchema,
+  updateDailyEntrySchema,
+} from "@/lib/validation/tasks";
 
 export type TaskActionState = { error?: string; success?: string; taskId?: string };
 const paths = ["/manager/tasks", "/worker/tasks", "/manager/deleted-tasks"];
 const message = (error: unknown) => error instanceof Error ? error.message : "The task could not be saved. Try again.";
-const stringValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
-const stringList = (data: FormData, key: string) => data.getAll(key).filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean);
-const validId = (s: string) => s.length > 0 && s.length <= 191;
-const validPriority = (s: string): s is TaskPriority => Object.values(TaskPriority).includes(s as TaskPriority);
-const dateField = (s: string): Date | null => {
-  if (!s) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error("Enter a valid date.");
-  const d = new Date(`${s}T00:00:00.000Z`);
-  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) throw new Error("Enter a valid date.");
-  return d;
-};
-const taskFields = (data: FormData) => {
-  const title = stringValue(data, "title");
-  const description = stringValue(data, "description");
-  const priorityRaw = stringValue(data, "priority") || TaskPriority.MEDIUM;
-  const startAt = dateField(stringValue(data, "startAt"));
-  const dueAt = dateField(stringValue(data, "dueAt"));
-  if (title.length < 1 || title.length > 160) throw new Error("Title must be between 1 and 160 characters.");
-  if (description.length > 5000) throw new Error("Description must be 5,000 characters or fewer.");
-  if (!validPriority(priorityRaw)) throw new Error("Choose a valid priority.");
-  if (startAt && dueAt && dueAt < startAt) throw new Error("The due date cannot be before the start date.");
-  return { title, description: description || null, priority: priorityRaw, startAt, dueAt };
-};
-const parseSpecializations = (data: FormData) => {
-  const values = stringList(data, "specialization");
-  if (values.some((s) => !Object.values(Specialization).includes(s as Specialization))) throw new Error("Choose valid specializations.");
-  return [...new Set(values)] as Specialization[];
-};
+const formString = (data: FormData, key: string) => data.get(key) ?? "";
+const taskFormFields = (data: FormData) => ({
+  title: formString(data, "title"),
+  description: formString(data, "description"),
+  priority: formString(data, "priority"),
+  startAt: formString(data, "startAt"),
+  dueAt: formString(data, "dueAt"),
+});
+const stringList = (data: FormData, key: string) => data.getAll(key);
+const validId = (s: string) => taskIdSchema.safeParse(s).success;
 const checkWorkers = async (workerIds: string[]) => {
   if (!workerIds.length || workerIds.length > 50 || workerIds.some((id) => !validId(id))) throw new Error("Choose at least one worker.");
   const unique = [...new Set(workerIds)];
@@ -59,14 +55,39 @@ const invalidateTasks = () => paths.forEach((path) => revalidatePath(path));
 export async function createAssignedTask(_state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
     const manager = await requireRole(UserRole.MANAGER);
-    const projectId = stringValue(data, "projectId");
-    if (!validId(projectId)) throw new Error("Choose a project you manage.");
-    const fields = taskFields(data);
-    const workerIds = await checkWorkers(stringList(data, "workerId"));
-    const specializations = parseSpecializations(data);
+    const input = parseInput(createAssignedTaskSchema, {
+      projectId: formString(data, "projectId"),
+      ...taskFormFields(data),
+      workerIds: stringList(data, "workerId"),
+      specializations: stringList(data, "specialization"),
+    });
+    const { projectId, workerIds: requestedWorkerIds, specializations, ...fields } = input;
+    const workerIds = await checkWorkers(requestedWorkerIds);
     const project = await prisma.project.findFirst({ where: { id: projectId, managerId: manager.id }, select: { id: true } });
     if (!project) throw new Error("That project is not available to you.");
     const task = await prisma.task.create({ data: { ...fields, projectId, createdById: manager.id, type: TaskType.ASSIGNED, assignees: { create: workerIds.map((userId) => ({ userId })) }, specializations: { create: specializations.map((specialization) => ({ specialization })) } }, select: { id: true } });
+
+    // Notify assigned workers
+    try {
+      await Promise.all(
+        workerIds.map((userId) =>
+          createNotification({
+            userId,
+            actorId: manager.id,
+            type: NotificationType.TASK_ASSIGNED,
+            title: "New Task Assigned",
+            message: `You were assigned to "${fields.title}"`,
+            link: notificationActionLink({ kind: "task", role: "WORKER", id: task.id }),
+            projectId,
+            taskId: task.id,
+            sendEmail: true,
+          })
+        )
+      );
+    } catch (notifErr) {
+      console.warn("[tasks] Failed to notify workers of assignment:", notifErr);
+    }
+
     invalidateTasks();
     return { success: "Task created.", taskId: task.id };
   } catch (error) { return { error: message(error) }; }
@@ -75,32 +96,41 @@ export async function createAssignedTask(_state: TaskActionState, data: FormData
 export async function updateAssignedTask(taskId: string, _state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
     const manager = await requireRole(UserRole.MANAGER);
-    if (!validId(taskId)) throw new Error("Task not found.");
-    const fields = taskFields(data);
-    const workerIds = await checkWorkers(stringList(data, "workerId"));
-    const specializations = parseSpecializations(data);
+    const input = parseInput(updateAssignedTaskSchema, {
+      taskId,
+      ...taskFormFields(data),
+      workerIds: stringList(data, "workerId"),
+      specializations: stringList(data, "specialization"),
+    });
+    const { taskId: validatedTaskId, workerIds: requestedWorkerIds, specializations, ...fields } = input;
+    const workerIds = await checkWorkers(requestedWorkerIds);
     await prisma.$transaction(async (tx) => {
-      await lockTask(tx, taskId);
-      const task = await tx.task.findFirst({ where: { id: taskId, deletedAt: null, type: TaskType.ASSIGNED, status: { not: TaskStatus.COMPLETED }, project: { managerId: manager.id } }, select: { id: true, assignees: { select: { userId: true } } } });
+      await lockTask(tx, validatedTaskId);
+      const task = await tx.task.findFirst({ where: { id: validatedTaskId, deletedAt: null, type: TaskType.ASSIGNED, status: { not: TaskStatus.COMPLETED }, project: { managerId: manager.id } }, select: { id: true, assignees: { select: { userId: true } } } });
       if (!task) throw new Error("This task cannot be edited.");
       const add = workerIds.filter((id) => !task.assignees.some((a) => a.userId === id));
       const remove = task.assignees.map((a) => a.userId).filter((id) => !workerIds.includes(id));
-      await tx.task.update({ where: { id: taskId }, data: { ...fields, specializations: { deleteMany: {}, create: specializations.map((specialization) => ({ specialization })) } } });
-      if (remove.length) await tx.taskAssignee.deleteMany({ where: { taskId, userId: { in: remove } } });
-      if (add.length) await tx.taskAssignee.createMany({ data: add.map((userId) => ({ taskId, userId })) });
-      await recompute(tx, taskId);
+      await tx.task.update({ where: { id: validatedTaskId }, data: { ...fields, specializations: { deleteMany: {}, create: specializations.map((specialization) => ({ specialization })) } } });
+      if (remove.length) await tx.taskAssignee.deleteMany({ where: { taskId: validatedTaskId, userId: { in: remove } } });
+      if (add.length) await tx.taskAssignee.createMany({ data: add.map((userId) => ({ taskId: validatedTaskId, userId })) });
+      await recompute(tx, validatedTaskId);
     });
+
     invalidateTasks();
-    return { success: "Task updated.", taskId };
+    return { success: "Task updated.", taskId: validatedTaskId };
   } catch (error) { return { error: message(error) }; }
 }
 
 export async function createDailyEntry(_state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
     const worker = await requireRole(UserRole.WORKER);
-    const projectId = stringValue(data, "projectId");
-    const fields = taskFields(data);
-    const workDate = dateField(stringValue(data, "workDate")) ?? new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
+    const input = parseInput(dailyEntrySchema, {
+      projectId: formString(data, "projectId"),
+      ...taskFormFields(data),
+      workDate: formString(data, "workDate"),
+    });
+    const { projectId, workDate: submittedWorkDate, ...fields } = input;
+    const workDate = submittedWorkDate ?? new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
     if (workDate > new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()))) throw new Error("Work date cannot be in the future.");
     const eligible = await prisma.project.findFirst({ where: { id: projectId, tasks: { some: { type: TaskType.ASSIGNED, deletedAt: null, assignees: { some: { userId: worker.id } } } } }, select: { id: true } });
     if (!eligible) throw new Error("Choose a project where you have assigned work.");
@@ -113,27 +143,31 @@ export async function createDailyEntry(_state: TaskActionState, data: FormData):
 export async function updateDailyEntry(taskId: string, _state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
     const worker = await requireRole(UserRole.WORKER);
-    const fields = taskFields(data);
-    const workDate = dateField(stringValue(data, "workDate"));
-    if (!workDate || workDate > new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()))) throw new Error("Choose today or a past work date.");
+    const input = parseInput(updateDailyEntrySchema, {
+      taskId,
+      ...taskFormFields(data),
+      workDate: formString(data, "workDate"),
+    });
+    const { taskId: validatedTaskId, workDate, ...fields } = input;
+    if (workDate > new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()))) throw new Error("Choose today or a past work date.");
     await prisma.$transaction(async (tx) => {
-      await lockTask(tx, taskId);
-      const task = await tx.task.findFirst({ where: { id: taskId, type: TaskType.DAILY_ENTRY, deletedAt: null, assignees: { some: { userId: worker.id, status: { in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS] } } } }, select: { id: true, projectId: true } });
+      await lockTask(tx, validatedTaskId);
+      const task = await tx.task.findFirst({ where: { id: validatedTaskId, type: TaskType.DAILY_ENTRY, deletedAt: null, assignees: { some: { userId: worker.id, status: { in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS] } } } }, select: { id: true, projectId: true } });
       if (!task) throw new Error("This daily entry is locked or unavailable.");
       const eligible = await tx.task.findFirst({ where: { projectId: task.projectId, type: TaskType.ASSIGNED, deletedAt: null, assignees: { some: { userId: worker.id } } }, select: { id: true } });
       if (!eligible) throw new Error("This project is no longer available for daily entries.");
-      await tx.task.update({ where: { id: taskId }, data: { ...fields, workDate } });
+      await tx.task.update({ where: { id: validatedTaskId }, data: { ...fields, workDate } });
     });
     invalidateTasks();
-    return { success: "Daily entry updated.", taskId };
+    return { success: "Daily entry updated.", taskId: validatedTaskId };
   } catch (error) { return { error: message(error) }; }
 }
 
 export async function updateAssignmentStatus(taskId: string, next: TaskStatus): Promise<TaskActionState> {
   try {
     const worker = await requireRole(UserRole.WORKER);
-    const workerStatuses: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW];
-    if (!workerStatuses.includes(next)) throw new Error("Choose a valid progress state.");
+    taskId = parseInput(taskIdSchema, taskId);
+    next = parseInput(assignmentStatusSchema, next);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
       const task = await tx.task.findFirst({ where: { id: taskId, deletedAt: null, assignees: { some: { userId: worker.id } } }, select: { id: true, assignees: { where: { userId: worker.id }, select: { status: true } } } });
@@ -143,15 +177,94 @@ export async function updateAssignmentStatus(taskId: string, next: TaskStatus): 
       await tx.taskAssignee.update({ where: { taskId_userId: { taskId, userId: worker.id } }, data: { status: next, submittedAt: next === TaskStatus.IN_REVIEW ? new Date() : null, managerNote: next === TaskStatus.IN_REVIEW ? null : undefined } });
       await recompute(tx, taskId);
     });
+
+    if (next === TaskStatus.IN_REVIEW) {
+      try {
+        const fullTask = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: { title: true, projectId: true, project: { select: { managerId: true, name: true } } },
+        });
+        if (fullTask?.project?.managerId) {
+          await createNotification({
+            userId: fullTask.project.managerId,
+            actorId: worker.id,
+            type: NotificationType.TASK_REVIEW_READY,
+            title: "Deliverable Ready for Review",
+            message: `${worker.name || "Worker"} submitted "${fullTask.title}" for review`,
+            link: notificationActionLink({ kind: "task", role: "MANAGER", id: taskId, action: "review" }),
+            projectId: fullTask.projectId,
+            taskId,
+            sendEmail: true,
+            emailSubject: `Review Needed: ${fullTask.title} (${fullTask.project.name})`,
+          });
+        }
+      } catch (notifErr) {
+        console.warn("[tasks] Failed to notify manager of review ready:", notifErr);
+      }
+    }
+
     invalidateTasks();
     return { success: "Progress updated.", taskId };
   } catch (error) { return { error: message(error) }; }
 }
 
+export async function updateTaskStatus(taskId: string, next: TaskStatus): Promise<TaskActionState> {
+  try {
+    const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+    taskId = parseInput(taskIdSchema, taskId);
+    next = parseInput(taskStatusSchema, next);
+
+    if (user.role === UserRole.WORKER) {
+      return updateAssignmentStatus(taskId, next);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await lockTask(tx, taskId);
+      const task = await tx.task.findFirst({
+        where: { id: taskId, deletedAt: null, project: { managerId: user.id } },
+        select: { id: true, status: true },
+      });
+      if (!task) throw new Error("Task not found or inaccessible.");
+
+      if (next === TaskStatus.COMPLETED) {
+        await tx.taskAssignee.updateMany({
+          where: { taskId },
+          data: { status: TaskStatus.COMPLETED, managerNote: null },
+        });
+        await tx.task.update({
+          where: { id: taskId },
+          data: { status: TaskStatus.COMPLETED, completedAt: new Date() },
+        });
+      } else {
+        await tx.taskAssignee.updateMany({
+          where: { taskId },
+          data: { status: next, submittedAt: next === TaskStatus.IN_REVIEW ? new Date() : null },
+        });
+        await tx.task.update({
+          where: { id: taskId },
+          data: { status: next, completedAt: null },
+        });
+      }
+    });
+
+    invalidateTasks();
+    return { success: `Task updated to ${next.toLowerCase().replaceAll("_", " ")}.`, taskId };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
 export async function reviewTask(taskId: string, _state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
     const manager = await requireRole(UserRole.MANAGER);
-    const decision = stringValue(data, "decision");
+    const input = parseInput(reviewTaskSchema, {
+      taskId,
+      decision: formString(data, "decision"),
+      returnUserIds: stringList(data, "returnUserId"),
+      managerNote: formString(data, "managerNote"),
+    });
+    taskId = input.taskId;
+    const { decision, returnUserIds, managerNote } = input;
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
       const task = await tx.task.findFirst({ where: { id: taskId, deletedAt: null, status: TaskStatus.IN_REVIEW, project: { managerId: manager.id } }, select: { id: true, assignees: { select: { userId: true, status: true } } } });
@@ -160,14 +273,69 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
         await tx.taskAssignee.updateMany({ where: { taskId, status: TaskStatus.IN_REVIEW }, data: { status: TaskStatus.COMPLETED, managerNote: null } });
         await tx.task.update({ where: { id: taskId }, data: { status: TaskStatus.COMPLETED, completedAt: new Date() } });
       } else if (decision === "return") {
-        const userIds = [...new Set(stringList(data, "returnUserId"))];
-        const note = stringValue(data, "managerNote");
-        if (!note || note.length > 3000) throw new Error("Add a note of up to 3,000 characters for the selected workers.");
-        if (!userIds.length || userIds.some((id) => !task.assignees.some((a) => a.userId === id))) throw new Error("Select at least one assigned worker to resubmit.");
-        await tx.taskAssignee.updateMany({ where: { taskId, userId: { in: userIds } }, data: { status: TaskStatus.IN_PROGRESS, submittedAt: null, managerNote: note } });
+        const userIds = [...new Set(returnUserIds)];
+        if (userIds.some((id) => !task.assignees.some((a) => a.userId === id))) throw new Error("Select at least one assigned worker to resubmit.");
+        await tx.taskAssignee.updateMany({ where: { taskId, userId: { in: userIds } }, data: { status: TaskStatus.IN_PROGRESS, submittedAt: null, managerNote } });
         await tx.task.update({ where: { id: taskId }, data: { status: TaskStatus.IN_PROGRESS, completedAt: null } });
       } else throw new Error("Choose approve or return.");
     });
+
+    if (decision === "approve") {
+      try {
+        const fullTask = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: { title: true, projectId: true, assignees: { select: { userId: true } } },
+        });
+        if (fullTask) {
+          await Promise.all(
+            fullTask.assignees.map((a) =>
+              createNotification({
+                userId: a.userId,
+                actorId: manager.id,
+                type: NotificationType.TASK_APPROVED,
+                title: "Task Approved & Completed",
+                message: `Manager approved "${fullTask.title}"`,
+                link: notificationActionLink({ kind: "task", role: "WORKER", id: taskId }),
+                projectId: fullTask.projectId,
+                taskId,
+                sendEmail: false,
+              })
+            )
+          );
+        }
+      } catch (notifErr) {
+        console.warn("[tasks] Failed to notify workers of approval:", notifErr);
+      }
+    } else if (decision === "return") {
+      try {
+        const userIds = [...new Set(returnUserIds)];
+        const fullTask = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: { title: true, projectId: true, project: { select: { name: true } } },
+        });
+        if (fullTask) {
+          await Promise.all(
+            userIds.map((userId) =>
+              createNotification({
+                userId,
+                actorId: manager.id,
+                type: NotificationType.TASK_RETURNED,
+                title: "Task Returned for Revisions",
+                message: `Manager returned "${fullTask.title}": "${managerNote.slice(0, 120)}"`,
+                link: notificationActionLink({ kind: "task", role: "WORKER", id: taskId }),
+                projectId: fullTask.projectId,
+                taskId,
+                sendEmail: true,
+                emailSubject: `Revisions Needed: ${fullTask.title} (${fullTask.project.name})`,
+              })
+            )
+          );
+        }
+      } catch (notifErr) {
+        console.warn("[tasks] Failed to notify workers of returned task:", notifErr);
+      }
+    }
+
     invalidateTasks();
     return { success: decision === "approve" ? "Task approved." : "Selected workers were asked to resubmit.", taskId };
   } catch (error) { return { error: message(error) }; }
@@ -176,6 +344,7 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
 export async function softDeleteTask(taskId: string): Promise<TaskActionState> {
   try {
     const manager = await requireRole(UserRole.MANAGER);
+    taskId = parseInput(taskIdSchema, taskId);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
       const found = await tx.task.findFirst({ where: { id: taskId, deletedAt: null, project: { managerId: manager.id } }, select: { id: true } });
@@ -190,6 +359,7 @@ export async function softDeleteTask(taskId: string): Promise<TaskActionState> {
 export async function restoreTask(taskId: string): Promise<TaskActionState> {
   try {
     const manager = await requireRole(UserRole.MANAGER);
+    taskId = parseInput(taskIdSchema, taskId);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
       const found = await tx.task.findFirst({
@@ -209,9 +379,7 @@ export async function restoreTask(taskId: string): Promise<TaskActionState> {
 export async function restoreMultipleTasks(taskIds: string[]): Promise<TaskActionState> {
   try {
     const manager = await requireRole(UserRole.MANAGER);
-    if (!taskIds.length || taskIds.some((id) => !validId(id))) {
-      throw new Error("Select at least one valid task to restore.");
-    }
+    taskIds = parseInput(restoreTaskIdsSchema, taskIds);
     const uniqueIds = [...new Set(taskIds)];
     const result = await prisma.task.updateMany({
       where: {
@@ -231,6 +399,7 @@ export async function restoreMultipleTasks(taskIds: string[]): Promise<TaskActio
 export async function permanentlyDeleteTask(taskId: string): Promise<TaskActionState> {
   try {
     const manager = await requireRole(UserRole.MANAGER);
+    taskId = parseInput(taskIdSchema, taskId);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
       const found = await tx.task.findFirst({

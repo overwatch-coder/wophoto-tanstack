@@ -28,6 +28,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     project: {
       findFirst: mocks.findFirstProject,
+      findUnique: mocks.findFirstProject,
     },
     task: {
       findFirst: mocks.findFirstTask,
@@ -35,6 +36,10 @@ vi.mock("@/lib/prisma", () => ({
     },
     user: {
       findFirst: mocks.findFirstUser,
+      findUnique: mocks.findFirstUser,
+    },
+    notification: {
+      create: vi.fn().mockResolvedValue({ id: "notif_mock_1", createdAt: new Date() }),
     },
     taskAssignee: {
       findUnique: mocks.findUniqueTaskAssignee,

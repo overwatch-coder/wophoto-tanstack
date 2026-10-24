@@ -28,7 +28,9 @@ async function WorkerReviewsContent({
 }) {
   await connection();
   await requireRole(UserRole.WORKER);
-  const data = await getWorkerFeedbackData(await searchParams);
+  const params = await searchParams;
+  const data = await getWorkerFeedbackData(params);
+  const feedbackId = typeof params.feedbackId === "string" ? params.feedbackId : undefined;
 
-  return <FeedbackWorkspace initialData={data} roleView="WORKER" />;
+  return <FeedbackWorkspace key={feedbackId ?? "feedback-list"} initialData={data} roleView="WORKER" />;
 }

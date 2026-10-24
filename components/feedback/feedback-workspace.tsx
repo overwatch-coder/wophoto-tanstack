@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MessageSquareText,
@@ -14,14 +14,7 @@ import {
   List as TableIcon,
   Search,
   ChevronRight,
-  Filter,
-  Check,
   FolderKanban,
-  User,
-  UserCheck,
-  ArrowRight,
-  Undo2,
-  SendHorizontal,
   Wrench,
   Pencil,
 } from "lucide-react";
@@ -50,9 +43,7 @@ import {
 import { FeedbackType, FeedbackStatus } from "@/generated/prisma/browser";
 import {
   ClientFeedbackViewItem,
-  FeedbackProjectOption,
   FeedbackWorkspaceData,
-  WorkerOption,
 } from "@/lib/feedback";
 import {
   createClientFeedback,
@@ -63,6 +54,7 @@ import {
 } from "@/app/actions/feedback";
 import { getProfileImageSrc } from "@/lib/profile-image";
 import { Pagination } from "@/components/ui/pagination";
+import { useDebounce } from "@uidotdev/usehooks";
 
 export function FeedbackWorkspace({
   initialData,
@@ -76,6 +68,10 @@ export function FeedbackWorkspace({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentSearch = searchParams.toString();
+  const targetFeedbackId = searchParams.get("feedbackId");
+  const initialTargetFeedback = targetFeedbackId
+    ? feedbacks.find((item) => item.id === targetFeedbackId) ?? null
+    : null;
   const { filters } = initialData;
   const filterStatus = filters.status;
   const filterType = filters.type;
@@ -86,6 +82,7 @@ export function FeedbackWorkspace({
 
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState(filters.query);
+  const debouncedSearchQuery = useDebounce(searchQuery, 350);
   const [prevFilterQuery, setPrevFilterQuery] = useState(filters.query);
 
   if (prevFilterQuery !== filters.query) {
@@ -93,26 +90,34 @@ export function FeedbackWorkspace({
     setSearchQuery(filters.query);
   }
 
-  const updateFilter = (key: string, value: string) => {
-    const params = new URLSearchParams(currentSearch);
+  const updateFilter = useCallback((key: string, value: string) => {
+    const params = new URLSearchParams(window.location.search);
     if (!value || value === "ALL") params.delete(key);
     else params.set(key, value);
     params.delete("page");
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  };
+  }, [pathname, router]);
 
   useEffect(() => {
-    const query = searchQuery.trim().slice(0, 120);
-    if (query === filters.query) return;
-    const timeout = window.setTimeout(() => updateFilter("q", query), 300);
-    return () => window.clearTimeout(timeout);
-  }, [searchQuery, filters.query, pathname, router, currentSearch]);
+    if (debouncedSearchQuery !== searchQuery) return;
+    const query = debouncedSearchQuery.trim().slice(0, 120);
+    if (query === (filters.query ?? "")) return;
+    updateFilter("q", query);
+  }, [debouncedSearchQuery, searchQuery, filters.query, updateFilter]);
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [activeDetailItem, setActiveDetailItem] = useState<ClientFeedbackViewItem | null>(null);
+  const [activeDetailItem, setActiveDetailItem] = useState<ClientFeedbackViewItem | null>(initialTargetFeedback);
   const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null);
+
+  const clearFeedbackTargetFromUrl = () => {
+    if (!targetFeedbackId) return;
+    const params = new URLSearchParams(currentSearch);
+    params.delete("feedbackId");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   // Form states for creating request (Client)
   const [newProjectId, setNewProjectId] = useState<string>(projects[0]?.id || "");
@@ -126,10 +131,22 @@ export function FeedbackWorkspace({
   const isReviewRequest = newType === FeedbackType.REVIEW;
 
   // Manager action mode: "resolve" (direct) or "delegate" (give work to worker)
-  const [managerActionMode, setManagerActionMode] = useState<"resolve" | "delegate">("resolve");
+  const [managerActionMode, setManagerActionMode] = useState<"resolve" | "delegate">(
+    initialTargetFeedback?.type !== FeedbackType.REVIEW &&
+      initialTargetFeedback?.status === FeedbackStatus.ASSIGNED_TO_WORKER
+      ? "delegate"
+      : "resolve",
+  );
   const [managerReplyText, setManagerReplyText] = useState("");
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string>("");
-  const [delegationInstructions, setDelegationInstructions] = useState("");
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string>(
+    initialTargetFeedback?.assignedWorkerId ||
+      initialTargetFeedback?.taskAssignees?.[0]?.id ||
+      workers[0]?.id ||
+      "",
+  );
+  const [delegationInstructions, setDelegationInstructions] = useState(
+    initialTargetFeedback?.delegationNote || "",
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [isActionPending, startActionTransition] = useTransition();
@@ -145,6 +162,12 @@ export function FeedbackWorkspace({
     setWorkerSubmissionNote("");
     setActionError(null);
     setActionSuccess(null);
+    clearFeedbackTargetFromUrl();
+  };
+
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
+    clearFeedbackTargetFromUrl();
   };
 
   const currentProjectForNew =
@@ -169,11 +192,16 @@ export function FeedbackWorkspace({
     setNewTitle(item.type === FeedbackType.REVIEW ? "" : item.title);
     setNewDetails(item.details);
     setCreateError(null);
-    closeDetail();
+    setActiveDetailItem(null);
+    setManagerReplyText("");
+    setDelegationInstructions("");
+    setWorkerSubmissionNote("");
+    setActionError(null);
+    setActionSuccess(null);
     setIsCreateModalOpen(true);
   };
 
-  const openDetail = (item: ClientFeedbackViewItem) => {
+  const openDetail = useCallback((item: ClientFeedbackViewItem) => {
     setActiveDetailItem(item);
     setManagerReplyText("");
     setActionError(null);
@@ -194,7 +222,7 @@ export function FeedbackWorkspace({
     } else {
       setManagerActionMode("resolve");
     }
-  };
+  }, [workers]);
 
   // Handle Create Request submission inside Modal (Client)
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -221,7 +249,7 @@ export function FeedbackWorkspace({
       if (result.error) {
         setCreateError(result.error);
       } else {
-        setIsCreateModalOpen(false);
+        closeCreateModal();
         resetCreateForm();
       }
     });
@@ -366,6 +394,7 @@ export function FeedbackWorkspace({
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
+              type="search"
               placeholder="Search by subject, notes, worker, or campaign..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -786,7 +815,7 @@ export function FeedbackWorkspace({
       {/* ------------------------------------------------------------- */}
       {/* 1. SHORT SHADCN MODAL: CREATE REQUEST FORM (Client)           */}
       {/* ------------------------------------------------------------- */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+      <Dialog open={isCreateModalOpen} onOpenChange={(open) => open ? setIsCreateModalOpen(true) : closeCreateModal()}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
@@ -957,7 +986,7 @@ export function FeedbackWorkspace({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={closeCreateModal}
                 className="h-8 rounded-full text-xs"
               >
                 Cancel

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { profileNameSchema, profilePictureMetadataSchema } from "@/lib/validation/profile";
 
 export type ProfileActionState = {
   error?: string;
@@ -16,16 +17,9 @@ export async function updateProfileName(
   formData: FormData,
 ): Promise<ProfileActionState> {
   const user = await requireUser();
-  const submittedName = formData.get("name");
-
-  if (typeof submittedName !== "string") {
-    return { error: "Enter your name." };
-  }
-
-  const name = submittedName.trim().replace(/\s+/g, " ");
-  if (name.length < 1 || name.length > 80) {
-    return { error: "Your name must be between 1 and 80 characters." };
-  }
+  const parsed = profileNameSchema.safeParse({ name: formData.get("name") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Enter your name." };
+  const { name } = parsed.data;
 
   await prisma.user.update({ where: { id: user.id }, data: { name } });
   revalidatePath("/settings");
@@ -39,14 +33,9 @@ export async function updateProfilePicture(
   formData: FormData,
 ): Promise<ProfileActionState> {
   const user = await requireUser();
-  const photo = formData.get("photo");
-
-  if (!(photo instanceof File) || photo.size === 0) {
-    return { error: "Choose a profile picture to upload." };
-  }
-  if (photo.size > 1_500_000) {
-    return { error: "Choose an image smaller than 1.5 MB." };
-  }
+  const parsed = profilePictureMetadataSchema.safeParse({ photo: formData.get("photo") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Choose a valid profile picture." };
+  const { photo } = parsed.data;
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return { error: "Profile picture uploads need BLOB_READ_WRITE_TOKEN in .env.local." };
   }
@@ -91,6 +80,17 @@ export async function updateProfilePicture(
   revalidatePath("/settings");
   revalidatePath("/", "layout");
   return { success: "Your profile picture has been updated." };
+}
+
+export async function removeProfilePicture(): Promise<ProfileActionState> {
+  const user = await requireUser();
+  if (user.image && isWoPhotoAvatar(user.image, user.id)) {
+    await del(user.image).catch(() => undefined);
+  }
+  await prisma.user.update({ where: { id: user.id }, data: { image: null } });
+  revalidatePath("/settings");
+  revalidatePath("/", "layout");
+  return { success: "Your profile picture has been removed." };
 }
 
 async function getImageContentType(file: File) {

@@ -12,7 +12,6 @@ const sectionTitles: Record<string, string> = {
   "brand-assets": "Brand Assets",
   inventory: "Inventory",
   schedule: "Schedule",
-  notifications: "Notifications",
 }
 
 export default function ManagerSectionPage({

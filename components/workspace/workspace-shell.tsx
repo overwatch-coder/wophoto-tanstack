@@ -13,6 +13,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { getWorkspacePageTitle, type WorkspaceRole } from "@/lib/navigation"
+import { HeaderNotificationBell } from "@/components/workspace/header-notification-bell"
+import { useWorkspacePreferences, WorkspacePreferencesProvider } from "@/components/workspace/workspace-preferences-context"
+import type { NotificationItemView } from "@/lib/notifications"
+import type { SettingsDensity } from "@/generated/prisma/browser"
 
 type WorkspaceShellProps = {
   children: React.ReactNode
@@ -22,9 +26,26 @@ type WorkspaceShellProps = {
   name?: string | null
   role: WorkspaceRole
   userId: string
+  initialNotifications?: NotificationItemView[]
+  initialUnreadCount?: number
+  initialUnreadActionCount?: number
+  initialUnreadUpdateCount?: number
+  density: SettingsDensity
+  soundAlerts: boolean
 }
 
-export function WorkspaceShell({
+export function WorkspaceShell(props: WorkspaceShellProps) {
+  return (
+    <WorkspacePreferencesProvider
+      initialDensity={props.density}
+      initialSoundAlerts={props.soundAlerts}
+    >
+      <WorkspaceShellContent {...props} />
+    </WorkspacePreferencesProvider>
+  )
+}
+
+function WorkspaceShellContent({
   children,
   defaultSidebarOpen,
   email,
@@ -32,7 +53,12 @@ export function WorkspaceShell({
   name,
   role,
   userId,
+  initialNotifications,
+  initialUnreadCount,
+  initialUnreadActionCount,
+  initialUnreadUpdateCount,
 }: WorkspaceShellProps) {
+  const { density, soundAlerts } = useWorkspacePreferences()
   const pathname = usePathname()
   const title = getWorkspacePageTitle(role, pathname)
   const titleRef = React.useRef<HTMLHeadingElement>(null)
@@ -50,6 +76,7 @@ export function WorkspaceShell({
     <SidebarProvider
       defaultOpen={defaultSidebarOpen}
       className="workspace-shell"
+      data-density={density.toLowerCase()}
     >
       <AppSidebar email={email} image={image} name={name} role={role} userId={userId} />
       <SidebarInset className="min-h-svh w-full max-w-full min-w-0 overflow-x-hidden rounded-none">
@@ -66,6 +93,14 @@ export function WorkspaceShell({
           >
             {title}
           </h1>
+          <HeaderNotificationBell
+            role={role}
+            initialNotifications={initialNotifications}
+            initialUnreadCount={initialUnreadCount}
+            initialUnreadActionCount={initialUnreadActionCount}
+            initialUnreadUpdateCount={initialUnreadUpdateCount}
+            soundAlerts={soundAlerts}
+          />
           <ThemeToggle />
         </header>
         <div

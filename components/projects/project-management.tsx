@@ -49,6 +49,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Pagination } from "@/components/ui/pagination"
 import type { SearchParamsRecord } from "@/lib/pagination"
+import { useDebounce } from "@uidotdev/usehooks"
 import {
   Table,
   TableBody,
@@ -455,15 +456,17 @@ export function ProjectManagement({
   const search = typeof searchParams.q === "string" ? searchParams.q : ""
   const clientFilter =
     typeof searchParams.client === "string" ? searchParams.client : "ALL"
-  const [searchDraft, setSearchDraft] = useState({
-    source: search,
-    value: search,
-  })
+  const [searchQuery, setSearchQuery] = useState(search)
+  const debouncedSearchQuery = useDebounce(searchQuery, 350)
+  const [prevSearch, setPrevSearch] = useState(search)
+  if (prevSearch !== search) {
+    setPrevSearch(search)
+    setSearchQuery(search)
+  }
   const [clientDraft, setClientDraft] = useState({
     source: clientFilter,
     value: clientFilter,
   })
-  const searchInput = searchDraft.source === search ? searchDraft.value : search
   const selectedClient =
     clientDraft.source === clientFilter ? clientDraft.value : clientFilter
   const clientFilterOptions = useMemo(
@@ -494,13 +497,9 @@ export function ProjectManagement({
   )
 
   useEffect(() => {
-    if (searchInput.trim() === search) return
-    const timeout = window.setTimeout(
-      () => updateProjectFilters(searchInput, selectedClient),
-      350
-    )
-    return () => window.clearTimeout(timeout)
-  }, [searchInput, search, selectedClient, updateProjectFilters])
+    if (debouncedSearchQuery.trim() !== searchQuery.trim() || debouncedSearchQuery.trim() === search.trim()) return
+    updateProjectFilters(debouncedSearchQuery, selectedClient)
+  }, [debouncedSearchQuery, search, searchQuery, selectedClient, updateProjectFilters])
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -607,16 +606,8 @@ export function ProjectManagement({
           />
           <Input
             type="search"
-            value={searchInput}
-            onChange={(event) =>
-              setSearchDraft({ source: search, value: event.target.value })
-            }
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault()
-                updateProjectFilters(searchInput, selectedClient)
-              }
-            }}
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search projects or clients"
             aria-label="Search projects or clients"
             className="h-10 bg-background pl-10"
@@ -631,7 +622,7 @@ export function ProjectManagement({
             onValueChange={(value) => {
               const nextClient = value ?? "ALL"
               setClientDraft({ source: clientFilter, value: nextClient })
-              updateProjectFilters(searchInput, nextClient)
+              updateProjectFilters(searchQuery, nextClient)
             }}
             items={[
               { value: "ALL", label: "All clients" },

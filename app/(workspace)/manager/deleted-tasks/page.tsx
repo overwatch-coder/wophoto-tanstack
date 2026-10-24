@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { getDeletedTasks } from "@/lib/tasks";
-import { parsePage } from "@/lib/pagination";
+import { parseDeletedTaskQuery } from "@/lib/validation/queries";
 import { DeletedTasksView } from "@/components/tasks/deleted-tasks-view";
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton";
 
@@ -26,11 +26,12 @@ async function ManagerDeletedTasksContent({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const filters = parseDeletedTaskQuery(params);
   const data = await getDeletedTasks({
-    page: parsePage(first(params.page)),
-    search: first(params.q),
-    projectId: first(params.project),
-    priority: first(params.priority),
+    page: filters.page,
+    search: filters.query,
+    projectId: filters.project,
+    priority: filters.priority,
   });
   return (
     <DeletedTasksView
@@ -40,6 +41,3 @@ async function ManagerDeletedTasksContent({
     />
   );
 }
-
-const first = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value;

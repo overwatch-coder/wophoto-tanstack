@@ -67,7 +67,7 @@ function canMoveTask(task: TaskItem, role: Role) {
   if (role === "WORKER") {
     return status === TaskStatus.TODO || status === TaskStatus.IN_PROGRESS
   }
-  return status === TaskStatus.IN_REVIEW
+  return true
 }
 
 function getTaskColumns(tasks: TaskItem[], statuses: TaskStatus[], role: Role) {

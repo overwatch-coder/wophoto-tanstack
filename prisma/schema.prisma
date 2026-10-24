@@ -69,6 +69,46 @@ enum FeedbackStatus {
   RESOLVED
 }
 
+enum NotificationType {
+  FEEDBACK_RECEIVED
+  FEEDBACK_RESOLVED
+  REVISION_DELEGATED
+  REVISION_SUBMITTED
+  TASK_ASSIGNED
+  TASK_REVIEW_READY
+  TASK_APPROVED
+  TASK_RETURNED
+  DEADLINE_APPROACHING
+  SYSTEM_ALERT
+}
+
+enum NotificationEmailStatus {
+  UNKNOWN
+  NOT_REQUESTED
+  PENDING
+  PREVIEW
+  SENT
+  FAILED
+}
+
+enum NotificationCategory {
+  ACTION_REQUIRED
+  UPDATE
+  SYSTEM
+}
+
+enum SettingsDensity {
+  COZY
+  COMPACT
+}
+
+enum WorkerAvailability {
+  AVAILABLE
+  IN_SHOOT
+  FOCUS_MODE
+  OFF_SHIFT
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -94,6 +134,9 @@ model User {
   clientFeedbacks    ClientFeedback[]     @relation("ClientFeedbacks")
   resolvedFeedbacks  ClientFeedback[]     @relation("FeedbackResponses")
   assignedFeedbacks  ClientFeedback[]     @relation("FeedbackAssignedWorker")
+  notifications          Notification[]       @relation("UserNotifications")
+  triggeredNotifications Notification[]       @relation("NotificationActor")
+  preferences            UserPreference?
 
   @@index([role, status])
 }
@@ -171,6 +214,7 @@ model Project {
   comments  Comment[]
   ratings   Rating[]
   feedbacks ClientFeedback[]
+  notifications Notification[]
 
   @@index([managerId, updatedAt])
   @@index([clientId, updatedAt])
@@ -201,6 +245,7 @@ model Task {
   comments        Comment[]
   ratings         Rating[]
   feedbacks       ClientFeedback[]
+  notifications   Notification[]
 
   @@index([projectId, status, dueAt])
   @@index([deletedAt, dueAt])
@@ -312,4 +357,48 @@ model ClientFeedback {
   @@index([projectId, status, createdAt])
   @@index([taskId, createdAt])
   @@index([assignedWorkerId, status])
+}
+
+model Notification {
+  id           String               @id @default(cuid())
+  userId       String
+  type         NotificationType
+  category     NotificationCategory @default(UPDATE)
+  title        String
+  message      String               @db.Text
+  link         String?
+  read         Boolean              @default(false)
+  inAppVisible Boolean              @default(true)
+  emailSent    Boolean              @default(false)
+  emailStatus  NotificationEmailStatus @default(UNKNOWN)
+  emailSubject String?
+  dedupeKey    String?              @unique
+
+  projectId    String?
+  taskId       String?
+  actorId      String?
+
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  user         User                 @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  actor        User?                @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project      Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task         Task?                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+  @@index([userId, createdAt])
+}
+
+model UserPreference {
+  userId               String         @id
+  location             String?
+  notificationChannels Json           @default("{}")
+  density              SettingsDensity @default(COZY)
+  soundAlerts          Boolean        @default(true)
+  defaultLanding       String?
+  workerAvailability   WorkerAvailability @default(AVAILABLE)
+  updatedAt            DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

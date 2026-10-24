@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { connection } from "next/server"
 import { UserRole } from "@/generated/prisma/client"
 import { requireRole } from "@/lib/authz"
 import { getManagerAnalytics } from "@/lib/analytics"
@@ -30,6 +31,7 @@ async function ManagerDashboardContent({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  await connection()
   await requireRole(UserRole.MANAGER)
   const params = await searchParams
   const rawPage = Array.isArray(params.page) ? params.page[0] : params.page

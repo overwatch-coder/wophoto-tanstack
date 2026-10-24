@@ -3,8 +3,8 @@ import { UserRole } from "@/generated/prisma/client"
 import { TasksWorkspace } from "@/components/tasks/tasks-workspace"
 import { getTaskFormOptions, getTasks } from "@/lib/tasks"
 import { requireRole } from "@/lib/authz"
-import { parsePage } from "@/lib/pagination"
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
+import { parseTaskQuery } from "@/lib/validation/queries"
 
 export default function WorkerTasksPage({
   searchParams,
@@ -29,11 +29,15 @@ async function WorkerTasksContent({
 }) {
   await requireRole(UserRole.WORKER)
   const params = await searchParams
+  const filters = parseTaskQuery(params)
   const [initialData, options] = await Promise.all([
     getTasks({
-      page: parsePage(params.page),
-      status: first(params.status),
-      priority: first(params.priority),
+      page: filters.page,
+      status: filters.status,
+      priority: filters.priority,
+      taskId: filters.taskId,
+      q: filters.query,
+      specialization: filters.specialization,
     }),
     getTaskFormOptions(),
   ])
@@ -42,10 +46,13 @@ async function WorkerTasksContent({
       role="WORKER"
       initialData={initialData}
       options={options}
-      searchParams={params}
+      searchParams={{
+        status: filters.status ?? "ALL",
+        priority: filters.priority ?? "ALL",
+        specialization: filters.specialization ?? "ALL",
+        q: filters.query ?? "",
+        ...(filters.taskId ? { taskId: filters.taskId, taskAction: filters.taskAction } : {}),
+      }}
     />
   )
 }
-
-const first = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value

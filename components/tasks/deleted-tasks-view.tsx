@@ -44,6 +44,7 @@ import {
 } from "@/app/actions/tasks";
 import type { DeletedTaskItem } from "@/lib/tasks";
 import type { SearchParamsRecord } from "@/lib/pagination";
+import { useDebounce } from "@uidotdev/usehooks";
 
 export function DeletedTasksView({
   initialData,
@@ -61,7 +62,14 @@ export function DeletedTasksView({
 }) {
   const router = useRouter();
   const tasks = initialData.tasks;
-  const [searchQuery, setSearchQuery] = useState(firstParam(searchParams.q));
+  const currentQ = firstParam(searchParams.q);
+  const [searchQuery, setSearchQuery] = useState(currentQ);
+  const debouncedSearchQuery = useDebounce(searchQuery, 350);
+  const [prevQ, setPrevQ] = useState(currentQ);
+  if (prevQ !== currentQ) {
+    setPrevQ(currentQ);
+    setSearchQuery(currentQ);
+  }
   const [selectedProjectId, setSelectedProjectId] = useState(
     firstParam(searchParams.project) || "ALL"
   );
@@ -83,14 +91,18 @@ export function DeletedTasksView({
     priority?: string;
     query?: string;
   } = {}) => {
-    const params = new URLSearchParams();
-    const query = (overrides.query ?? searchQuery).trim();
+    const params = new URLSearchParams(window.location.search);
+    const query = overrides.query !== undefined ? overrides.query.trim() : searchQuery.trim();
     const project = overrides.project ?? selectedProjectId;
     const priority = overrides.priority ?? selectedPriority;
 
     if (query) params.set("q", query);
+    else params.delete("q");
     if (project !== "ALL") params.set("project", project);
+    else params.delete("project");
     if (priority !== "ALL") params.set("priority", priority);
+    else params.delete("priority");
+    params.delete("page");
 
     const search = params.toString();
     router.replace(
@@ -100,15 +112,9 @@ export function DeletedTasksView({
   }, [router, searchQuery, selectedPriority, selectedProjectId]);
 
   useEffect(() => {
-    const committedQuery = firstParam(searchParams.q).trim();
-    if (searchQuery.trim() === committedQuery) return;
-
-    const timeout = window.setTimeout(() => {
-      updateFilters({ query: searchQuery });
-    }, 350);
-
-    return () => window.clearTimeout(timeout);
-  }, [searchParams.q, searchQuery, updateFilters]);
+    if (debouncedSearchQuery.trim() !== searchQuery.trim() || debouncedSearchQuery.trim() === currentQ.trim()) return;
+    updateFilters({ query: debouncedSearchQuery });
+  }, [currentQ, debouncedSearchQuery, searchQuery, updateFilters]);
 
   const allSelected =
     filteredTasks.length > 0 &&
@@ -231,6 +237,7 @@ export function DeletedTasksView({
           <div className="relative min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
+              type="search"
               placeholder="Search deleted tasks by title or notes..."
               aria-label="Search deleted tasks by title or notes"
               value={searchQuery}
@@ -388,12 +395,12 @@ export function DeletedTasksView({
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-xs text-foreground">{t.title}</span>
-                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 rounded-full font-mono">
+                          <Badge variant="outline" className="text-xs px-2 py-0.5 rounded-full font-mono">
                             {t.type === "DAILY_ENTRY" ? "Daily Log" : "Assigned"}
                           </Badge>
                         </div>
                         {t.description && (
-                          <p className="text-[11px] text-muted-foreground line-clamp-1">{t.description}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-1">{t.description}</p>
                         )}
                       </div>
                     </TableCell>
@@ -405,7 +412,7 @@ export function DeletedTasksView({
 
                     {/* Original Status */}
                     <TableCell className="align-middle text-xs">
-                      <Badge variant="secondary" className="rounded-full text-[10px] px-2 py-0">
+                      <Badge variant="secondary" className="rounded-full text-xs px-2 py-0.5">
                         {t.status}
                       </Badge>
                     </TableCell>
@@ -413,7 +420,7 @@ export function DeletedTasksView({
                     {/* Priority */}
                     <TableCell className="align-middle text-xs">
                       <span
-                        className={`text-[11px] font-semibold ${
+                        className={`text-xs font-semibold ${
                           t.priority === "HIGH"
                             ? "text-rose-500"
                             : t.priority === "MEDIUM"
@@ -428,14 +435,14 @@ export function DeletedTasksView({
                     {/* Deleted By */}
                     <TableCell className="align-middle text-xs text-muted-foreground whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        <Avatar className="size-5 ring-1 ring-border">
+                        <Avatar className="size-6 ring-1 ring-border">
                           {t.deletedByImage ? (
                             <AvatarImage
                               src={getProfileImageSrc(t.deletedByImage, t.deletedById) ?? undefined}
                               alt={t.deletedByName}
                             />
                           ) : null}
-                          <AvatarFallback className="text-[8px] font-bold">
+                          <AvatarFallback className="text-[11px] font-semibold">
                             {t.deletedByName
                               .split(" ")
                               .map((n) => n[0])
@@ -444,13 +451,13 @@ export function DeletedTasksView({
                               .toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-[11px] font-medium text-foreground">{t.deletedByName}</span>
+                        <span className="text-xs font-medium text-foreground">{t.deletedByName}</span>
                       </div>
                     </TableCell>
 
                     {/* Auto-Purge Countdown */}
                     <TableCell className="align-middle text-xs whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="size-3 text-muted-foreground" />
                         <span>{t.daysRemaining}d left</span>
                       </div>

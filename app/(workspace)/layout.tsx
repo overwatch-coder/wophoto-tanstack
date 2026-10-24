@@ -5,6 +5,8 @@ import { Suspense } from "react";
 
 import { requireUser } from "@/lib/authz";
 import { isWorkspaceRole } from "@/lib/navigation";
+import { getNotifications, getUnreadNotificationCounts } from "@/lib/notifications";
+import { getUserPreferences } from "@/lib/user-preferences";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { WorkspaceShellLoading } from "@/components/workspace/workspace-shell-loading";
 
@@ -24,7 +26,12 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
   const user = await requireUser();
   if (!isWorkspaceRole(user.role)) redirect("/forbidden");
 
-  const cookieStore = await cookies();
+  const [cookieStore, initialNotifications, initialUnreadCounts, preferences] = await Promise.all([
+    cookies(),
+    getNotifications(user.id),
+    getUnreadNotificationCounts(user.id),
+    getUserPreferences(user.id, user.role),
+  ]);
   const defaultSidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
@@ -35,6 +42,12 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
       email={user.email}
       image={user.image}
       defaultSidebarOpen={defaultSidebarOpen}
+      initialNotifications={initialNotifications}
+      initialUnreadCount={initialUnreadCounts.unread}
+      initialUnreadActionCount={initialUnreadCounts.actionRequired}
+      initialUnreadUpdateCount={initialUnreadCounts.updates}
+      density={preferences.density}
+      soundAlerts={preferences.soundAlerts}
     >
       {children}
     </WorkspaceShell>

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type { ManagerAnalyticsData } from "@/lib/analytics"
 import { Search, Users, BarChart3, Calendar, ArrowUpRight } from "lucide-react"
+import { useDebounce } from "@uidotdev/usehooks"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Pagination } from "@/components/ui/pagination"
 import {
@@ -48,6 +49,7 @@ export function ManagerDashboard({ data }: { data: ManagerAnalyticsData }) {
   const [activeTab, setActiveTab] = useState<ManagerSubView>("internal")
   const [timeRange, setTimeRange] = useState("Last 30 Days")
   const [searchTerm, setSearchTerm] = useState("")
+  const debouncedSearch = useDebounce(searchTerm, 300)
   const [filterCapacity, setFilterCapacity] = useState<string>("ALL")
 
   const sortedCollaborators = [...data.collaborators].sort(
@@ -55,9 +57,11 @@ export function ManagerDashboard({ data }: { data: ManagerAnalyticsData }) {
   )
 
   const filteredCollaborators = data.collaborators.filter((c) => {
+    const query = debouncedSearch.toLowerCase().trim()
     const matchesSearch =
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.role.toLowerCase().includes(searchTerm.toLowerCase())
+      !query ||
+      c.name.toLowerCase().includes(query) ||
+      c.role.toLowerCase().includes(query)
     const matchesCapacity =
       filterCapacity === "ALL" || c.capacityStatus === filterCapacity
     return matchesSearch && matchesCapacity
@@ -534,7 +538,7 @@ export function ManagerDashboard({ data }: { data: ManagerAnalyticsData }) {
             <div className="relative w-full sm:w-80">
               <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                type="text"
+                type="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search collaborator or role..."

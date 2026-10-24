@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import {
@@ -11,7 +11,9 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Search,
   Trash2,
+  X,
 } from "lucide-react"
 import {
   Specialization,
@@ -27,6 +29,7 @@ import {
   updateAssignedTask,
   updateDailyEntry,
   updateAssignmentStatus,
+  updateTaskStatus,
   type TaskActionState,
 } from "@/app/actions/tasks"
 import { Button } from "@/components/ui/button"
@@ -62,6 +65,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { getProfileImageSrc } from "@/lib/profile-image"
+import { useDebounce } from "@uidotdev/usehooks"
 import { Pagination } from "@/components/ui/pagination"
 import type { TasksPageData } from "@/lib/tasks"
 import type { SearchParamsRecord } from "@/lib/pagination"
@@ -90,6 +94,7 @@ export type Options = {
     name: string | null
     email: string
     image?: string | null
+    availability: "AVAILABLE" | "IN_SHOOT" | "FOCUS_MODE" | "OFF_SHIFT"
   }[]
 }
 const initial: TaskActionState = {}
@@ -98,6 +103,15 @@ const labels: Record<TaskStatus, string> = {
   IN_PROGRESS: "In progress",
   IN_REVIEW: "In review",
   COMPLETED: "Completed",
+}
+
+function availabilityLabel(value: Options["workers"][number]["availability"]) {
+  switch (value) {
+    case "IN_SHOOT": return "In a studio shoot";
+    case "FOCUS_MODE": return "Focus time";
+    case "OFF_SHIFT": return "Off shift";
+    default: return "Available";
+  }
 }
 const dateText = (date: Date | string | null) =>
   date
@@ -127,6 +141,14 @@ const priorityFilterItems = [
   })),
 ]
 
+const specializationFilterItems = [
+  { value: "ALL", label: "All specializations" },
+  ...Object.values(Specialization).map((spec) => ({
+    value: spec,
+    label: spec.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+  })),
+]
+
 const prioritySelectItems = Object.values(TaskPriority).map((value) => ({
   value,
   label: value.charAt(0) + value.slice(1).toLowerCase(),
@@ -149,16 +171,83 @@ export function TasksWorkspace({
     typeof searchParams.status === "string" ? searchParams.status : "ALL"
   const priority =
     typeof searchParams.priority === "string" ? searchParams.priority : "ALL"
+  const specialization =
+    typeof searchParams.specialization === "string" ? searchParams.specialization : "ALL"
+  const currentQuery =
+    typeof searchParams.q === "string" ? searchParams.q : ""
+  const [searchQuery, setSearchQuery] = useState(currentQuery)
+  const debouncedSearchQuery = useDebounce(searchQuery, 350)
+  const [prevQuery, setPrevQuery] = useState(currentQuery)
+  if (prevQuery !== currentQuery) {
+    setPrevQuery(currentQuery)
+    setSearchQuery(currentQuery)
+  }
+  const targetTaskId = typeof searchParams.taskId === "string" ? searchParams.taskId : undefined
+  const taskAction = searchParams.taskAction === "review" ? "review" : "view"
+  const openedTaskTarget = useRef<string | null>(null)
   const [view, setView] = useState("table")
   const visible = data.tasks
-  function applyFilters(nextStatus: string, nextPriority: string) {
+  const boardTasks = (data as { boardTasks?: TaskItem[] }).boardTasks ?? data.tasks
+
+  useEffect(() => {
+    if (!targetTaskId) {
+      openedTaskTarget.current = null
+      return
+    }
+    if (openedTaskTarget.current === targetTaskId || !boardTasks.some((task) => task.id === targetTaskId)) return
+
+    openedTaskTarget.current = targetTaskId
+    const eventName = role === "MANAGER" && taskAction === "review" ? "task-review" : "task-view"
+    window.dispatchEvent(new CustomEvent(eventName, { detail: targetTaskId }))
+
     const params = new URLSearchParams()
-    if (nextStatus !== "ALL") params.set("status", nextStatus)
-    if (nextPriority !== "ALL") params.set("priority", nextPriority)
-    router.push(
-      params.size ? `?${params.toString()}` : window.location.pathname
-    )
+    if (status !== "ALL") params.set("status", status)
+    if (priority !== "ALL") params.set("priority", priority)
+    if (specialization !== "ALL") params.set("specialization", specialization)
+    if (currentQuery.trim()) params.set("q", currentQuery.trim())
+    const query = params.toString()
+    router.replace(query ? `${window.location.pathname}?${query}` : window.location.pathname, { scroll: false })
+  }, [boardTasks, currentQuery, priority, role, router, specialization, status, targetTaskId, taskAction])
+
+  const applyFilters = useCallback(
+    (
+      nextStatus: string,
+      nextPriority: string,
+      nextSpec: string,
+      nextQuery: string,
+      replace = false
+    ) => {
+      const params = new URLSearchParams()
+      if (nextStatus !== "ALL") params.set("status", nextStatus)
+      if (nextPriority !== "ALL") params.set("priority", nextPriority)
+      if (nextSpec !== "ALL") params.set("specialization", nextSpec)
+      if (nextQuery.trim()) params.set("q", nextQuery.trim())
+      const url = params.size ? `?${params.toString()}` : window.location.pathname
+      if (replace) {
+        router.replace(url, { scroll: false })
+      } else {
+        router.push(url)
+      }
+    },
+    [router]
+  )
+
+  useEffect(() => {
+    if (debouncedSearchQuery.trim() !== searchQuery.trim() || debouncedSearchQuery.trim() === currentQuery.trim()) return
+    applyFilters(status, priority, specialization, debouncedSearchQuery, true)
+  }, [debouncedSearchQuery, searchQuery, currentQuery, status, priority, specialization, applyFilters])
+
+  function resetAllFilters() {
+    setSearchQuery("")
+    router.push(window.location.pathname)
   }
+
+  const isFiltered =
+    status !== "ALL" ||
+    priority !== "ALL" ||
+    specialization !== "ALL" ||
+    Boolean(currentQuery)
+
   return (
     <div className="mx-auto w-full max-w-7xl min-w-0 space-y-6 overflow-hidden p-4 sm:p-6 lg:p-8">
       <header className="flex min-w-0 flex-wrap items-end justify-between gap-4">
@@ -185,9 +274,9 @@ export function TasksWorkspace({
             key={state}
             type="button"
             onClick={() =>
-              applyFilters(status === state ? "ALL" : state, priority)
+              applyFilters(status === state ? "ALL" : state, priority, specialization, searchQuery)
             }
-            className={`rounded-md border bg-card px-4 py-3 text-left ${status === state ? "border-primary" : ""}`}
+            className={`rounded-md border bg-card px-4 py-3 text-left transition-colors hover:border-primary/40 ${status === state ? "border-primary ring-1 ring-primary/20" : ""}`}
           >
             <span className="block text-xs text-muted-foreground">
               {labels[state]}
@@ -198,17 +287,27 @@ export function TasksWorkspace({
           </button>
         ))}
       </div>
-      <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto">
+      <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex w-full flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search tasks, clients, projects…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 pl-9 pr-3 text-xs sm:text-sm"
+            />
+          </div>
           <Select
             value={status}
-            onValueChange={(value) => applyFilters(value ?? "ALL", priority)}
+            onValueChange={(value) => applyFilters(value ?? "ALL", priority, specialization, searchQuery)}
             items={statusFilterItems}
           >
             <SelectTrigger
               id="task-status-filter"
               aria-label="Filter by status"
-              className="h-10 w-full sm:w-56"
+              className="h-10 w-full sm:w-40"
             >
               <SelectValue />
             </SelectTrigger>
@@ -222,13 +321,13 @@ export function TasksWorkspace({
           </Select>
           <Select
             value={priority}
-            onValueChange={(value) => applyFilters(status, value ?? "ALL")}
+            onValueChange={(value) => applyFilters(status, value ?? "ALL", specialization, searchQuery)}
             items={priorityFilterItems}
           >
             <SelectTrigger
               id="task-priority-filter"
               aria-label="Filter by priority"
-              className="h-10 w-full sm:w-52"
+              className="h-10 w-full sm:w-36"
             >
               <SelectValue />
             </SelectTrigger>
@@ -240,6 +339,38 @@ export function TasksWorkspace({
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={specialization}
+            onValueChange={(value) => applyFilters(status, priority, value ?? "ALL", searchQuery)}
+            items={specializationFilterItems}
+          >
+            <SelectTrigger
+              id="task-specialization-filter"
+              aria-label="Filter by specialization"
+              className="h-10 w-full sm:w-44"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {specializationFilterItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isFiltered ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={resetAllFilters}
+              className="h-10 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <X className="mr-1 size-3.5" />
+              Reset
+            </Button>
+          ) : null}
         </div>
         <Tabs
           className="w-full min-w-0 sm:w-auto"
@@ -259,32 +390,38 @@ export function TasksWorkspace({
         onValueChange={(v) => setView(v ?? "table")}
       >
         <TabsContent
-          className="w-full max-w-full min-w-0 overflow-hidden"
+          className="w-full max-w-full min-w-0 space-y-4 overflow-hidden"
           value="table"
         >
-          <TaskTable tasks={visible} role={role} options={options} />
+          <TaskTable
+            tasks={visible}
+            role={role}
+            options={options}
+            isFiltered={isFiltered}
+            onResetFilters={resetAllFilters}
+          />
+          <Pagination
+            pathname={role === "MANAGER" ? "/manager/tasks" : "/worker/tasks"}
+            searchParams={searchParams}
+            page={data.page}
+            totalPages={data.totalPages}
+            totalItems={data.total}
+          />
         </TabsContent>
         <TabsContent
           className="w-full max-w-full min-w-0 overflow-hidden"
           value="board"
         >
-          <TaskBoard tasks={visible} role={role} options={options} />
+          <TaskBoard tasks={boardTasks} role={role} options={options} />
         </TabsContent>
         <TabsContent
           className="w-full max-w-full min-w-0 overflow-hidden"
           value="daybook"
         >
-          <Daybook tasks={visible} role={role} options={options} />
+          <Daybook tasks={boardTasks} role={role} options={options} />
         </TabsContent>
       </Tabs>
-      <Pagination
-        pathname={role === "MANAGER" ? "/manager/tasks" : "/worker/tasks"}
-        searchParams={searchParams}
-        page={data.page}
-        totalPages={data.totalPages}
-        totalItems={data.total}
-      />
-      <ReviewDialog tasks={visible} />
+      <ReviewDialog tasks={boardTasks} />
     </div>
   )
 }
@@ -577,8 +714,9 @@ function CreateTaskDialog({
                                 initial
                               )}
                             </span>
-                            <span className="min-w-0 flex-1 truncate">
-                              {worker.name || worker.email}
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{worker.name || worker.email}</span>
+                              <span className="block text-xs text-muted-foreground">{availabilityLabel(worker.availability)}</span>
                             </span>
                           </label>
                         )
@@ -675,6 +813,14 @@ function ViewTaskDialog({
 }) {
   const [open, setOpen] = useState(false)
 
+  useEffect(() => {
+    const openTask = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === task.id) setOpen(true)
+    }
+    window.addEventListener("task-view", openTask)
+    return () => window.removeEventListener("task-view", openTask)
+  }, [task.id])
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
@@ -692,26 +838,29 @@ function ViewTaskDialog({
         }
       />
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader className="pr-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-              {task.type === TaskType.DAILY_ENTRY
-                ? "Daily entry"
-                : "Assigned task"}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-              {labels[task.status]}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground capitalize">
-              {task.priority.toLowerCase()} priority
-            </span>
-          </div>
-          <DialogTitle className="mt-2 text-xl leading-snug font-semibold">
+        <DialogHeader>
+          <DialogTitle className="text-xl leading-snug font-semibold">
             {task.title}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
+          <div className="flex flex-wrap items-center gap-2 border-b pb-3 text-xs">
+            <span className="font-medium text-muted-foreground">
+              {task.type === TaskType.DAILY_ENTRY
+                ? "Daily entry"
+                : "Assigned task"}
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-medium text-primary">
+              {labels[task.status]}
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-medium text-muted-foreground capitalize">
+              {task.priority.toLowerCase()} priority
+            </span>
+          </div>
+
           <div className="rounded-md border bg-muted/30 p-3 text-sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
               <div>
@@ -852,14 +1001,10 @@ function ViewTaskDialog({
 }
 
 const AVATAR_COLORS = [
-  "bg-orange-600 text-white",
-  "bg-blue-600 text-white",
-  "bg-purple-600 text-white",
-  "bg-emerald-600 text-white",
-  "bg-rose-600 text-white",
-  "bg-amber-600 text-white",
-  "bg-indigo-600 text-white",
-  "bg-teal-600 text-white",
+  "bg-zinc-700 text-zinc-100 dark:bg-zinc-800 dark:text-zinc-200",
+  "bg-slate-700 text-slate-100 dark:bg-slate-800 dark:text-slate-200",
+  "bg-neutral-700 text-neutral-100 dark:bg-neutral-800 dark:text-neutral-200",
+  "bg-stone-700 text-stone-100 dark:bg-stone-800 dark:text-stone-200",
 ]
 
 function getAssigneeColor(name: string): string {
@@ -894,18 +1039,18 @@ function AssigneeAvatars({
     const avatarSrc = getProfileImageSrc(a.user.image, a.userId) ?? a.user.image
 
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <span
-            className={`flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${colorClass}`}
+            className={`flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ${colorClass}`}
           >
             {avatarSrc ? (
               <Image
                 src={avatarSrc}
                 alt={displayName}
-                width={24}
-                height={24}
-                sizes="24px"
+                width={28}
+                height={28}
+                sizes="28px"
                 unoptimized
                 className="size-full rounded-full object-cover"
               />
@@ -913,26 +1058,21 @@ function AssigneeAvatars({
               initial
             )}
           </span>
-          <span className="text-sm font-medium text-foreground">
+          <span className="min-w-0 truncate text-sm font-medium text-foreground" title={displayName}>
             {displayName}
           </span>
         </div>
-        {a.managerNote ? (
-          <p className="max-w-48 text-xs text-destructive">
-            Manager note: {a.managerNote}
-          </p>
-        ) : null}
       </div>
     )
   }
 
-  // Multiple assignees: shadcn stacked avatar grouping
+  // Multiple assignees: stacked avatar grouping
   const visible = assignees.slice(0, 3)
   const remaining = assignees.length - 3
   const allNames = assignees.map((a) => a.user.name || a.user.email).join(", ")
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <div
           className="flex -space-x-2 overflow-hidden py-0.5"
@@ -949,15 +1089,15 @@ function AssigneeAvatars({
               <span
                 key={a.userId}
                 title={displayName}
-                className={`relative inline-flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ring-2 ring-card ${colorClass}`}
+                className={`relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ring-2 ring-card ${colorClass}`}
               >
                 {avatarSrc ? (
                   <Image
                     src={avatarSrc}
                     alt={displayName}
-                    width={24}
-                    height={24}
-                    sizes="24px"
+                    width={28}
+                    height={28}
+                    sizes="28px"
                     unoptimized
                     className="size-full rounded-full object-cover"
                   />
@@ -970,7 +1110,7 @@ function AssigneeAvatars({
           {remaining > 0 ? (
             <span
               title={allNames}
-              className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-card"
+              className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground ring-2 ring-card"
             >
               +{remaining}
             </span>
@@ -984,17 +1124,6 @@ function AssigneeAvatars({
         </span>
       </div>
 
-      {assignees.some((a) => a.managerNote) && (
-        <div className="space-y-0.5">
-          {assignees
-            .filter((a) => a.managerNote)
-            .map((a) => (
-              <p key={a.userId} className="max-w-48 text-xs text-destructive">
-                {a.user.name || a.user.email}: {a.managerNote}
-              </p>
-            ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -1003,24 +1132,28 @@ function TaskTable({
   tasks,
   role,
   options,
+  isFiltered = false,
+  onResetFilters,
 }: {
   tasks: TaskItem[]
   role: "MANAGER" | "WORKER"
   options: Options
+  isFiltered?: boolean
+  onResetFilters?: () => void
 }) {
   return (
     <Table
       containerClassName="max-h-[min(70svh,48rem)] overflow-auto overscroll-contain rounded-md border bg-card"
-      className="min-w-[900px] table-fixed text-left text-sm xl:min-w-full"
+      className="min-w-[1180px] table-fixed text-left text-sm xl:min-w-full"
     >
       <colgroup>
+        <col className="w-[20%]" />
         <col className="w-[16%]" />
-        <col className="w-[14%]" />
-        <col className="w-[14%]" />
-        <col className="w-[8%]" />
-        <col className="w-[11%]" />
-        <col className="w-[12%]" />
-        <col className="w-[180px]" />
+        <col className="w-[18%]" />
+        <col className="w-[9%]" />
+        <col className="w-[10%]" />
+        <col className="w-[9%]" />
+        <col className="w-[18%]" />
       </colgroup>
       <TableHeader className="text-xs text-muted-foreground">
         <TableRow>
@@ -1036,7 +1169,7 @@ function TaskTable({
             <TableHead
               key={h}
               scope="col"
-              className={`sticky top-0 z-10 border-b border-border bg-muted ${h === "Status" ? "px-2" : "px-4"} py-3 align-middle font-medium`}
+              className="sticky top-0 z-10 border-b border-border bg-muted px-4 py-3 align-middle font-medium"
             >
               {h}
             </TableHead>
@@ -1045,39 +1178,42 @@ function TaskTable({
       </TableHeader>
       <TableBody className="divide-y">
         {tasks.map((task) => (
-          <TableRow key={task.id} className="align-middle">
-            <TableCell className="max-w-xs px-4 py-4 break-words">
-              <div className="space-y-1">
-                <p className="font-medium text-foreground">{task.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {task.type === TaskType.DAILY_ENTRY
-                    ? `Daily entry · ${dateText(task.workDate)}`
-                    : "Assigned task"}
-                </p>
-              </div>
+          <TableRow key={task.id} className="h-[72px] align-middle">
+            <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
+              <p className="truncate font-medium text-foreground" title={task.title}>{task.title}</p>
             </TableCell>
-            <TableCell className="px-4 py-4 break-words">
-              <p className="font-medium">{task.project.name}</p>
+            <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
+              <p className="truncate font-medium" title={task.project.name}>{task.project.name}</p>
               {task.project.client?.name ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground" title={task.project.client.name}>
                   {task.project.client.name}
                 </p>
               ) : null}
             </TableCell>
-            <TableCell className="px-4 py-4">
+            <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
               <AssigneeAvatars assignees={task.assignees} />
             </TableCell>
-            <TableCell className="px-4 py-4">
+            <TableCell className="h-[72px] whitespace-nowrap px-4 py-3">
               <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground capitalize">
                 {task.priority.toLowerCase()}
               </span>
             </TableCell>
-            <TableCell className="px-4 py-4 text-sm text-muted-foreground">
-              {dateText(
-                task.type === TaskType.DAILY_ENTRY ? task.workDate : task.dueAt
-              )}
+            <TableCell className="h-[72px] whitespace-nowrap px-4 py-3 text-sm">
+              <span
+                className={
+                  task.dueAt &&
+                  new Date(task.dueAt) < new Date() &&
+                  task.status !== TaskStatus.COMPLETED
+                    ? "font-semibold text-rose-600 dark:text-rose-400"
+                    : "text-muted-foreground"
+                }
+              >
+                {dateText(
+                  task.type === TaskType.DAILY_ENTRY ? task.workDate : task.dueAt
+                )}
+              </span>
             </TableCell>
-            <TableCell className="px-2 py-4 whitespace-nowrap sm:px-4">
+            <TableCell className="h-[72px] whitespace-nowrap px-4 py-3">
               <span className="inline-flex w-max max-w-full rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-primary">
                 {
                   labels[
@@ -1088,7 +1224,7 @@ function TaskTable({
                 }
               </span>
             </TableCell>
-            <TableCell className="px-4 py-4">
+            <TableCell className="h-[72px] whitespace-nowrap px-3 py-3">
               <TaskControls task={task} role={role} options={options} compact />
             </TableCell>
           </TableRow>
@@ -1099,7 +1235,20 @@ function TaskTable({
               colSpan={7}
               className="px-4 py-14 text-center text-muted-foreground"
             >
-              No tasks match these filters.
+              <div className="flex flex-col items-center justify-center gap-2">
+                <p>No tasks match these filters.</p>
+                {isFiltered && onResetFilters ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onResetFilters}
+                    className="mt-1"
+                  >
+                    Reset filters
+                  </Button>
+                ) : null}
+              </div>
             </TableCell>
           </TableRow>
         ) : null}
@@ -1130,7 +1279,7 @@ function TaskControls({
 
   if (role === "WORKER") {
     return (
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex min-w-max flex-nowrap items-center gap-1">
         <ViewTaskDialog task={task} compact={compact} />
         {own === TaskStatus.TODO ? (
           <>
@@ -1203,7 +1352,7 @@ function TaskControls({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex min-w-max flex-nowrap items-center gap-1.5">
       <ViewTaskDialog task={task} compact={compact} />
       {task.type === TaskType.ASSIGNED &&
       task.status !== TaskStatus.COMPLETED ? (
@@ -1290,26 +1439,28 @@ function EditTaskDialog({
           <DialogTitle>Edit task</DialogTitle>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
-          <label className="block space-y-1.5 text-sm font-medium">
-            Title
-            <input
+          <div className="space-y-2">
+            <Label htmlFor={`edit-task-title-${task.id}`}>Title</Label>
+            <Input
+              id={`edit-task-title-${task.id}`}
               name="title"
               required
               maxLength={160}
               defaultValue={task.title}
-              className="h-10 w-full rounded-md border bg-background px-3 font-normal"
+              className="h-10 w-full"
             />
-          </label>
-          <label className="block space-y-1.5 text-sm font-medium">
-            Description
-            <textarea
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`edit-task-desc-${task.id}`}>Description</Label>
+            <Textarea
+              id={`edit-task-desc-${task.id}`}
               name="description"
               maxLength={5000}
               rows={3}
               defaultValue={task.description ?? ""}
-              className="w-full rounded-md border bg-background p-3 font-normal"
+              className="w-full"
             />
-          </label>
+          </div>
           <div className="space-y-2">
             <Label htmlFor={`edit-task-priority-${task.id}`}>Priority</Label>
             <Select
@@ -1335,24 +1486,26 @@ function EditTaskDialog({
           {role === "MANAGER" ? (
             <>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1.5 text-sm font-medium">
-                  Start date
-                  <input
+                <div className="space-y-2">
+                  <Label htmlFor={`edit-task-start-${task.id}`}>Start date</Label>
+                  <Input
+                    id={`edit-task-start-${task.id}`}
                     name="startAt"
                     type="date"
                     defaultValue={defaultDate(task.startAt)}
-                    className="h-10 w-full rounded-md border bg-background px-3 font-normal"
+                    className="h-10 w-full"
                   />
-                </label>
-                <label className="space-y-1.5 text-sm font-medium">
-                  Due date
-                  <input
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`edit-task-due-${task.id}`}>Due date</Label>
+                  <Input
+                    id={`edit-task-due-${task.id}`}
                     name="dueAt"
                     type="date"
                     defaultValue={defaultDate(task.dueAt)}
-                    className="h-10 w-full rounded-md border bg-background px-3 font-normal"
+                    className="h-10 w-full"
                   />
-                </label>
+                </div>
               </div>
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Assign workers</legend>
@@ -1383,15 +1536,15 @@ function EditTaskDialog({
                           className="size-4 accent-primary"
                         />
                         <span
-                          className={`flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${colorClass}`}
+                          className={`flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ${colorClass}`}
                         >
                           {avatarSrc ? (
                             <Image
                               src={avatarSrc}
                               alt=""
-                              width={24}
-                              height={24}
-                              sizes="24px"
+                              width={28}
+                              height={28}
+                              sizes="28px"
                               unoptimized
                               className="size-full rounded-full object-cover"
                             />
@@ -1399,7 +1552,10 @@ function EditTaskDialog({
                             initial
                           )}
                         </span>
-                        <span>{worker.name || worker.email}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{worker.name || worker.email}</span>
+                          <span className="block text-xs text-muted-foreground">{availabilityLabel(worker.availability)}</span>
+                        </span>
                       </label>
                     )
                   })}
@@ -1431,17 +1587,18 @@ function EditTaskDialog({
               </fieldset>
             </>
           ) : (
-            <label className="block space-y-1.5 text-sm font-medium">
-              Work date
-              <input
+            <div className="space-y-2">
+              <Label htmlFor={`edit-task-workdate-${task.id}`}>Work date</Label>
+              <Input
+                id={`edit-task-workdate-${task.id}`}
                 name="workDate"
                 type="date"
                 max={new Date().toISOString().slice(0, 10)}
                 required
                 defaultValue={defaultDate(task.workDate)}
-                className="h-10 w-full rounded-md border bg-background px-3 font-normal"
+                className="h-10 w-full"
               />
-            </label>
+            </div>
           )}
           {error ? (
             <p role="alert" className="text-sm text-destructive">
@@ -1563,13 +1720,13 @@ function Daybook({
                     {task.assignees.find(
                       (a) => a.isCurrentUser && a.managerNote
                     )?.managerNote ? (
-                      <p className="mt-1 text-xs text-destructive">
-                        Manager note:{" "}
+                      <div className="mt-1.5 inline-flex max-w-sm items-center gap-1 rounded border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        <span className="font-semibold">Manager note:</span>{" "}
                         {
                           task.assignees.find((a) => a.isCurrentUser)
                             ?.managerNote
                         }
-                      </p>
+                      </div>
                     ) : null}
                   </div>
                   <TaskControls task={task} role={role} options={options} />
@@ -1611,19 +1768,20 @@ function TaskBoard({
       ).includes(next)
     )
       return
+
     if (role === "MANAGER") {
       if (
         task.status === TaskStatus.IN_REVIEW &&
         (next === TaskStatus.IN_PROGRESS || next === TaskStatus.COMPLETED)
       ) {
         requestTaskReview(task.id)
+        return
       }
-      return
     }
 
     setMessage("")
     startTransition(async () => {
-      const result = await updateAssignmentStatus(taskId, next)
+      const result = await updateTaskStatus(taskId, next)
       if (result.error) {
         setMessage(result.error)
         return
@@ -1637,7 +1795,7 @@ function TaskBoard({
     <div className="w-full max-w-full min-w-0 space-y-3 overflow-hidden">
       <p className="text-xs text-muted-foreground">
         {role === "MANAGER"
-          ? "Only tasks awaiting review can be dragged. Drop one into In progress or Completed to open the review actions."
+          ? "Drag tasks between columns to update workflow status. Drop review tasks into In progress or Completed to review."
           : "Drag your tasks between To do and In progress, or into In review when they are ready to submit."}
       </p>
       <KanbanDemoModern
@@ -1663,22 +1821,36 @@ function TaskBoard({
 
 function ReviewDialog({ tasks }: { tasks: TaskItem[] }) {
   const [task, setTask] = useState<TaskItem | null>(null)
+  const [decision, setDecision] = useState<"approve" | "return">("approve")
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+  const [managerNote, setManagerNote] = useState("")
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
   useEffect(() => {
     const listener = (event: Event) => {
       const id = (event as CustomEvent<string>).detail
-      setTask(tasks.find((item) => item.id === id) ?? null)
+      const found = tasks.find((item) => item.id === id) ?? null
+      setTask(found)
+      setDecision("approve")
+      setSelectedUserIds(found?.assignees.map((a) => a.userId) ?? [])
+      setManagerNote("")
       setError("")
     }
     window.addEventListener("task-review", listener)
     return () => window.removeEventListener("task-review", listener)
   }, [tasks])
 
-  const handleReview = (formData: FormData) => {
+  const handleReview = (e: React.FormEvent) => {
+    e.preventDefault()
     if (!task) return
     setError("")
+    const formData = new FormData()
+    formData.set("decision", decision)
+    if (decision === "return") {
+      selectedUserIds.forEach((id) => formData.append("returnUserId", id))
+      formData.set("managerNote", managerNote)
+    }
     startTransition(async () => {
       const res = await reviewTask(task.id, initial, formData)
       if (res.error) {
@@ -1696,52 +1868,115 @@ function ReviewDialog({ tasks }: { tasks: TaskItem[] }) {
         if (!open) setTask(null)
       }}
     >
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Review {task?.title}</DialogTitle>
+          <DialogTitle>Review Task</DialogTitle>
+          <p className="text-sm font-medium text-foreground">{task?.title}</p>
         </DialogHeader>
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Approve for everyone, or select workers who need to resubmit.
-          </p>
-          <form action={handleReview} className="space-y-3">
-            <input type="hidden" name="decision" value="approve" />
-            <Button type="submit" disabled={pending}>
-              <Check className="size-4" />
-              Approve task
-            </Button>
-          </form>
-          <form action={handleReview} className="space-y-3">
-            <input type="hidden" name="decision" value="return" />
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Ask to resubmit</legend>
-              {task?.assignees.map((a) => (
-                <label
-                  key={a.userId}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  <input type="checkbox" name="returnUserId" value={a.userId} />
-                  {a.user.name || a.user.email}
-                </label>
-              ))}
-            </fieldset>
-            <textarea
-              name="managerNote"
-              required
-              maxLength={3000}
-              placeholder="Explain what needs to change"
-              className="w-full rounded-md border bg-background p-3 text-sm"
+        <form onSubmit={handleReview} className="space-y-4 pt-1">
+          <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1 text-sm font-medium">
+            <button
+              type="button"
+              onClick={() => setDecision("approve")}
+              className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs transition-colors ${
+                decision === "approve"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Check className="size-3.5" />
+              Approve for all
+            </button>
+            <button
+              type="button"
+              onClick={() => setDecision("return")}
+              className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs transition-colors ${
+                decision === "return"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <RotateCcw className="size-3.5" />
+              Request revision
+            </button>
+          </div>
+
+          {decision === "approve" ? (
+            <p className="text-xs text-muted-foreground">
+              Mark this deliverable as completed for all assignees and update the project timeline.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-medium text-foreground">
+                  Select workers to resubmit
+                </legend>
+                <div className="space-y-1.5 rounded-md border p-2.5">
+                  {task?.assignees.map((a) => (
+                    <label
+                      key={a.userId}
+                      className="flex cursor-pointer items-center gap-2 text-xs font-medium"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(a.userId)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedUserIds([...selectedUserIds, a.userId])
+                          } else {
+                            setSelectedUserIds(
+                              selectedUserIds.filter((id) => id !== a.userId)
+                            )
+                          }
+                        }}
+                        className="size-3.5 rounded accent-primary"
+                      />
+                      <span>{a.user.name || a.user.email}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="review-note" className="text-xs">
+                  Creative revision notes
+                </Label>
+                <Textarea
+                  id="review-note"
+                  value={managerNote}
+                  onChange={(e) => setManagerNote(e.target.value)}
+                  placeholder="Explain what adjustments are needed (e.g., color grade clip 3, re-crop hero image)..."
+                  rows={3}
+                  required
+                  className="text-xs"
+                />
+              </div>
+            </div>
+          )}
+
+          {error ? (
+            <p role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          ) : null}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <DialogClose
+              render={
+                <Button type="button" variant="outline" size="sm">
+                  Cancel
+                </Button>
+              }
             />
-            {error ? (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-            <Button type="submit" variant="outline" disabled={pending}>
-              Return selected
+            <Button type="submit" size="sm" disabled={pending}>
+              {pending
+                ? "Submitting…"
+                : decision === "approve"
+                  ? "Confirm approval"
+                  : "Send revision request"}
             </Button>
-          </form>
-        </div>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

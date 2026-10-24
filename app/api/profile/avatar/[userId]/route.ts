@@ -2,6 +2,7 @@ import { get } from "@vercel/blob"
 import { UserStatus } from "@/generated/prisma/client"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { avatarUserIdSchema } from "@/lib/validation/api"
 
 export async function GET(
   _request: Request,
@@ -12,7 +13,10 @@ export async function GET(
 
   if (!viewerId) return new Response("Unauthorized", { status: 401 })
 
-  const { userId } = await params
+  const { userId: rawUserId } = await params
+  const parsedUserId = avatarUserIdSchema.safeParse(rawUserId)
+  if (!parsedUserId.success) return new Response("Not found", { status: 404 })
+  const userId = parsedUserId.data
   const target = await prisma.user.findUnique({
     where: { id: userId, status: UserStatus.ACTIVE },
     select: { id: true, image: true },

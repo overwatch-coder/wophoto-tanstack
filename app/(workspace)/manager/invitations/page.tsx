@@ -2,7 +2,8 @@ import { InvitationStatus, UserRole } from "@/generated/prisma/client"
 import { Suspense } from "react"
 import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/authz"
-import { DEFAULT_PAGE_SIZE, getPageCount, parsePage } from "@/lib/pagination"
+import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination"
+import { parseInvitationQuery } from "@/lib/validation/queries"
 import {
   InvitationsView,
   type InvitationStats,
@@ -35,18 +36,10 @@ async function ManagerInvitationsContent({
 }) {
   const manager = await requireRole(UserRole.MANAGER)
   const params = await searchParams
-  const query =
-    (Array.isArray(params.q) ? params.q[0] : params.q)?.trim().slice(0, 120) ??
-    ""
+  const filters = parseInvitationQuery(params)
+  const query = filters.query
   const now = new Date()
-  const rawFilter = Array.isArray(params.filter)
-    ? params.filter[0]
-    : params.filter
-  const filter = ["PENDING", "ACCEPTED", "WORKER", "CLIENT"].includes(
-    rawFilter ?? ""
-  )
-    ? rawFilter!
-    : "ALL"
+  const filter = filters.filter
 
   const invitationWhere = {
     invitedById: manager.id,
@@ -111,7 +104,7 @@ async function ManagerInvitationsContent({
     ])
 
   const totalPages = getPageCount(matchingTotal)
-  const page = Math.min(parsePage(params.page), totalPages)
+  const page = Math.min(filters.page, totalPages)
 
   const invitations = await prisma.invitation.findMany({
     where: invitationWhere,

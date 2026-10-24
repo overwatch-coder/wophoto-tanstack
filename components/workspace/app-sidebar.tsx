@@ -120,7 +120,9 @@ export function AppSidebar({
                           }
                         >
                           <Icon aria-hidden="true" />
-                          <span>{item.title}</span>
+                          <span className="group-data-[collapsible=icon]:hidden">
+                            {item.title}
+                          </span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     )

@@ -9,7 +9,8 @@ import {
 import { ProjectManagement } from "@/components/projects/project-management"
 import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/authz"
-import { DEFAULT_PAGE_SIZE, getPageCount, parsePage } from "@/lib/pagination"
+import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination"
+import { parseProjectQuery } from "@/lib/validation/queries"
 import { cleanClientName } from "@/lib/format"
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
 
@@ -36,8 +37,9 @@ async function ManagerProjectsContent({
 }) {
   const manager = await requireRole(UserRole.MANAGER)
   const params = await searchParams
-  const q = first(params.q)?.trim().slice(0, 120) ?? ""
-  const clientParam = first(params.client) ?? ""
+  const filters = parseProjectQuery(params)
+  const q = filters.query
+  const clientParam = filters.client
   const clients = await prisma.user.findMany({
     where: {
       role: UserRole.CLIENT,
@@ -116,7 +118,7 @@ async function ManagerProjectsContent({
     `),
     ])
   const totalPages = getPageCount(totalProjects)
-  const page = Math.min(parsePage(params.page), totalPages)
+  const page = Math.min(filters.page, totalPages)
   const projects = await prisma.project.findMany({
     where,
     select: {
@@ -219,6 +221,3 @@ async function ManagerProjectsContent({
     />
   )
 }
-
-const first = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value

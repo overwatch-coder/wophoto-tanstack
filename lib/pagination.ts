@@ -1,10 +1,12 @@
+import { z } from "zod";
+
 export const DEFAULT_PAGE_SIZE = 20;
 export const OPTION_PAGE_SIZE = 50;
+const pageQuerySchema = z.coerce.number().int().positive().max(1_000_000).catch(1);
 
 export function parsePage(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
-  const page = Number(raw);
-  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+  return pageQuerySchema.parse(raw);
 }
 
 export function getPageCount(total: number, pageSize = DEFAULT_PAGE_SIZE): number {

@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileSettings } from "@/components/settings/profile-settings";
 import { requireUser } from "@/lib/authz";
+import { getUserPreferences } from "@/lib/user-preferences";
 
 export default function SettingsPage() {
   return (
@@ -13,7 +15,11 @@ export default function SettingsPage() {
 }
 
 async function SettingsContent() {
+  // Authentication resolves a session using crypto values that must be read
+  // only after Next has moved this nested settings segment to request time.
+  await connection();
   const user = await requireUser();
+  const preferences = await getUserPreferences(user.id, user.role);
 
   return (
     <ProfileSettings
@@ -21,6 +27,8 @@ async function SettingsContent() {
       email={user.email ?? ""}
       image={user.image ?? null}
       userId={user.id}
+      role={user.role}
+      preferences={preferences}
     />
   );
 }

@@ -4,12 +4,24 @@ import { revalidatePath } from "next/cache"
 import {
   FeedbackStatus,
   FeedbackType,
+  NotificationType,
   TaskStatus,
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client"
 import { requireRole } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
+import { createNotification } from "@/lib/notifications"
+import { notificationActionLink } from "@/lib/notification-links"
+import { InputValidationError, parseInput } from "@/lib/validation/common"
+import {
+  createClientFeedbackSchema,
+  deleteFeedbackSchema,
+  feedbackDelegationSchema,
+  feedbackResolutionSchema,
+  updateClientFeedbackSchema,
+  workerRevisionSchema,
+} from "@/lib/validation/feedback"
 
 export type FeedbackActionState = {
   error?: string
@@ -18,6 +30,10 @@ export type FeedbackActionState = {
 }
 
 class FeedbackValidationError extends Error {}
+const feedbackError = (error: unknown, fallback: string) =>
+  error instanceof FeedbackValidationError || error instanceof InputValidationError
+    ? error.message
+    : fallback
 
 export async function createClientFeedback(
   _previousState: FeedbackActionState,
@@ -26,38 +42,16 @@ export async function createClientFeedback(
   const client = await requireRole(UserRole.CLIENT)
 
   try {
-    const projectId = String(formData.get("projectId") ?? "").trim()
-    const taskId = String(formData.get("taskId") ?? "").trim() || null
-    const typeRaw = String(formData.get("type") ?? "REVISION").trim()
-    const type = (
-      ["REVISION", "REVIEW", "COMPLAINT"].includes(typeRaw)
-        ? typeRaw
-        : "REVISION"
-    ) as FeedbackType
-    const scoreRaw = Number(formData.get("score") ?? 0)
-    const submittedTitle = String(formData.get("title") ?? "").trim()
+    const { projectId, taskId, type, score: scoreRaw, title: submittedTitle, details } = parseInput(createClientFeedbackSchema, {
+      projectId: String(formData.get("projectId") ?? "").trim(),
+      taskId: formData.get("taskId") ? String(formData.get("taskId")).trim() : "",
+      type: formData.get("type") ? String(formData.get("type")).trim() : "REVISION",
+      score: formData.get("score"),
+      title: String(formData.get("title") ?? "").trim(),
+      details: String(formData.get("details") ?? "").trim(),
+    })
     const title = type === FeedbackType.REVIEW ? "Project review" : submittedTitle
-    const details = String(formData.get("details") ?? "").trim()
-
-    if (!projectId) {
-      throw new FeedbackValidationError("Please choose a campaign or project.")
-    }
-
-    if (type !== FeedbackType.REVIEW && (title.length < 3 || title.length > 150)) {
-      throw new FeedbackValidationError("Request title must be between 3 and 150 characters.")
-    }
-
-    if (details.length < 5 || details.length > 5000) {
-      throw new FeedbackValidationError(
-        "Request details must be between 5 and 5,000 characters."
-      )
-    }
-
-    if (type === FeedbackType.REVIEW && (!Number.isInteger(scoreRaw) || scoreRaw < 1 || scoreRaw > 5)) {
-      throw new FeedbackValidationError("Choose a rating from 1 to 5 stars for your review.")
-    }
-
-    const score = type === FeedbackType.REVIEW ? scoreRaw : null
+    const score = type === FeedbackType.REVIEW ? scoreRaw! : null
 
     // Verify project belongs to this client
     const project = await prisma.project.findFirst({
@@ -65,7 +59,7 @@ export async function createClientFeedback(
         id: projectId,
         clientId: client.id,
       },
-      select: { id: true },
+      select: { id: true, managerId: true, name: true },
     })
 
     if (!project) {
@@ -105,6 +99,26 @@ export async function createClientFeedback(
       },
     })
 
+    // Notify project manager of new feedback / revision request
+    if (project?.managerId) {
+      try {
+        await createNotification({
+          userId: project.managerId,
+          actorId: client.id,
+          type: NotificationType.FEEDBACK_RECEIVED,
+          title: type === FeedbackType.REVISION ? "New Client Revision Request" : "New Client Review",
+          message: `${client.name || "Client"} submitted ${type.toLowerCase()}: "${title}"`,
+          link: notificationActionLink({ kind: "feedback", role: "MANAGER", id: created.id }),
+          projectId: project.id,
+          taskId: taskId || null,
+          sendEmail: true,
+          emailSubject: `New ${type === FeedbackType.REVISION ? "Revision Request" : "Review"}: ${project.name}`,
+        })
+      } catch (notifErr) {
+        console.warn("[feedback] Failed to dispatch notification:", notifErr)
+      }
+    }
+
     revalidatePath("/client/project-feedback")
     revalidatePath("/manager/reviews")
     revalidatePath("/client")
@@ -122,10 +136,7 @@ export async function createClientFeedback(
     }
 
     return {
-      error:
-        error instanceof FeedbackValidationError
-          ? error.message
-          : "Could not submit your request. Please try again.",
+      error: feedbackError(error, "Could not submit your request. Please try again."),
     }
   }
 }
@@ -137,18 +148,10 @@ export async function resolveFeedback(
   const manager = await requireRole(UserRole.MANAGER)
 
   try {
-    const feedbackId = String(formData.get("feedbackId") ?? "").trim()
-    const responseNote = String(formData.get("responseNote") ?? "").trim()
-
-    if (!feedbackId) {
-      throw new FeedbackValidationError("Feedback ID is required.")
-    }
-
-    if (responseNote.length < 3 || responseNote.length > 5000) {
-      throw new FeedbackValidationError(
-        "Resolution note must be between 3 and 5,000 characters."
-      )
-    }
+    const { feedbackId, responseNote } = parseInput(feedbackResolutionSchema, {
+      feedbackId: formData.get("feedbackId"),
+      responseNote: formData.get("responseNote") ?? "",
+    })
 
     // Verify feedback belongs to a project managed by this manager
     const feedback = await prisma.clientFeedback.findFirst({
@@ -158,7 +161,7 @@ export async function resolveFeedback(
           managerId: manager.id,
         },
       },
-      select: { id: true, taskId: true, type: true },
+      select: { id: true, taskId: true, type: true, title: true, projectId: true, clientId: true },
     })
 
     if (!feedback) {
@@ -193,6 +196,26 @@ export async function resolveFeedback(
       })
     }
 
+    // Notify client that their feedback/revision has been resolved
+    if (feedback?.clientId) {
+      try {
+        await createNotification({
+          userId: feedback.clientId,
+          actorId: manager.id,
+          type: NotificationType.FEEDBACK_RESOLVED,
+          title: "Feedback Ticket Resolved",
+          message: `Studio lead recorded resolution: "${responseNote.slice(0, 120)}"`,
+          link: notificationActionLink({ kind: "feedback", role: "CLIENT", id: feedback.id }),
+          projectId: feedback.projectId,
+          taskId: feedback.taskId || null,
+          sendEmail: true,
+          emailSubject: `Resolved: ${feedback.title}`,
+        })
+      } catch (notifErr) {
+        console.warn("[feedback] Failed to dispatch resolution notification:", notifErr)
+      }
+    }
+
     revalidatePath("/manager/reviews")
     revalidatePath("/client/project-feedback")
     revalidatePath("/worker/reviews")
@@ -205,10 +228,7 @@ export async function resolveFeedback(
     }
   } catch (error) {
     return {
-      error:
-        error instanceof FeedbackValidationError
-          ? error.message
-          : "Could not resolve the feedback item. Please try again.",
+      error: feedbackError(error, "Could not resolve the feedback item. Please try again."),
     }
   }
 }
@@ -220,19 +240,11 @@ export async function delegateFeedbackToWorker(
   const manager = await requireRole(UserRole.MANAGER)
 
   try {
-    const feedbackId = String(formData.get("feedbackId") ?? "").trim()
-    const workerId = String(formData.get("workerId") ?? "").trim()
-    const delegationNote = String(formData.get("delegationNote") ?? "").trim()
-
-    if (!feedbackId) {
-      throw new FeedbackValidationError("Feedback ID is required.")
-    }
-    if (!workerId) {
-      throw new FeedbackValidationError("Please choose a worker to delegate this revision to.")
-    }
-    if (delegationNote.length < 3 || delegationNote.length > 5000) {
-      throw new FeedbackValidationError("Delegation instructions must be between 3 and 5,000 characters.")
-    }
+    const { feedbackId, workerId, delegationNote } = parseInput(feedbackDelegationSchema, {
+      feedbackId: formData.get("feedbackId"),
+      workerId: formData.get("workerId"),
+      delegationNote: formData.get("delegationNote") ?? "",
+    })
 
     // Verify feedback belongs to a project managed by this manager
     const feedback = await prisma.clientFeedback.findFirst({
@@ -249,6 +261,7 @@ export async function delegateFeedbackToWorker(
         projectId: true,
         title: true,
         details: true,
+        project: { select: { name: true } },
       },
     })
 
@@ -332,6 +345,24 @@ export async function delegateFeedbackToWorker(
       },
     })
 
+    // Notify assigned worker of delegated revision
+    try {
+      await createNotification({
+        userId: worker.id,
+        actorId: manager.id,
+        type: NotificationType.REVISION_DELEGATED,
+        title: "Revision Delegated to You",
+        message: `Manager delegated revision on "${feedback.title}": "${delegationNote.slice(0, 120)}"`,
+        link: notificationActionLink({ kind: "feedback", role: "WORKER", id: feedback.id }),
+        projectId: feedback.projectId,
+        taskId: feedback.taskId || null,
+        sendEmail: true,
+        emailSubject: `Action Required: Revision Delegated for ${feedback.project?.name ?? "Project"}`,
+      })
+    } catch (notifErr) {
+      console.warn("[feedback] Failed to dispatch delegation notification:", notifErr)
+    }
+
     revalidatePath("/manager/reviews")
     revalidatePath("/client/project-feedback")
     revalidatePath("/worker/reviews")
@@ -343,10 +374,7 @@ export async function delegateFeedbackToWorker(
     }
   } catch (error) {
     return {
-      error:
-        error instanceof FeedbackValidationError
-          ? error.message
-          : "Could not delegate this feedback. Please try again.",
+      error: feedbackError(error, "Could not delegate this feedback. Please try again."),
     }
   }
 }
@@ -358,15 +386,10 @@ export async function submitWorkerRevision(
   const worker = await requireRole(UserRole.WORKER)
 
   try {
-    const feedbackId = String(formData.get("feedbackId") ?? "").trim()
-    const workerNote = String(formData.get("workerNote") ?? "").trim()
-
-    if (!feedbackId) {
-      throw new FeedbackValidationError("Feedback ID is required.")
-    }
-    if (workerNote.length < 3 || workerNote.length > 5000) {
-      throw new FeedbackValidationError("Submission note must be between 3 and 5,000 characters.")
-    }
+    const { feedbackId, workerNote } = parseInput(workerRevisionSchema, {
+      feedbackId: formData.get("feedbackId"),
+      workerNote: formData.get("workerNote") ?? "",
+    })
 
     // Verify feedback is assigned to this worker
     const feedback = await prisma.clientFeedback.findFirst({
@@ -378,6 +401,9 @@ export async function submitWorkerRevision(
         id: true,
         type: true,
         taskId: true,
+        title: true,
+        projectId: true,
+        project: { select: { name: true, managerId: true } },
       },
     })
 
@@ -420,6 +446,26 @@ export async function submitWorkerRevision(
       },
     })
 
+    // Notify project manager that worker submitted revision
+    if (feedback.project?.managerId) {
+      try {
+        await createNotification({
+          userId: feedback.project.managerId,
+          actorId: worker.id,
+          type: NotificationType.REVISION_SUBMITTED,
+          title: "Worker Revision Ready for Review",
+          message: `${worker.name || "Worker"} completed revision on "${feedback.title}": "${workerNote.slice(0, 120)}"`,
+          link: notificationActionLink({ kind: "feedback", role: "MANAGER", id: feedback.id }),
+          projectId: feedback.projectId,
+          taskId: feedback.taskId || null,
+          sendEmail: true,
+          emailSubject: `Revision Submitted: ${feedback.project?.name ?? "Project"}`,
+        })
+      } catch (notifErr) {
+        console.warn("[feedback] Failed to dispatch revision submission notification:", notifErr)
+      }
+    }
+
     revalidatePath("/worker/reviews")
     revalidatePath("/manager/reviews")
     revalidatePath("/client/project-feedback")
@@ -431,10 +477,7 @@ export async function submitWorkerRevision(
     }
   } catch (error) {
     return {
-      error:
-        error instanceof FeedbackValidationError
-          ? error.message
-          : "Could not submit your revision. Please try again.",
+      error: feedbackError(error, "Could not submit your revision. Please try again."),
     }
   }
 }
@@ -446,39 +489,16 @@ export async function updateClientFeedback(
   const client = await requireRole(UserRole.CLIENT)
 
   try {
-    const feedbackId = String(formData.get("feedbackId") ?? "").trim()
-    const projectId = String(formData.get("projectId") ?? "").trim()
-    const taskId = String(formData.get("taskId") ?? "").trim() || null
-    const typeRaw = String(formData.get("type") ?? "").trim()
-    const scoreRaw = Number(formData.get("score") ?? 0)
-    const submittedTitle = String(formData.get("title") ?? "").trim()
-    const title = typeRaw === FeedbackType.REVIEW ? "Project review" : submittedTitle
-    const details = String(formData.get("details") ?? "").trim()
-
-    if (!feedbackId || !projectId) {
-      throw new FeedbackValidationError("Choose a project for this request.")
-    }
-    if (!(Object.values(FeedbackType) as string[]).includes(typeRaw)) {
-      throw new FeedbackValidationError("Choose a valid request type.")
-    }
-    const type = typeRaw as FeedbackType
-
-    if (type !== FeedbackType.REVIEW && (title.length < 3 || title.length > 150)) {
-      throw new FeedbackValidationError(
-        "Request title must be between 3 and 150 characters."
-      )
-    }
-    if (details.length < 5 || details.length > 5000) {
-      throw new FeedbackValidationError(
-        "Request details must be between 5 and 5,000 characters."
-      )
-    }
-    if (
-      type === FeedbackType.REVIEW &&
-      (!Number.isInteger(scoreRaw) || scoreRaw < 1 || scoreRaw > 5)
-    ) {
-      throw new FeedbackValidationError("Choose a rating from 1 to 5 stars for your review.")
-    }
+    const { feedbackId, projectId, taskId, type, score: scoreRaw, title: submittedTitle, details } = parseInput(updateClientFeedbackSchema, {
+      feedbackId: String(formData.get("feedbackId") ?? "").trim(),
+      projectId: String(formData.get("projectId") ?? "").trim(),
+      taskId: formData.get("taskId") ? String(formData.get("taskId")).trim() : "",
+      type: formData.get("type") ? String(formData.get("type")).trim() : "REVISION",
+      score: formData.get("score"),
+      title: String(formData.get("title") ?? "").trim(),
+      details: String(formData.get("details") ?? "").trim(),
+    })
+    const title = type === FeedbackType.REVIEW ? "Project review" : submittedTitle
 
     const feedback = await prisma.clientFeedback.findFirst({
       where: {
@@ -494,7 +514,7 @@ export async function updateClientFeedback(
 
     const project = await prisma.project.findFirst({
       where: { id: projectId, clientId: client.id },
-      select: { id: true },
+      select: { id: true, managerId: true, name: true },
     })
     if (!project) {
       throw new FeedbackValidationError(
@@ -514,7 +534,7 @@ export async function updateClientFeedback(
       }
     }
 
-    const score = type === FeedbackType.REVIEW ? scoreRaw : null
+    const score = type === FeedbackType.REVIEW ? scoreRaw! : null
     await prisma.clientFeedback.update({
       where: { id: feedback.id },
       data: {
@@ -527,6 +547,26 @@ export async function updateClientFeedback(
       },
     })
 
+    // Notify project manager of new feedback / revision request
+    if (project?.managerId) {
+      try {
+        await createNotification({
+          userId: project.managerId,
+          actorId: client.id,
+          type: NotificationType.FEEDBACK_RECEIVED,
+          title: type === FeedbackType.REVISION ? "New Client Revision Request" : "New Client Review",
+          message: `${client.name || "Client"} submitted ${type.toLowerCase()}: "${title}"`,
+          link: notificationActionLink({ kind: "feedback", role: "MANAGER", id: feedback.id }),
+          projectId: project.id,
+          taskId: taskId || null,
+          sendEmail: true,
+          emailSubject: `New ${type === FeedbackType.REVISION ? "Revision Request" : "Review"}: ${project.name}`,
+        })
+      } catch (notifErr) {
+        console.warn("[feedback] Failed to dispatch notification:", notifErr)
+      }
+    }
+
     revalidatePath("/client/project-feedback")
     revalidatePath("/client")
     return {
@@ -536,10 +576,7 @@ export async function updateClientFeedback(
     }
   } catch (error) {
     return {
-      error:
-        error instanceof FeedbackValidationError
-          ? error.message
-          : "Could not update your request. Please try again.",
+      error: feedbackError(error, "Could not update your request. Please try again."),
     }
   }
 }
@@ -550,8 +587,7 @@ export async function deleteClientFeedback(
   const client = await requireRole(UserRole.CLIENT)
 
   try {
-    const id = feedbackId.trim()
-    if (!id) throw new FeedbackValidationError("Feedback ID is required.")
+    const id = parseInput(deleteFeedbackSchema, feedbackId)
 
     const feedback = await prisma.clientFeedback.findFirst({
       where: {
@@ -572,10 +608,7 @@ export async function deleteClientFeedback(
     return { success: "Feedback request deleted." }
   } catch (error) {
     return {
-      error:
-        error instanceof FeedbackValidationError
-          ? error.message
-          : "Could not delete this request. Please try again.",
+      error: feedbackError(error, "Could not delete this request. Please try again."),
     }
   }
 }
