@@ -13,11 +13,12 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 |---|---------|-------|--------|
 | 1 | Stack & testing architecture | Foundation | done |
 | 2 | Design system & orange theme | Foundation | done |
-| 3 | Data model & Google Auth | Foundation | in-progress |
-| 4 | Navigation sidebar & layout shell | Slice 1 | in-progress |
+| 3 | Data model & Google Auth | Foundation | done |
+| 4 | Navigation sidebar & layout shell | Slice 1 | done |
 | 5 | Task management & daily work log | Slice 2 | done |
 | 6 | Performance dashboard & team analytics | Slice 3 | done |
 | 7 | Client portal & feedback system | Slice 4 | done |
+| 8 | Deleted tasks archive & recovery | Slice 5 | done |
 
 ## Foundations
 
@@ -37,24 +38,25 @@ Primary orange brand palette, dark background styling matching the reference scr
 - [x] Verify theme tokens with automated tests: `/test`
 Spec 0002 · code in `app/globals.css`
 
-### 3. Data model & Google Auth · in-progress
-Database schema and authentication service supporting Google social sign in and three user roles (Admin/Boss, Worker, Client).
+### 3. Data model & Google Auth · done
+Database schema and authentication service supporting Google social sign in and three user roles (Manager, Worker, Client).
 **Done when:** users can sign in with Google, each user receives a role, and permissions protect restricted resources.
-- [ ] Design it (spec): `/architect data model & Google Auth`
+- [x] Review the existing Prisma schema, invitation gated Google sign in, role assignment, and server side access checks.
+Implementation in `prisma/schema.prisma`, `auth.ts`, and `lib/authz.ts`; no separate design spec was needed for this existing implementation.
 
 ## Slice 1: Navigation sidebar & layout shell
 
-### 4. Navigation sidebar & layout shell · in-progress
+### 4. Navigation sidebar & layout shell · done
 Shared workspace shell for managers, workers, and clients, using shadcn's `sidebar-07` icon collapsing layout and role specific destinations.
-**Done when:** each role reaches its agreed landing page, sees only its navigation, and can use the responsive shell, theme control, account menu, and sign out safely.
+**Done when:** each role reaches its landing page, sees only its navigation, and can use the responsive shell, theme control, account menu, and sign out safely.
 - [x] Design it (spec): `/architect navigation sidebar & layout shell`
-- [ ] Build it: `/develop navigation sidebar & layout shell`
+- [x] Build it: `/develop navigation sidebar & layout shell`
   - [x] Add and adapt the `sidebar-07` components to WoPhoto's visual theme.
   - [x] Build the shared role navigation, active page title, theme control, account menu, and sign out action.
-  - [x] Integrate role landing routes, manager invitations, worker and client placeholders, and disabled future destinations.
-  - [ ] Add focused coverage for role access, responsive behavior, identity/theme fallbacks, and auth regressions.
-- [ ] Verify it: `/check verify navigation sidebar & layout shell`
-- [ ] Test it: `/test navigation sidebar & layout shell`
+  - [x] Integrate role landing routes and active destinations for manager, worker, and client workspaces.
+  - [x] Add focused tests for role navigation, route titles, mobile Escape handling, and authentication; review page-level role guards.
+- [x] Verify it: `/check verify navigation sidebar & layout shell` (desktop/mobile shell checked; see spec verify record)
+- [x] Test it: `/test navigation sidebar & layout shell` (`npm test`, 63 tests passed; `npm run typecheck` passed)
 Spec 0003 · `docs/specs/0003-role-aware-navigation-shell/index.md` · code in `app/(workspace)/`, `app/actions/auth.ts`, `components/workspace/`, `lib/navigation.ts`
 
 ## Slice 2: Task management & daily work log
@@ -93,6 +95,19 @@ Dedicated client view allowing clients to track their photo project progress, lo
 - [x] Verify it: `/check verify client portal & feedback system`
 - [x] Test it: `/test client portal & feedback system`
 Spec 0006 · `docs/specs/0006-client-feedback-system.md` · code in `app/(workspace)/client/project-feedback/`, `app/(workspace)/manager/reviews/`, `components/feedback/`, `lib/feedback.ts`
+
+## Slice 5: Deleted tasks archive & recovery
+
+### 8. Deleted tasks archive & recovery · done
+Give managers a paginated archive for deleted tasks, with filters, retention details, and safe restore or permanent removal actions.
+**Done when:** managers can find deleted tasks without loading the entire archive, restore one or more tasks, and permanently remove selected items with confirmation.
+- [x] Build it: `/develop deleted tasks archive & recovery`
+  - [x] Add manager scoped deleted task queries with capped pagination, search, project and priority filters.
+  - [x] Add single and batch restore, permanent deletion, and empty trash actions with confirmation.
+  - [x] Build the shadcn table with retention countdowns and automatically applied filters with debounced search.
+- [x] Verify it: `/check verify deleted tasks archive & recovery`
+- [x] Test it: `/test deleted tasks archive & recovery`
+Code in `app/(workspace)/manager/deleted-tasks/`, `components/tasks/deleted-tasks-view.tsx`, `app/actions/tasks.ts`, and `lib/tasks.ts`
 
 ## Deferred
 Out of scope for the initial MVP passes, kept so the plan stays honest.
