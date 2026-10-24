@@ -1,11 +1,11 @@
 # 0003. Role Aware Navigation Shell
 
 **Date**: 2026-10-22
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 
-This feature gives managers, workers, and clients a shared workspace frame with navigation that matches their role. It follows the existing WoPhoto theme and uses a collapsible sidebar on desktop and a drawer on phones. The shell uses the existing sign in session and adds no database tables or new environment settings.
+This feature gives managers, workers, and clients a shared workspace frame with navigation that matches their role. It follows the existing WoPhoto theme and uses a collapsible sidebar on desktop and a drawer on phones. The shell uses the existing sign in session and adds no database tables or new environment settings. The initial build has since grown alongside the product: implemented role landing pages and active workspace destinations replace the original temporary placeholders and disabled links.
 
 ## Requirements
 
@@ -18,11 +18,11 @@ This feature gives managers, workers, and clients a shared workspace frame with 
 **Acceptance criteria**:
 
 - **AC-1**: A signed in manager, worker, or client sees the shared workspace shell, with only the navigation destinations assigned to that role.
-- **AC-2**: Managers can open Team Invitations from the shell. It remains the manager landing page until the manager dashboard is built.
-- **AC-3**: Workers and clients land on a clear workspace placeholder until their first role home page is built. Their future role home pages can replace the placeholder without changing the sign in flow.
+- **AC-2**: Managers land on `/manager` and can open every implemented manager destination in the shell, including Team Invitations.
+- **AC-3**: Workers land on `/worker` and clients land on `/client`; each sees only the destinations assigned to their role.
 - **AC-4**: The desktop sidebar can collapse to an icon rail and expand again. On phones, a menu button opens the sidebar as a left drawer, and choosing an available destination closes the drawer.
 - **AC-5**: The top bar shows the current page title from the same route configuration as the sidebar and a light and dark theme control. Account controls with the signed in user's identity, role, and sign out action appear at the bottom of the sidebar.
-- **AC-6**: Unbuilt destinations remain visible only where relevant to the role, are marked Coming soon, and cannot be opened.
+- **AC-6**: Navigation exposes implemented destinations for each role; destinations without an implemented page are not presented as active links.
 - **AC-7**: Direct access to a protected page still checks the user's role on the server. Hiding a navigation item is not treated as authorization.
 - **AC-8**: The shell uses the current WoPhoto orange, charcoal, and white themes, the existing reduced corner radius, and the supplied sidebar references. It contains no decorative eyebrow labels and uses no background image.
 - **AC-9**: A signed out visitor is sent to sign in. A signed in user without the required role receives the existing forbidden page.
@@ -36,7 +36,7 @@ This feature gives managers, workers, and clients a shared workspace frame with 
 
 **Chosen option**: Option 1: Shared shell based on shadcn's `sidebar-07` block
 
-Use one protected workspace shell with role based links, the icon collapsing pattern from shadcn's `sidebar-07` block, a left drawer on phones, and a focused top bar. Keep the WoPhoto home link in the sidebar header and the account control in the footer. Install the block with `npx shadcn@latest add sidebar-07`, then adapt its sample navigation and content to WoPhoto's role configuration and theme. Keep future areas visible as disabled Coming soon entries where they apply. Use the supplied sidebar references, without decorative eyebrow labels or background imagery.
+Use one protected workspace shell with role based links, the icon collapsing pattern from shadcn's `sidebar-07` block, a left drawer on phones, and a focused top bar. Keep the WoPhoto home link in the sidebar header and the account control in the footer. Install the block with `npx shadcn@latest add sidebar-07`, then adapt its sample navigation and content to WoPhoto's role configuration and theme. Use the supplied sidebar references, without decorative eyebrow labels or background imagery.
 
 ## Feature design
 
@@ -46,47 +46,51 @@ No schema change. Read the existing Auth.js session user fields `id`, `name`, `e
 
 **Shell routes and role navigation**:
 
-The protected shell covers `/`, `/manager/*`, `/worker/*`, and `/client/*`. The public `/login`, `/invite/[token]`, `/forbidden`, and `/api/auth/*` routes stay outside it. On `/`, resolve the signed in user's role on the server and redirect to that role's landing page: managers to `/manager/invitations`, workers to `/worker`, and clients to `/client`. The WoPhoto logo links to the same role landing destination. New signed in pages belong under the protected workspace route group and retain their server side role checks.
+The protected shell covers `/`, `/manager/*`, `/worker/*`, and `/client/*`. The public `/login`, `/invite/[token]`, `/forbidden`, and `/api/auth/*` routes stay outside it. On `/`, resolve the signed in user's role on the server and redirect to that role's landing page: managers to `/manager`, workers to `/worker`, and clients to `/client`. The WoPhoto logo links to the same role landing destination. New signed in pages belong under the protected workspace route group and retain their server side role checks.
 
-The shared navigation configuration is the single source for role visibility, labels, available route paths, availability, and page titles. Coming soon items have no route until their feature is implemented. Keep this order:
+The shared navigation configuration is the single source for role visibility, labels, available route paths, and page titles. The current destinations are:
 
-| Role    | Navigation item  | Route                  | State                 |
-| ------- | ---------------- | ---------------------- | --------------------- |
-| Manager | Dashboard        | None                   | Coming soon           |
-| Manager | Tasks            | None                   | Coming soon           |
-| Manager | Brief Review     | None                   | Coming soon           |
-| Manager | Deleted Tasks    | None                   | Coming soon           |
-| Manager | Brand Assets     | None                   | Coming soon           |
-| Manager | Notifications    | None                   | Coming soon           |
-| Manager | Explore Briefs   | None                   | Coming soon           |
-| Manager | Reviews          | None                   | Coming soon           |
-| Manager | Inventory        | None                   | Coming soon           |
-| Manager | Schedule         | None                   | Coming soon           |
-| Manager | Team Invitations | `/manager/invitations` | Available             |
-| Worker  | Workspace        | `/worker`              | Available placeholder |
-| Worker  | My Tasks         | None                   | Coming soon           |
-| Worker  | Brief Review     | None                   | Coming soon           |
-| Worker  | Brand Assets     | None                   | Coming soon           |
-| Worker  | Notifications    | None                   | Coming soon           |
-| Worker  | Reviews          | None                   | Coming soon           |
-| Worker  | Schedule         | None                   | Coming soon           |
-| Client  | Dashboard        | `/client`              | Available placeholder |
-| Client  | Project Feedback | None                   | Coming soon           |
-| Client  | Notifications    | None                   | Coming soon           |
+| Role    | Navigation item  | Route                    |
+| ------- | ---------------- | ------------------------ |
+| Manager | Dashboard        | `/manager`               |
+| Manager | Projects         | `/manager/projects`      |
+| Manager | Tasks            | `/manager/tasks`         |
+| Manager | Schedule         | `/manager/schedule`      |
+| Manager | Brief Review     | `/manager/brief-review`  |
+| Manager | Explore Briefs   | `/manager/explore-briefs`|
+| Manager | Reviews          | `/manager/reviews`       |
+| Manager | Brand Assets     | `/manager/brand-assets`  |
+| Manager | Inventory        | `/manager/inventory`     |
+| Manager | Deleted Tasks    | `/manager/deleted-tasks` |
+| Manager | Notifications    | `/manager/notifications` |
+| Manager | Team Invitations | `/manager/invitations`   |
+| Manager | Settings         | `/settings`              |
+| Worker  | Dashboard        | `/worker`                |
+| Worker  | My Tasks         | `/worker/tasks`          |
+| Worker  | Schedule         | `/worker/schedule`       |
+| Worker  | Brief Review     | `/worker/brief-review`   |
+| Worker  | Reviews          | `/worker/reviews`        |
+| Worker  | Brand Assets     | `/worker/brand-assets`   |
+| Worker  | Notifications    | `/worker/notifications`  |
+| Worker  | Settings         | `/settings`              |
+| Client  | Dashboard        | `/client`                |
+| Client  | Project Feedback | `/client/project-feedback`|
+| Client  | Notifications    | `/client/notifications`  |
+| Client  | Settings         | `/settings`              |
 
-The route title comes from the same configuration: `/manager/invitations` is `Team Invitations`, `/worker` is `Workspace`, and `/client` is `Dashboard`. Future entries add a title when their route is implemented. Match nested paths by route segment, not string prefix. Use `Workspace` as the title fallback for a protected route missing a mapping. An unmapped route still goes through normal route handling and never grants access.
+The route title comes from the same configuration: `/manager` is `Dashboard`, `/manager/invitations` is `Team Invitations`, and `/worker` and `/client` are each `Dashboard`. Match nested paths by route segment, not string prefix. Use `Workspace` as the title fallback for a protected route missing a mapping. An unmapped route still goes through normal route handling and never grants access.
 
-The manager's temporary landing route is `/manager/invitations`. The worker and client landing routes are `/worker` and `/client`. The worker placeholder says `Your workspace is being set up.` The client placeholder says `Your project workspace is being set up.` The top bar page title is the page's single visible `h1`; body sections use `h2` and do not repeat that title. Keep the placeholder text as the primary body message. No placeholder page is added for disabled destinations.
+The landing routes are `/manager`, `/worker`, and `/client`. Manager, worker, and client home pages are implemented. The top bar page title is the page's single visible `h1`; body sections use `h2` and do not repeat that title.
 
 **Responsive and identity behavior**:
 
-Use the shadcn sidebar defaults. At widths below 768 CSS pixels, the sidebar is a left drawer opened by a menu button. Escape or outside click closes it and returns focus to the menu button. Selecting an available destination closes the drawer and moves focus to the page heading. At 768 CSS pixels and above, start expanded; the user can collapse to an icon rail. Persist the desktop collapsed state with the sidebar's `sidebar_state` cookie. A viewport change closes any open phone drawer and restores the saved desktop state. In the icon rail, tooltips include the item name and Coming soon status.
+Use the shadcn sidebar defaults. At widths below 768 CSS pixels, the sidebar is a left drawer opened by a menu button. Escape or outside click closes it and returns focus to the menu button. Selecting an available destination closes the drawer and moves focus to the page heading. At 768 CSS pixels and above, start expanded; the user can collapse to an icon rail. Persist the desktop collapsed state with the sidebar's `sidebar_state` cookie. A viewport change closes any open phone drawer and restores the saved desktop state. In the icon rail, tooltips include the item name.
 
 Keep the WoPhoto home link in the sidebar header. Place the account control in the sidebar footer. For the account control, show the user's name when present, otherwise their email, otherwise `Account`. Show the human readable role below it. Do not load a profile image in this shell. The account menu contains the email when present and a sign out action. If the email is missing, omit that line. The theme control starts with a stable generic `Theme` label and does not show an icon that assumes light or dark mode until the component has mounted. After mount, use `resolvedTheme` to toggle explicitly between light and dark.
 
 **API surface**:
 
-No new API endpoint is needed. The shell reads `auth()` on the server and never places the session or role in a shared server cache. Add a thin server action that calls the existing Auth.js `signOut` function with `/login` as the redirect destination. Navigation uses Next.js links for available destinations; Coming soon items are disabled controls with no route. Only available links are prefetched.
+No new API endpoint is needed. The shell reads `auth()` on the server and never places the session or role in a shared server cache. A server action calls the existing Auth.js `signOut` function with `/login` as the redirect destination. Navigation uses Next.js links for implemented destinations.
 
 | Surface                     | Method                                   | Inputs                             | Output                                                                             | Auth                             | Key errors                                                                          |
 | --------------------------- | ---------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------- |
@@ -100,9 +104,9 @@ No new API endpoint is needed. The shell reads `auth()` on the server and never 
 | Action                       | Value produced or displayed                               | Source                                                                                                         |
 | ---------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Render account control       | Display name and email                                    | `session.user.name` and `session.user.email`, with a neutral account label when either is absent               |
-| Render role navigation       | Available and future destinations, labels, and order      | Static role navigation configuration in the application                                                        |
+| Render role navigation       | Implemented destinations, labels, and order               | Static role navigation configuration in the application                                                        |
 | Select the active page title | Title for the current route                               | `usePathname()` matched against available routes in the same navigation configuration; fallback is `Workspace` |
-| Render role home             | Manager invitations page or worker and client placeholder | Existing `UserRole` in the Auth.js session and the role landing route in this spec                             |
+| Render role home             | Manager, worker, or client dashboard                      | Existing `UserRole` in the Auth.js session and the role landing route in this spec                             |
 | Render theme control         | Current theme and toggle action                           | Existing next themes provider; `resolvedTheme` after client mount                                              |
 | Sign out                     | Redirect to the sign in page                              | Existing Auth.js sign out behavior                                                                             |
 
@@ -113,8 +117,8 @@ Follow `app/globals.css` and `components/theme-provider.tsx` for the current des
 **Key invariants**:
 
 1. The session role selects visible navigation, but server side role checks remain the authority for protected pages and actions. A missing or unrecognized role redirects to `/forbidden`.
-2. A Coming soon item has no active destination and cannot navigate.
-3. A role's landing page is explicit. Managers use `/manager/invitations` for now; workers and clients see the workspace placeholder until their first home pages exist.
+2. Navigation destinations correspond to implemented pages, with server role checks protecting restricted routes.
+3. A role's landing page is explicit: managers use `/manager`, workers use `/worker`, and clients use `/client`.
 4. Role navigation, availability, route titles, and active states come from the same configuration.
 5. Request specific identity and role data is rendered at request time and is never shared between users through server caching.
 6. The shell does not add new environment variables, external services, or stored data.
@@ -126,9 +130,9 @@ Only signed in users can enter the workspace. The session provides their identit
 **Critical test scenarios**:
 
 1. Happy path: a manager signs in, sees the manager navigation, opens Team Invitations, toggles theme, and signs out, verifies **AC-1**, **AC-2**, and **AC-5**.
-2. Role home and isolation: workers and clients see their exact role links and placeholders; switching accounts does not reuse the previous role menu, verifies **AC-1**, **AC-3**, and **AC-13**.
+2. Role home and isolation: workers and clients see their role links and landing pages; switching accounts does not reuse the previous role menu, verifies **AC-1**, **AC-3**, and **AC-13**.
 3. Restricted access: a signed out visitor is sent to sign in, a worker or client opens `/manager/invitations` directly and is sent to `/forbidden`, and a missing role is denied, verifies **AC-7**, **AC-9**, and **AC-12**.
-4. Unfinished destination: a user sees a relevant Coming soon entry in expanded and icon rail modes, but cannot navigate to it, verifies **AC-6**.
+4. Destination coverage: navigation entries resolve to implemented pages and protected server routes retain role checks, verifies **AC-6** and **AC-7**.
 5. Responsive behavior: keyboard and touch users open and close the phone drawer, use Escape and outside click, navigate to an available page, and receive focus at the page heading, verifies **AC-4** and **AC-10**.
 6. Theme and identity: the theme toggle renders without a hydration mismatch, switches correctly from both system light and system dark, and identity fallbacks work with missing name or email, verifies **AC-5**, **AC-11**, and **AC-12**.
 7. Regression: Google sign in, invitation acceptance, and manager invitation access continue to work; an Auth.js sign out failure surfaces an error without clearing the active session, verifies **AC-14**.
@@ -137,15 +141,15 @@ Only signed in users can enter the workspace. The session provides their identit
 
 1. [x] Add shadcn's `sidebar-07` block and the menu components needed for the workspace, following the existing Tailwind and theme conventions, satisfies **AC-1**, **AC-4**, and **AC-8**.
 2. [x] Build the shared protected shell, the static role navigation map, route titles, theme control, account menu, and sign out action, satisfies **AC-1**, **AC-5**, **AC-7**, and **AC-9**.
-3. [x] Integrate the shell with the manager invitation route and role home routing, then add worker and client placeholders and disabled future entries, satisfies **AC-2**, **AC-3**, and **AC-6**.
-4. Add focused coverage for role visibility, access denial, route titles, identity and theme fallbacks, responsive navigation, account switching, and authentication regressions, then run the app checks and verify the shell at desktop and phone widths, satisfies **AC-1** through **AC-14**.
+3. [x] Integrate the shell with role landing routes and active workspace destinations for manager, worker, and client, satisfies **AC-2**, **AC-3**, and **AC-6**.
+4. [x] Add focused tests for role navigation, route titles, mobile Escape behavior, and auth sign out; review role guards, run app checks, and verify the shell at desktop and phone widths, satisfies **AC-1** through **AC-14**.
 
 ## Consequences
 
 **Positive**:
 
-1. All roles get a consistent workspace frame that can grow as each product slice ships.
-2. The shell communicates what exists and what is planned without creating fake pages.
+1. All roles get a consistent workspace frame that grows with the product.
+2. The shell links users to the implemented features available to their role.
 3. The navigation adapts to desktop and phone use.
 
 **Negative / tradeoffs**:
@@ -159,5 +163,5 @@ The shell depends on the existing Auth.js session, role enum, theme provider, an
 
 ## Follow-up
 
-1. When each later slice ships, replace its disabled navigation entry with the real route and keep its server side role check.
+1. Keep new navigation destinations aligned with the server side role checks as additional pages ship.
 2. Add any profile management destination only when the profile workflow is designed.

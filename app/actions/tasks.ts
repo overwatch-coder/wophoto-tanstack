@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 export type TaskActionState = { error?: string; success?: string; taskId?: string };
-const paths = ["/manager/tasks", "/worker/tasks"];
+const paths = ["/manager/tasks", "/worker/tasks", "/manager/deleted-tasks"];
 const message = (error: unknown) => error instanceof Error ? error.message : "The task could not be saved. Try again.";
 const stringValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const stringList = (data: FormData, key: string) => data.getAll(key).filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean);
@@ -185,4 +185,80 @@ export async function softDeleteTask(taskId: string): Promise<TaskActionState> {
     invalidateTasks();
     return { success: "Task deleted.", taskId };
   } catch (error) { return { error: message(error) }; }
+}
+
+export async function restoreTask(taskId: string): Promise<TaskActionState> {
+  try {
+    const manager = await requireRole(UserRole.MANAGER);
+    await prisma.$transaction(async (tx) => {
+      await lockTask(tx, taskId);
+      const found = await tx.task.findFirst({
+        where: { id: taskId, deletedAt: { not: null }, project: { managerId: manager.id } },
+        select: { id: true },
+      });
+      if (!found) throw new Error("Task not found or is not in trash.");
+      await tx.task.update({ where: { id: taskId }, data: { deletedAt: null } });
+    });
+    invalidateTasks();
+    return { success: "Task restored successfully.", taskId };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function restoreMultipleTasks(taskIds: string[]): Promise<TaskActionState> {
+  try {
+    const manager = await requireRole(UserRole.MANAGER);
+    if (!taskIds.length || taskIds.some((id) => !validId(id))) {
+      throw new Error("Select at least one valid task to restore.");
+    }
+    const uniqueIds = [...new Set(taskIds)];
+    const result = await prisma.task.updateMany({
+      where: {
+        id: { in: uniqueIds },
+        deletedAt: { not: null },
+        project: { managerId: manager.id },
+      },
+      data: { deletedAt: null },
+    });
+    invalidateTasks();
+    return { success: `${result.count} task(s) restored successfully.` };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function permanentlyDeleteTask(taskId: string): Promise<TaskActionState> {
+  try {
+    const manager = await requireRole(UserRole.MANAGER);
+    await prisma.$transaction(async (tx) => {
+      await lockTask(tx, taskId);
+      const found = await tx.task.findFirst({
+        where: { id: taskId, deletedAt: { not: null }, project: { managerId: manager.id } },
+        select: { id: true },
+      });
+      if (!found) throw new Error("Task not found or is not in trash.");
+      await tx.task.delete({ where: { id: taskId } });
+    });
+    invalidateTasks();
+    return { success: "Task permanently deleted.", taskId };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function emptyTrash(): Promise<TaskActionState> {
+  try {
+    const manager = await requireRole(UserRole.MANAGER);
+    const result = await prisma.task.deleteMany({
+      where: {
+        deletedAt: { not: null },
+        project: { managerId: manager.id },
+      },
+    });
+    invalidateTasks();
+    return { success: `Trash emptied. ${result.count} task(s) permanently removed.` };
+  } catch (error) {
+    return { error: message(error) };
+  }
 }

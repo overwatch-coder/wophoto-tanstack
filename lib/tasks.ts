@@ -1,6 +1,6 @@
 import "server-only";
 
-import { TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
+import { Prisma, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { cleanClientName } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -100,3 +100,146 @@ export async function getTaskFormOptions() {
     workers: [],
   };
 }
+
+export async function getDeletedTasks(input: {
+  page?: number;
+  search?: string;
+  projectId?: string;
+  priority?: string;
+} = {}) {
+  const manager = await requireRole(UserRole.MANAGER);
+  const search = input.search?.trim().slice(0, 120) ?? "";
+  const projectId = input.projectId && input.projectId !== "ALL" ? input.projectId : undefined;
+  const priority = Object.values(TaskPriority).includes(input.priority as TaskPriority)
+    ? input.priority as TaskPriority
+    : undefined;
+  const where: Prisma.TaskWhereInput = {
+    deletedAt: { not: null },
+    project: {
+      managerId: manager.id,
+      ...(projectId ? { id: projectId } : {}),
+    },
+    ...(priority ? { priority } : {}),
+    ...(search
+      ? {
+          OR: [
+            { title: { contains: search, mode: "insensitive" } },
+            { description: { contains: search, mode: "insensitive" } },
+            { project: { name: { contains: search, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
+  };
+  const trashWhere: Prisma.TaskWhereInput = {
+    deletedAt: { not: null },
+    project: { managerId: manager.id },
+  };
+  const [total, trashCount] = await Promise.all([
+    prisma.task.count({ where }),
+    prisma.task.count({ where: trashWhere }),
+  ]);
+  const totalPages = getPageCount(total);
+  const page = Math.min(Math.max(1, input.page ?? 1), totalPages);
+  const [rows, projects] = await Promise.all([
+    prisma.task.findMany({
+      where,
+      orderBy: [{ deletedAt: "desc" }, { id: "desc" }],
+      take: DEFAULT_PAGE_SIZE,
+      skip: (page - 1) * DEFAULT_PAGE_SIZE,
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      type: true,
+      status: true,
+      priority: true,
+      deletedAt: true,
+      projectId: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          manager: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
+      createdBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        },
+      },
+      assignees: {
+        select: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
+      specializations: {
+        select: {
+          specialization: true,
+        },
+      },
+      },
+    }),
+    prisma.project.findMany({
+      where: { managerId: manager.id, tasks: { some: { deletedAt: { not: null } } } },
+      select: { id: true, name: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      take: 100,
+    }),
+  ]);
+
+  const now = Date.now();
+  const RETENTION_DAYS = 30;
+
+  const tasks = rows.map((task) => {
+    const deletedTime = task.deletedAt ? new Date(task.deletedAt).getTime() : now;
+    const daysPassed = Math.floor((now - deletedTime) / (1000 * 60 * 60 * 24));
+    const daysRemaining = Math.max(0, RETENTION_DAYS - daysPassed);
+
+    const deletedBy = task.project?.manager ?? task.createdBy;
+
+    return {
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      type: task.type,
+      status: task.status,
+      priority: task.priority,
+      projectId: task.projectId,
+      projectName: task.project?.name ?? "Unknown Project",
+      deletedAt: task.deletedAt ? task.deletedAt.toISOString() : new Date().toISOString(),
+      daysRemaining,
+      deletedById: deletedBy?.id ?? manager.id,
+      deletedByName: deletedBy?.name ?? "Manager",
+      deletedByEmail: deletedBy?.email ?? "",
+      deletedByImage: deletedBy?.image ?? null,
+      assignees: task.assignees.map((a) => ({
+        id: a.user.id,
+        name: a.user.name ?? "Worker",
+        email: a.user.email,
+        image: a.user.image,
+      })),
+      specializations: task.specializations.map((s) => s.specialization),
+    };
+  });
+  return { tasks, projects, page, total, totalPages, trashCount };
+}
+
+export type DeletedTasksPage = Awaited<ReturnType<typeof getDeletedTasks>>;
+export type DeletedTaskItem = DeletedTasksPage["tasks"][number];

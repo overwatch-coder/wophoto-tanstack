@@ -86,10 +86,12 @@ export function FeedbackWorkspace({
 
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState(filters.query);
+  const [prevFilterQuery, setPrevFilterQuery] = useState(filters.query);
 
-  useEffect(() => {
+  if (prevFilterQuery !== filters.query) {
+    setPrevFilterQuery(filters.query);
     setSearchQuery(filters.query);
-  }, [filters.query]);
+  }
 
   const updateFilter = (key: string, value: string) => {
     const params = new URLSearchParams(currentSearch);
