@@ -19,6 +19,12 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 6 | Performance dashboard & team analytics | Slice 3 | done |
 | 7 | Client portal & feedback system | Slice 4 | done |
 | 8 | Deleted tasks archive & recovery | Slice 5 | done |
+| 9 | Settings & user preferences | Slice 6 | done |
+| 10 | Notification center & delivery | Slice 7 | done |
+| 11 | AI Studio Copilot & smart navigation | Slice 8 | done |
+| 12 | Inventory management | Slice 9 | planned |
+| 13 | Schedule & calendar | Slice 10 | planned |
+| 14 | Brand asset library | Slice 11 | planned |
 
 ## Foundations
 
@@ -109,12 +115,65 @@ Give managers a paginated archive for deleted tasks, with filters, retention det
 - [x] Test it: `/test deleted tasks archive & recovery`
 Code in `app/(workspace)/manager/deleted-tasks/`, `components/tasks/deleted-tasks-view.tsx`, `app/actions/tasks.ts`, and `lib/tasks.ts`
 
-## Deferred
-Out of scope for the initial MVP passes, kept so the plan stays honest.
-- **Inventory management**: equipment check in and check out tracking · needs a decision
-- **Schedule & calendar**: full studio calendar booking view · needs a decision
-- **Brand asset library**: shared media asset repository · needs a decision
-- **Automated notifications**: email and push alerts for task deadlines · needs a decision
+## Slice 6: Settings & user preferences
+
+### 9. Settings & user preferences · done
+Give managers, workers, and clients a shared place to manage profile details, appearance, notification delivery preferences, and role specific defaults.
+**Done when:** each role can save supported settings, see them applied in the workspace, and manage its account and alert preferences.
+- [x] Build it: `/develop settings & user preferences`
+  - [x] Save profile, location, theme, density, and role specific preferences.
+  - [x] Configure notification channels and alert behavior.
+  - [x] Add account security and connected sign in details.
+- [x] Test it: `/test settings & user preferences`
+Code in `components/settings/profile-settings.tsx`, `app/actions/settings.ts`, `lib/user-preferences.ts`, and `lib/validation/settings.ts`
+
+## Slice 7: Notification center & delivery
+
+### 10. Notification center & delivery · done
+Show each user role its own activity, unread counts, and action links, with in app updates and configurable email delivery.
+**Done when:** managers, workers, and clients receive role scoped notifications, can act from the notification links, and can browse older messages incrementally.
+- [x] Build it: `/develop notification center & delivery`
+  - [x] Add role scoped notification records, counts, and cursor based pages.
+  - [x] Add real time updates, action links, and the notification center.
+  - [x] Deliver configured email alerts and scheduled deadline reminders.
+- [x] Test it: `/test notification center & delivery`
+Code in `lib/notifications.ts`, `lib/email.ts`, `app/api/notifications/`, `app/actions/notifications.ts`, and `components/notifications/`
+
+## Slice 8: AI Studio Copilot & smart navigation
+
+### 11. AI Studio Copilot & smart navigation · done
+Give each workspace role a floating assistant that searches studio records, runs permitted tools, and links users directly to relevant work.
+**Done when:** the assistant streams replies, respects role and action safety rules, and completes tool calls with each configured provider integration.
+- [x] Design it (spec): `docs/specs/0007-ai-studio-agent-and-smart-navigation.md`
+- [x] Build it: `/develop AI Studio Copilot & smart navigation`
+  - [x] Add encrypted provider settings, model selection, and server side key resolution.
+  - [x] Add role checked search, capacity, deadline, navigation, and approved write tools.
+  - [x] Add the floating copilot, command center, and streamed tool traces.
+  - [x] Integrate provider specific chat paths and model catalogs.
+- [x] Verify it: provider tool call and result round trips passed for all configured models.
+- [x] Test it: `/test AI Studio Copilot & smart navigation`
+Spec 0007 · code in `components/ai/`, `app/api/chat/`, and `lib/ai/`
+
+## Slice 9: Inventory management · needs a decision
+
+### 12. Inventory management · planned · needs a decision
+Track shared studio equipment and its checkout history so teams know what is available and who has each item.
+**Done when:** managers can record equipment, workers can check items in and out, and the studio can see current availability and item history.
+- [ ] Design it (spec): `/architect inventory management`
+
+## Slice 10: Schedule & calendar · needs a decision
+
+### 13. Schedule & calendar · planned · needs a decision
+Coordinate studio bookings, shoots, and work deadlines in a shared schedule.
+**Done when:** managers and workers can view relevant bookings and deadlines, and managers can create and update studio events without conflicts.
+- [ ] Design it (spec): `/architect schedule & calendar`
+
+## Slice 11: Brand asset library · needs a decision
+
+### 14. Brand asset library · planned · needs a decision
+Store and share approved brand media and reference files with the right project teams.
+**Done when:** authorized users can find, preview, and manage shared brand assets with clear access rules.
+- [ ] Design it (spec): `/architect brand asset library`
 
 ## Legend
 

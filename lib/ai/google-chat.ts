@@ -1,0 +1,150 @@
+import "server-only";
+
+import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from "@google/genai";
+import { createDataStreamResponse, formatDataStreamPart, type ToolSet, type UIMessage } from "ai";
+
+type ExecutableTool = {
+  description?: string;
+  parameters: {
+    jsonSchema?: unknown;
+    validate: (value: unknown) => Promise<{ success: true; value: unknown } | { success: false; error: Error }>;
+  };
+  execute?: (args: unknown, options: { toolCallId: string; messages: never[]; abortSignal?: AbortSignal }) => Promise<unknown>;
+};
+
+function toGoogleSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(toGoogleSchema);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "$schema" && key !== "additionalProperties")
+      .map(([key, entry]) => [key, toGoogleSchema(entry)]),
+  );
+}
+
+function getPlainText(message: UIMessage): string {
+  const contentText = typeof message.content === "string" ? message.content : "";
+  if (contentText.trim()) return contentText;
+
+  return (message.parts ?? [])
+    .flatMap((part) => part.type === "text" && typeof part.text === "string" ? [part.text] : [])
+    .join("");
+}
+
+function getToolDeclarations(tools: ToolSet): FunctionDeclaration[] {
+  return Object.entries(tools).map(([name, rawTool]) => {
+    const studioTool = rawTool as ExecutableTool;
+    const parameters = studioTool.parameters?.jsonSchema;
+
+    return {
+      name,
+      description: studioTool.description,
+      ...(parameters ? { parametersJsonSchema: toGoogleSchema(parameters) } : {}),
+    };
+  });
+}
+
+export function createGoogleGeminiChatResponse(args: {
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  messages: UIMessage[];
+  tools: ToolSet;
+  abortSignal?: AbortSignal;
+}): Response {
+  const { apiKey, model, systemPrompt, messages, tools, abortSignal } = args;
+  const google = new GoogleGenAI({ apiKey });
+  const toolMap = tools as Record<string, ExecutableTool>;
+  const declarations = getToolDeclarations(tools);
+
+  // Keep only visible text from previous turns. Tool-call history is represented
+  // by the current Gemini response below, where the SDK retains its signatures.
+  const contents: Content[] = messages.flatMap((message) => {
+    const text = getPlainText(message).trim();
+    if (!text) return [];
+    return [{
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text }],
+    }];
+  });
+
+  return createDataStreamResponse({
+    headers: { "Cache-Control": "no-cache" },
+    onError: () => "The Copilot could not complete that request. Check the provider setup and try again.",
+    execute: async (stream) => {
+      for (let step = 0; step < 5; step += 1) {
+        const response = await google.models.generateContent({
+          model,
+          contents,
+          config: {
+            systemInstruction: systemPrompt,
+            maxOutputTokens: 2048,
+            abortSignal,
+            ...(declarations.length ? { tools: [{ functionDeclarations: declarations }] } : {}),
+          },
+        });
+
+        const modelContent = response.candidates?.[0]?.content;
+        const responseParts = modelContent?.parts ?? [];
+        const functionCalls = responseParts.flatMap((part) => part.functionCall ? [part.functionCall] : []);
+
+        if (!functionCalls.length) {
+          const finalText = responseParts
+            .flatMap((part: Part) => !part.thought && typeof part.text === "string" ? [part.text] : [])
+            .join("");
+          if (finalText) stream.write(formatDataStreamPart("text", finalText));
+          stream.write(formatDataStreamPart("finish_message", {
+            finishReason: "stop",
+            usage: {
+              promptTokens: response.usageMetadata?.promptTokenCount ?? 0,
+              completionTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+            },
+          }));
+          return;
+        }
+
+        if (modelContent) contents.push(modelContent);
+
+        const functionResponses: Part[] = [];
+        for (const call of functionCalls) {
+          const toolName = call.name ?? "";
+          const tool = toolMap[toolName];
+          const toolCallId = call.id || crypto.randomUUID();
+          const toolArgs = call.args ?? {};
+          stream.write(formatDataStreamPart("tool_call", { toolCallId, toolName, args: toolArgs }));
+
+          let toolOutput: unknown;
+          try {
+            if (!tool?.execute) throw new Error("This tool is unavailable for your account.");
+            const validation = await tool.parameters.validate(toolArgs);
+            if (!validation.success) throw validation.error;
+            toolOutput = await tool.execute(validation.value, {
+              toolCallId,
+              messages: [],
+              abortSignal,
+            });
+          } catch (error) {
+            toolOutput = {
+              error: error instanceof Error ? error.message.slice(0, 300) : "The requested tool could not be completed.",
+            };
+          }
+
+          stream.write(formatDataStreamPart("tool_result", { toolCallId, result: toolOutput }));
+          functionResponses.push({
+            functionResponse: {
+              name: toolName,
+              ...(call.id ? { id: call.id } : {}),
+              response: { output: toolOutput },
+            },
+          });
+        }
+
+        contents.push({ role: "user", parts: functionResponses });
+      }
+
+      stream.write(formatDataStreamPart("text", "I reached the tool-call limit for this turn. Please narrow the request and try again."));
+      stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+    },
+  });
+}

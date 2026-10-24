@@ -51,6 +51,11 @@ describe("role based settings preferences", () => {
       location: "Soho Branch",
     });
     expect(userPreferencePatchSchema.safeParse({ location: "x".repeat(121) }).success).toBe(false);
+    expect(userPreferencePatchSchema.safeParse({ aiCopilotName: "  Studio Helper  " }).data).toEqual({
+      aiCopilotName: "Studio Helper",
+    });
+    expect(userPreferencePatchSchema.safeParse({ aiCopilotName: " " }).success).toBe(false);
+    expect(userPreferencePatchSchema.safeParse({ aiCopilotName: "x".repeat(49) }).success).toBe(false);
     expect(userPreferencePatchSchema.safeParse({ preferredFormat: "TIFF_16BIT" }).success).toBe(false);
     expect(userPreferencePatchSchema.safeParse({}).success).toBe(false);
   });

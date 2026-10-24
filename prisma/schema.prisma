@@ -398,6 +398,16 @@ model UserPreference {
   soundAlerts          Boolean        @default(true)
   defaultLanding       String?
   workerAvailability   WorkerAvailability @default(AVAILABLE)
+
+  // AI Assistant Preferences
+  aiCopilotName         String          @default("WoPhoto Studio Copilot")
+  aiProvider            String          @default("OPENAI")
+  aiModel               String          @default("gpt-6.1-sol")
+  aiApiKeyEncrypted     String?         @db.Text
+  aiApiKeyProvider      String?
+  aiCustomEndpoint      String?
+  aiAutonomousExecution Boolean         @default(false)
+
   updatedAt            DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -12,6 +12,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 WoPhoto is a management and tracking application for photography and multimedia teams. It allows managers to track team capacity and productivity, workers to log tasks, and clients to monitor project status and submit feedback.
 
+## Build approach
+
+Tracer Bullet: build each feature end to end through every layer, keeping each slice working.
+
 ## Commands
 
 - **Development:** `npm run dev`

@@ -48,6 +48,7 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
       initialUnreadUpdateCount={initialUnreadCounts.updates}
       density={preferences.density}
       soundAlerts={preferences.soundAlerts}
+      copilotName={preferences.aiPreferences.aiCopilotName}
     >
       {children}
     </WorkspaceShell>

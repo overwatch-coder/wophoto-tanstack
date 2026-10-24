@@ -17,7 +17,10 @@ import {
   ImagePlus,
   Trash2,
   MapPin,
-  Sparkles,
+  Bot,
+  Key,
+  Cpu,
+  ShieldCheck,
   Sun,
   Moon,
 } from "lucide-react";
@@ -31,6 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { getProfileImageSrc } from "@/lib/profile-image";
 import { SettingsDensity, UserRole, WorkerAvailability } from "@/generated/prisma/browser";
@@ -39,8 +43,11 @@ import { useWorkspacePreferences } from "@/components/workspace/workspace-prefer
 import { playNotificationChime, prepareNotificationAudio } from "@/lib/notification-audio";
 import type { UserPreferencePatch } from "@/lib/validation/settings";
 import {
+  AI_PROVIDER_MODELS,
+  DEFAULT_AI_MODELS,
   ROLE_LANDING_OPTIONS,
   ROLE_NOTIFICATION_PREFERENCES,
+  type AIProvider,
   type UserPreferencesView,
 } from "@/lib/settings-preferences";
 
@@ -49,6 +56,7 @@ export type SettingsTab =
   | "notifications"
   | "appearance"
   | "workflow"
+  | "ai"
   | "security";
 
 const initialFormState: ProfileActionState = {};
@@ -77,7 +85,12 @@ export function ProfileSettings({
 
   const [preferences, setPreferences] = useState(initialPreferences);
   const [locationDraft, setLocationDraft] = useState(initialPreferences.location);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [endpointDraft, setEndpointDraft] = useState(initialPreferences.aiPreferences?.aiCustomEndpoint || "");
   const [saving, startSaveTransition] = useTransition();
+  const selectedAIProvider = preferences.aiPreferences?.aiProvider ?? "OPENAI";
+  const selectedAIModel = preferences.aiPreferences?.aiModel ?? DEFAULT_AI_MODELS[selectedAIProvider];
+  const selectedAIModelOption = AI_PROVIDER_MODELS[selectedAIProvider].find(({ id }) => id === selectedAIModel);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -111,7 +124,7 @@ export function ProfileSettings({
       {/* Toast Feedback */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl bg-foreground px-4 py-3 text-xs font-medium text-background shadow-2xl animate-in fade-in-0 slide-in-from-bottom-2">
-          <Sparkles className="size-4 shrink-0 text-primary" />
+          <Check className="size-4 shrink-0 text-primary" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -200,6 +213,21 @@ export function ProfileSettings({
                 <span>Work availability</span>
               </div>
           </button>}
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("ai")}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
+                activeTab === "ai"
+                  ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Bot className="size-4 shrink-0" />
+                <span>AI Copilot & Models</span>
+              </div>
+            </button>
 
             <button
               type="button"
@@ -658,6 +686,434 @@ export function ProfileSettings({
                     <option value={WorkerAvailability.FOCUS_MODE}>Focus time</option>
                     <option value={WorkerAvailability.OFF_SHIFT}>Off shift</option>
                   </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= TAB: AI COPILOT & MODEL PREFERENCES ================= */}
+          {activeTab === "ai" && (
+            <div className="space-y-6 w-full">
+              {/* Card 1: Provider & Model Selection */}
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+                {role === UserRole.MANAGER && (
+                  <div className="max-w-2xl border-b border-border pb-5">
+                    <Label htmlFor="ai-copilot-name" className="text-xs font-semibold">Copilot name</Label>
+                    <p className="mb-2 mt-1 text-[11px] text-muted-foreground">
+                      This name appears in the assistant and is shared with clients and workers connected to your projects.
+                    </p>
+                    <Input
+                      id="ai-copilot-name"
+                      maxLength={48}
+                      defaultValue={preferences.aiPreferences?.aiCopilotName ?? "WoPhoto Studio Copilot"}
+                      disabled={saving}
+                      onBlur={(event) => {
+                        const aiCopilotName = event.currentTarget.value.trim();
+                        if (!aiCopilotName) {
+                          event.currentTarget.value = preferences.aiPreferences?.aiCopilotName ?? "WoPhoto Studio Copilot";
+                        } else if (aiCopilotName !== preferences.aiPreferences?.aiCopilotName) {
+                          savePreference(
+                            { aiCopilotName },
+                            (current) => ({
+                              ...current,
+                              aiPreferences: { ...current.aiPreferences, aiCopilotName },
+                            }),
+                            "Copilot name saved.",
+                          );
+                        }
+                      }}
+                      className="h-9 max-w-lg text-xs"
+                      placeholder="WoPhoto Studio Copilot"
+                    />
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Cpu className="size-4 text-primary" />
+                    <h2 className="text-base font-semibold tracking-tight text-foreground">
+                      AI Provider & Model Engine
+                    </h2>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Select your preferred AI intelligence provider and foundation model for the studio copilot.
+                  </p>
+                </div>
+
+                <div className="space-y-4 max-w-2xl">
+                  {/* Provider selection buttons */}
+                  <div>
+                    <Label className="text-xs font-semibold">Intelligence Provider</Label>
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {[
+                        { id: "OPENAI", label: "OpenAI", desc: "GPT-6.1 Sol" },
+                        { id: "ANTHROPIC", label: "Anthropic", desc: "Claude Sonnet 5.5" },
+                        { id: "GEMINI", label: "Google Gemini", desc: "Gemini 4 Argon" },
+                        { id: "GROK", label: "xAI Grok", desc: "Grok 4.20" },
+                        { id: "GROQ", label: "Groq", desc: "GPT-OSS 120B" },
+                        { id: "CUSTOM", label: "Self-Hosted", desc: "Ollama / vLLM endpoint" },
+                      ].map((prov) => {
+                        const isSelected = preferences.aiPreferences?.aiProvider === prov.id;
+                        return (
+                          <button
+                            key={prov.id}
+                            type="button"
+                            disabled={saving}
+                            onClick={() => {
+                              const provider = prov.id as AIProvider;
+                              const defaultModelForProv = DEFAULT_AI_MODELS[provider];
+
+                              savePreference(
+                                {
+                                  aiProvider: provider,
+                                  aiModel: defaultModelForProv,
+                                },
+                                (current) => ({
+                                  ...current,
+                                  aiPreferences: {
+                                    ...current.aiPreferences,
+                                    aiProvider: provider,
+                                    aiModel: defaultModelForProv,
+                                    hasCustomKey: current.aiPreferences?.aiApiKeyProvider === prov.id && current.aiPreferences.hasStoredKey,
+                                  },
+                                }),
+                                `AI Provider switched to ${prov.label}.`
+                              );
+                            }}
+                            className={`flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                              isSelected
+                                ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary/20"
+                                : "border-border hover:bg-muted/30 text-muted-foreground"
+                            }`}
+                          >
+                            <span className="text-xs font-semibold text-foreground">{prov.label}</span>
+                            <span className="text-[10px] text-muted-foreground">{prov.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Provider-specific model selector */}
+                  <div className="pt-2">
+                    <Label htmlFor="ai-model" className="text-xs font-semibold">Model</Label>
+                    <p className="text-[11px] text-muted-foreground mb-2">
+                      Choose a model by name. The selected provider ID is saved and sent to its API.
+                    </p>
+                    {selectedAIProvider === "CUSTOM" ? (
+                      <div className="max-w-lg space-y-2">
+                        <Input
+                          id="ai-model"
+                          defaultValue={selectedAIModel}
+                          disabled={saving}
+                          onBlur={(event) => {
+                            const model = event.target.value.trim();
+                            if (model && model !== preferences.aiPreferences?.aiModel) {
+                              savePreference(
+                                { aiModel: model },
+                                (current) => ({
+                                  ...current,
+                                  aiPreferences: { ...current.aiPreferences, aiModel: model },
+                                }),
+                                "Self-hosted model saved.",
+                              );
+                            }
+                          }}
+                          className="h-9 text-xs font-mono"
+                          placeholder="Model ID exposed by your endpoint"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Self-hosted endpoints provide their own model IDs, so enter the ID exposed by your server.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-w-lg space-y-2">
+                        <Select
+                          items={AI_PROVIDER_MODELS[selectedAIProvider].map(({ id, label }) => ({
+                            value: id,
+                            label,
+                          }))}
+                          value={selectedAIModel}
+                          onValueChange={(model) => {
+                            if (model && model !== selectedAIModel) {
+                              savePreference(
+                                { aiModel: model },
+                                (current) => ({
+                                  ...current,
+                                  aiPreferences: { ...current.aiPreferences, aiModel: model },
+                                }),
+                                `Model set to ${AI_PROVIDER_MODELS[selectedAIProvider].find((option) => option.id === model)?.label ?? model}.`,
+                              );
+                            }
+                          }}
+                        >
+                          <SelectTrigger id="ai-model" disabled={saving} className="h-9 w-full text-xs">
+                            <SelectValue placeholder="Select a model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AI_PROVIDER_MODELS[selectedAIProvider].map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                <span>{model.label}</span>
+                                {model.recommended && (
+                                  <span className="text-[10px] font-medium text-primary">Recommended</span>
+                                )}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedAIModelOption && (
+                          <p className="text-[11px] text-muted-foreground">{selectedAIModelOption.description}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Custom Endpoint URL (when Self-Hosted / CUSTOM selected) */}
+                  {preferences.aiPreferences?.aiProvider === "CUSTOM" && (
+                    <div className="pt-2 space-y-1.5 border-t border-border">
+                      <Label htmlFor="custom-endpoint" className="text-xs font-semibold">
+                        Self-Hosted Base URL
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Your local Ollama, vLLM, or private proxy endpoint (OpenAI compatible).
+                      </p>
+                      <div className="flex items-center gap-2 max-w-lg">
+                        <Input
+                          id="custom-endpoint"
+                          value={endpointDraft}
+                          onChange={(e) => setEndpointDraft(e.target.value)}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val !== preferences.aiPreferences?.aiCustomEndpoint) {
+                              savePreference(
+                                { aiCustomEndpoint: val },
+                                (current) => ({
+                                  ...current,
+                                  aiPreferences: { ...current.aiPreferences, aiCustomEndpoint: val },
+                                }),
+                                "Custom AI endpoint saved."
+                              );
+                            }
+                          }}
+                          className="text-xs font-mono h-9"
+                          placeholder="http://localhost:11434/v1"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 2: API Keys & Credentials */}
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Key className="size-4 text-primary" />
+                    <h2 className="text-base font-semibold tracking-tight text-foreground">
+                      API Credentials & Key Storage
+                    </h2>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Bring your own provider API key or use the studio server default. Keys are kept strictly server-side.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl border border-border bg-muted/20 text-xs flex items-center justify-between gap-3 max-w-xl">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
+                    <div>
+                      <span className="font-semibold text-foreground">
+                        {preferences.aiPreferences?.hasCustomKey
+                          ? `Personal key active (${preferences.aiPreferences.aiApiKeyMasked})`
+                          : preferences.aiPreferences?.hasStoredKey
+                            ? `Personal key saved for ${preferences.aiPreferences.aiApiKeyProvider || "another provider"}`
+                            : "Using studio server default key"}
+                      </span>
+                      <p className="text-[11px] text-muted-foreground">
+                        {preferences.aiPreferences?.hasCustomKey
+                          ? "Your personal API key overrides server defaults for all your requests."
+                          : preferences.aiPreferences?.hasStoredKey
+                            ? "This key is used only when its provider is selected; otherwise the matching server key is used."
+                            : "No personal key stored. The selected provider's server key is used automatically."}
+                      </p>
+                    </div>
+                  </div>
+                      {(preferences.aiPreferences?.hasStoredKey || preferences.aiPreferences?.aiApiKeyNeedsReset) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        savePreference(
+                          { aiApiKey: "" },
+                          (current) => ({
+                            ...current,
+                            aiPreferences: {
+                              ...current.aiPreferences,
+                              aiApiKeyMasked: "",
+                              hasCustomKey: false,
+                              hasStoredKey: false,
+                              aiApiKeyProvider: null,
+                              aiApiKeyNeedsReset: false,
+                            },
+                          }),
+                          "Personal API key cleared. Reverted to server default."
+                        );
+                        setApiKeyDraft("");
+                      }}
+                      className="text-xs h-7 text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      Clear Key
+                    </Button>
+                  )}
+                </div>
+
+                {preferences.aiPreferences?.aiApiKeyNeedsReset && (
+                  <p className="max-w-xl rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                    The saved key cannot be used safely. Replace it with a new key or clear it before using Copilot.
+                  </p>
+                )}
+
+                <div className="space-y-2 max-w-lg pt-1">
+                  <Label htmlFor="personal-key" className="text-xs font-medium">
+                    Set or Update Personal API Key
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="personal-key"
+                      type="password"
+                      value={apiKeyDraft}
+                      onChange={(e) => setApiKeyDraft(e.target.value)}
+                      placeholder="Paste your API key (e.g. sk-...)"
+                      className="text-xs font-mono h-9"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={!apiKeyDraft.trim() || saving}
+                      onClick={() => {
+                        if (!apiKeyDraft.trim()) return;
+                        const trimmed = apiKeyDraft.trim();
+                        savePreference(
+                          { aiApiKey: trimmed },
+                          (current) => ({
+                            ...current,
+                            aiPreferences: {
+                              ...current.aiPreferences,
+                              aiApiKeyMasked: `••••••••${trimmed.slice(-4)}`,
+                              hasCustomKey: true,
+                              hasStoredKey: true,
+                              aiApiKeyProvider: current.aiPreferences?.aiProvider ?? "OPENAI",
+                              aiApiKeyNeedsReset: false,
+                            },
+                          }),
+                          "Personal API key saved securely."
+                        );
+                        setApiKeyDraft("");
+                      }}
+                      className="text-xs h-9 font-semibold shrink-0"
+                    >
+                      Save Key
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Autonomous Execution Safety Mode */}
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+                <div>
+                  <h2 className="text-base font-semibold tracking-tight text-foreground">
+                    Tool Execution Safety Mode
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Choose how the AI Studio Copilot handles state-changing database operations.
+                  </p>
+                </div>
+
+                <div className="divide-y divide-border rounded-xl border border-border bg-background max-w-2xl">
+                  {/* Mode Option 1: Safe Multi-Tier (Default) */}
+                  <div
+                    onClick={() => {
+                      if (preferences.aiPreferences?.aiAutonomousExecution) {
+                        savePreference(
+                          { aiAutonomousExecution: false },
+                          (current) => ({
+                            ...current,
+                            aiPreferences: { ...current.aiPreferences, aiAutonomousExecution: false },
+                          }),
+                          "Switched to Safe Multi-Tier mode."
+                        );
+                      }
+                    }}
+                    className={`p-4 flex items-start justify-between gap-4 cursor-pointer transition-colors ${
+                      !preferences.aiPreferences?.aiAutonomousExecution ? "bg-primary/5" : "hover:bg-muted/30"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-foreground">
+                          Safe Multi-Tier Mode (Default)
+                        </span>
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        Read-only search and capacity queries execute automatically. State-changing actions (creating projects, task batches, reassigning workers) output an action proposal card requiring a 1-click confirmation before modifying the database.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!preferences.aiPreferences?.aiAutonomousExecution}
+                      onCheckedChange={(checked) => {
+                        savePreference(
+                          { aiAutonomousExecution: !checked },
+                          (current) => ({
+                            ...current,
+                            aiPreferences: { ...current.aiPreferences, aiAutonomousExecution: !checked },
+                          }),
+                          checked ? "Switched to Safe Multi-Tier mode." : "Switched to Fully Autonomous mode."
+                        );
+                      }}
+                    />
+                  </div>
+
+                  {/* Mode Option 2: Fully Autonomous */}
+                  <div
+                    onClick={() => {
+                      if (!preferences.aiPreferences?.aiAutonomousExecution) {
+                        savePreference(
+                          { aiAutonomousExecution: true },
+                          (current) => ({
+                            ...current,
+                            aiPreferences: { ...current.aiPreferences, aiAutonomousExecution: true },
+                          }),
+                          "Switched to Fully Autonomous mode."
+                        );
+                      }
+                    }}
+                    className={`p-4 flex items-start justify-between gap-4 cursor-pointer transition-colors ${
+                      preferences.aiPreferences?.aiAutonomousExecution ? "bg-primary/5" : "hover:bg-muted/30"
+                    }`}
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-foreground">
+                        Fully Autonomous Execution Mode
+                      </span>
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        All tools run immediately and commit changes directly to the studio database upon invocation by the AI copilot without presenting intermediate confirmation cards.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={Boolean(preferences.aiPreferences?.aiAutonomousExecution)}
+                      onCheckedChange={(checked) => {
+                        savePreference(
+                          { aiAutonomousExecution: checked },
+                          (current) => ({
+                            ...current,
+                            aiPreferences: { ...current.aiPreferences, aiAutonomousExecution: checked },
+                          }),
+                          checked ? "Switched to Fully Autonomous mode." : "Switched to Safe Multi-Tier mode."
+                        );
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

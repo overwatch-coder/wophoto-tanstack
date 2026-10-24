@@ -164,7 +164,7 @@ export async function createNotification(input: CreateNotificationInput) {
   ]);
 
   const preferences = recipient
-    ? await getUserPreferences(input.userId, recipient.role)
+    ? await getUserPreferences(input.userId, recipient.role, { resolveCopilotName: false })
     : null;
   const channels = preferences?.notificationChannels[input.type];
   const showInApp = channels?.inApp ?? true;

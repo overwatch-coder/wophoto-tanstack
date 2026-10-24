@@ -19,12 +19,26 @@ function createPrismaClient() {
 }
 
 const cachedPrisma = globalForPrisma.prisma;
+type RuntimeModelShape = { fields?: Array<{ name: string }> };
+type PrismaRuntimeShape = {
+  _runtimeDataModel?: { models?: Record<string, RuntimeModelShape> };
+};
+const cachedPreferenceFields = (
+  cachedPrisma as unknown as PrismaRuntimeShape | undefined
+)?._runtimeDataModel?.models?.UserPreference?.fields?.map(({ name }) => name);
 const hasCurrentSchemaDelegates = Boolean(
   cachedPrisma &&
     typeof (cachedPrisma as unknown as { notification?: { count?: unknown } })
       .notification?.count === "function" &&
     typeof (cachedPrisma as unknown as { userPreference?: { findUnique?: unknown } })
-      .userPreference?.findUnique === "function",
+      .userPreference?.findUnique === "function" &&
+    cachedPreferenceFields?.includes("aiProvider") &&
+    cachedPreferenceFields.includes("aiCopilotName") &&
+    cachedPreferenceFields.includes("aiModel") &&
+    cachedPreferenceFields.includes("aiApiKeyEncrypted") &&
+    cachedPreferenceFields.includes("aiApiKeyProvider") &&
+    cachedPreferenceFields.includes("aiCustomEndpoint") &&
+    cachedPreferenceFields.includes("aiAutonomousExecution"),
 );
 
 // `prisma generate` can add models while `next dev` is already running. The

@@ -9,6 +9,77 @@ export type NotificationChannels = Partial<
   Record<NotificationType, { inApp: boolean; email: boolean }>
 >;
 
+export type AIProvider = "OPENAI" | "ANTHROPIC" | "GEMINI" | "GROK" | "GROQ" | "CUSTOM";
+
+export const DEFAULT_AI_COPILOT_NAME = "WoPhoto Studio Copilot";
+
+export type AIModelOption = {
+  id: string;
+  label: string;
+  description: string;
+  recommended?: boolean;
+};
+
+export const AI_PROVIDER_MODELS: Record<AIProvider, AIModelOption[]> = {
+  OPENAI: [
+    { id: "gpt-6.1-sol", label: "GPT-6.1 Sol", description: "Recommended balance of capability and speed.", recommended: true },
+    { id: "gpt-6-astra", label: "GPT-6 Astra", description: "For the most demanding, complex tasks." },
+    { id: "gpt-6-luna", label: "GPT-6 Luna", description: "A lightweight option for fast, routine tasks." },
+    { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", description: "Balances capability and cost for general-purpose work." },
+    { id: "gpt-4o", label: "GPT-4o", description: "Multimodal general-purpose model." },
+    { id: "gpt-4o-mini", label: "GPT-4o Mini", description: "Compact, cost-efficient model." },
+  ],
+  ANTHROPIC: [
+    { id: "claude-fable-5-1", label: "Claude Fable 5.1", description: "Recommended for strong everyday reasoning and tool use." },
+    { id: "claude-opus-5-5", label: "Claude Opus 5.5", description: "For the most demanding, complex tasks." },
+    { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", description: "Balanced capability and speed.", recommended: true },
+    { id: "claude-haiku-5-5", label: "Claude Haiku 5.5", description: "Fast responses for lighter tasks." },
+  ],
+  GEMINI: [
+    { id: "gemini-4-argon", label: "Gemini 4 Argon", description: "Recommended flagship reasoning model.", recommended: true },
+    { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash", description: "Fast, capable model for agentic workflows." },
+    { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash", description: "Previous-generation multimodal general-purpose model." },
+    { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite", description: "Fast, cost-efficient option for lighter tasks." },
+  ],
+  GROK: [
+    { id: "grok-4.7", label: "Grok 4.7", description: "Flagship model for chat, coding, and tool use." },
+    { id: "grok-4.3", label: "Grok 4.3", description: "Earlier general-purpose model." },
+    { id: "grok-4.20", label: "Grok 4.20", description: "Recommended high-performance model with agentic tool calling.", recommended: true },
+  ],
+  GROQ: [
+    { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B", description: "Strong general-purpose model with tool calling.", recommended: true },
+    { id: "openai/gpt-oss-20b", label: "GPT-OSS 20B", description: "Faster and more cost-efficient." },
+    { id: "qwen/qwen3.8-27b", label: "Qwen 3.8 27B", description: "Tool-capable model with parallel tool use; replaces retired Llama 4 Scout." },
+  ],
+  CUSTOM: [],
+};
+
+export const DEFAULT_AI_MODELS: Record<AIProvider, string> = {
+  OPENAI: "gpt-6.1-sol",
+  ANTHROPIC: "claude-sonnet-5-5",
+  GEMINI: "gemini-4-argon",
+  GROK: "grok-4.20",
+  GROQ: "openai/gpt-oss-120b",
+  CUSTOM: "llama3.3",
+};
+
+export function isAIModelAvailable(provider: AIProvider, model: string) {
+  return provider === "CUSTOM" || AI_PROVIDER_MODELS[provider].some(({ id }) => id === model);
+}
+
+export type AIPreferencesView = {
+  aiCopilotName: string;
+  aiProvider: AIProvider;
+  aiModel: string;
+  aiApiKeyMasked: string;
+  aiApiKeyProvider: AIProvider | null;
+  hasCustomKey: boolean;
+  hasStoredKey: boolean;
+  aiApiKeyNeedsReset: boolean;
+  aiCustomEndpoint: string;
+  aiAutonomousExecution: boolean;
+};
+
 export type UserPreferencesView = {
   location: string;
   notificationChannels: NotificationChannels;
@@ -16,6 +87,7 @@ export type UserPreferencesView = {
   soundAlerts: boolean;
   defaultLanding: string;
   workerAvailability: WorkerAvailability;
+  aiPreferences: AIPreferencesView;
 };
 
 export type NotificationPreferenceItem = {

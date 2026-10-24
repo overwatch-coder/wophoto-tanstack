@@ -15,6 +15,7 @@ import {
 import { getWorkspacePageTitle, type WorkspaceRole } from "@/lib/navigation"
 import { HeaderNotificationBell } from "@/components/workspace/header-notification-bell"
 import { useWorkspacePreferences, WorkspacePreferencesProvider } from "@/components/workspace/workspace-preferences-context"
+import { StudioCopilot } from "@/components/ai/studio-copilot"
 import type { NotificationItemView } from "@/lib/notifications"
 import type { SettingsDensity } from "@/generated/prisma/browser"
 
@@ -32,6 +33,7 @@ type WorkspaceShellProps = {
   initialUnreadUpdateCount?: number
   density: SettingsDensity
   soundAlerts: boolean
+  copilotName: string
 }
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
@@ -57,6 +59,7 @@ function WorkspaceShellContent({
   initialUnreadCount,
   initialUnreadActionCount,
   initialUnreadUpdateCount,
+  copilotName,
 }: WorkspaceShellProps) {
   const { density, soundAlerts } = useWorkspacePreferences()
   const pathname = usePathname()
@@ -109,6 +112,7 @@ function WorkspaceShellContent({
         >
           {children}
         </div>
+        <StudioCopilot copilotName={copilotName} />
       </SidebarInset>
     </SidebarProvider>
   )
