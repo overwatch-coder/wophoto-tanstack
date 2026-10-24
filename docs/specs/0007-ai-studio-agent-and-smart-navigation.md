@@ -43,7 +43,8 @@ The agent uses Vercel AI SDK to orchestrate real studio actions through tool cal
   - **Fully Autonomous**: All tools, including state mutations, execute immediately upon invocation.
 
 ### 4. Studio Action Tools
-- `smart_search`: Semantic and keyword cross studio search across client reviews, tasks, deliverables, and projects.
+- `smart_search`: Keyword search across client reviews, tasks, deliverables, and projects. A no-match result is not evidence that the underlying data category is empty.
+- `query_studio_data`: Role-scoped LIST, GET, and COUNT retrieval across approved business records (projects, active/deleted tasks, feedback, notifications, comments, ratings, invitations, and team). Enforces allowlisted filters, projections, and a 20-record page cap; does not provide arbitrary SQL or access to credentials/session data.
 - `create_project`: Creates project container with name, client, priority, and SLA target.
 - `create_task_batch`: Creates batch tasks and distributes them across retouchers according to active capacity.
 - `query_team_capacity`: Queries retoucher availability, active queue count, and specializations.

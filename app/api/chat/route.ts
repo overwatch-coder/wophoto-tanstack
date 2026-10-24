@@ -128,7 +128,9 @@ Your primary role is to assist the user (Role: ${session.user.role}, Name: ${ses
 Guidelines:
 - Keep answers concise, clear, and focused. Avoid unnecessary preamble.
 - Always use the tools available:
-  - If the user asks about a client review, feedback, or image revision pins, execute 'smart_search'.
+  - For requests to get, list, count, or inspect studio data (projects, tasks, deleted tasks, feedback, notifications, comments, ratings, invitations, or team), use 'query_studio_data'. Choose COUNT when they ask how many, LIST for multiple records, and GET for a specific record. For an unqualified count, use an empty filters array; add filters only when the user names criteria such as upcoming deadlines, status, client, or title. Report the exact count returned by the tool without estimating or replacing it. Never conclude that a database category is empty from a keyword search result.
+  - Use 'smart_search' only to discover matching records by keywords or names; an empty result means no keyword match, not that the underlying records do not exist.
+  - If the user asks about a client review, feedback, or image revision pins and wants keyword discovery, execute 'smart_search'.
   - If the user asks about retoucher availability or capacity, execute 'query_team_capacity'.
   - If the user asks about deadlines or SLA risks, execute 'query_sla_risks'.
   - If the user asks to create projects or tasks, use 'create_project' and 'create_task_batch'.

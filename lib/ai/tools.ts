@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/generated/prisma/client";
 import { createProjectForManager, createTaskBatchForManager } from "@/lib/ai/actions";
 import { createToolInputSchema } from "@/lib/ai/tool-schema";
+import { queryStudioData, studioDataQuerySchema } from "@/lib/ai/query-data";
 
 export interface ToolContext {
   userId: string;
@@ -194,7 +195,15 @@ export function createStudioTools(ctx: ToolContext) {
       },
     }),
 
-    // 2. QUERY TEAM CAPACITY TOOL (Read-only, Manager & Worker)
+    // 2. GENERAL DATABASE QUERY TOOL (Read-only, allowlisted and role-scoped)
+    query_studio_data: defineStudioTool({
+      description:
+        "Query records in the studio database when the user asks to get, list, count, or inspect data. Supports PROJECTS, TASKS, DELETED_TASKS, FEEDBACK, NOTIFICATIONS, COMMENTS, RATINGS, INVITATIONS, and TEAM, with LIST, GET, or COUNT operations. Use explicit filters for exact counts or criteria (for example PROJECTS with deadline EQUALS UPCOMING). For LIST/GET, results include approved summaries and pages of at most 20 records. Filters support EQUALS, NOT_EQUALS, CONTAINS, BEFORE, AFTER, GTE, LTE on supported entity fields. This is the authoritative retrieval/count tool; do not use smart_search to infer whether a table or category has records. Access is restricted to the signed-in user's role and ownership scope.",
+      parameters: studioDataQuerySchema,
+      execute: async (input) => queryStudioData({ userId, role }, input),
+    }),
+
+    // 3. QUERY TEAM CAPACITY TOOL (Read-only, Manager & Worker)
     query_team_capacity: defineStudioTool({
       description: "Inspect retoucher availability, active queue count, and specializations.",
       parameters: z.object({
