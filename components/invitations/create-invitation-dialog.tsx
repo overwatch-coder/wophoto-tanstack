@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { UserPlus, Briefcase, Shield, Copy, Check, CheckCircle2, ArrowRight } from "lucide-react";
+import { UserPlus, Briefcase, Shield, Copy, Check, CheckCircle2 } from "lucide-react";
 import { createInvitation, type InvitationFormState } from "@/app/actions/invitations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,7 +80,7 @@ export function CreateInvitationDialog() {
             <span>Invite Team Member or Client</span>
           </DialogTitle>
           <DialogDescription>
-            Generate a single-use 7-day invitation link. The recipient accepts before signing in with Google.
+            Send a single-use 7-day invitation by email. You can also copy the link as a fallback.
           </DialogDescription>
         </DialogHeader>
 
@@ -89,10 +89,10 @@ export function CreateInvitationDialog() {
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="size-4" />
-                <span>Invitation Link Ready</span>
+                <span>{state.emailDelivery?.status === "sent" ? "Invitation Email Sent" : "Invitation Link Ready"}</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Copy and share this one-time link with <strong className="text-foreground">{email}</strong>:
+                {state.message} {state.emailDelivery?.status === "sent" ? "You can also copy the link:" : "Copy and share this one-time link:"} <strong className="text-foreground">{email}</strong>
               </p>
               <div className="mt-3 flex items-center gap-2">
                 <code className="flex-1 truncate rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono text-foreground">

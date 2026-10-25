@@ -8,10 +8,12 @@ const mocks = vi.hoisted(() => ({
   findWorkers: vi.fn(),
   createTask: vi.fn(),
   revalidatePath: vi.fn(),
+  createInvitationForManager: vi.fn(),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("@/lib/invitations", () => ({ createInvitationForManager: mocks.createInvitationForManager }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findFirst: mocks.findClient, findMany: mocks.findWorkers },
@@ -87,5 +89,44 @@ describe("Copilot proposal confirmation route", () => {
     });
     expect(await response.json()).toMatchObject({ success: true, projectId: "project-1" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/projects");
+  });
+
+  it("creates an invitation only after a manager confirms the client proposal", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "manager-1", role: "MANAGER" } });
+    mocks.createInvitationForManager.mockResolvedValue({
+      success: true,
+      email: "client@example.com",
+      role: "CLIENT",
+      invitationId: "invite-1",
+      invitePath: "/invite/one-time-token",
+      message: "Invitation link created for client@example.com as a client.",
+    });
+
+    const response = await POST(request({
+      proposalType: "CREATE_INVITATION",
+      payload: { email: "client@example.com", role: "CLIENT" },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.createInvitationForManager).toHaveBeenCalledWith("manager-1", {
+      email: "client@example.com",
+      role: "CLIENT",
+    });
+    expect(await response.json()).toMatchObject({
+      success: true,
+      invitationId: "invite-1",
+      invitePath: "/invite/one-time-token",
+    });
+  });
+
+  it("rejects invitation proposals for a non-client role", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "manager-1", role: "MANAGER" } });
+    const response = await POST(request({
+      proposalType: "CREATE_INVITATION",
+      payload: { email: "client@example.com", role: "WORKER" },
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.createInvitationForManager).not.toHaveBeenCalled();
   });
 });

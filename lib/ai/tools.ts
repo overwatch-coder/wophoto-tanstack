@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/actions";
 import { createToolInputSchema } from "@/lib/ai/tool-schema";
 import { queryStudioData, studioDataQuerySchema } from "@/lib/ai/query-data";
+import { createClientInvitationProposalSchema } from "@/lib/validation/invitations";
 
 export interface ToolContext {
   userId: string;
@@ -370,6 +371,38 @@ export function createStudioTools(ctx: ToolContext) {
             details,
           },
           message: `Review draft ready for ${project.name}. Open the form to review it and submit when ready.`,
+        };
+      },
+    }),
+
+    create_invitation: defineStudioTool({
+      description: "Prepare a manager confirmation card for inviting a new client by email. Show the recipient email and Client role. Do not create the invitation or send email until the manager clicks Create invitation. If no email was supplied, ask for it. After confirmation, create a single-use seven-day link, email it to the recipient, and show the copyable link as a fallback.",
+      parameters: z.object({
+        email: z.string().trim().email().max(254).optional().describe("Email address of the client to invite"),
+      }).strict(),
+      execute: async ({ email }) => {
+        if (role !== UserRole.MANAGER) {
+          return { error: "Only managers can prepare client invitations." };
+        }
+        if (!email) {
+          return { needsInput: true, message: "What email address should I prepare the client invitation for?" };
+        }
+
+        const parsed = createClientInvitationProposalSchema.safeParse({ email, role: UserRole.CLIENT });
+        if (!parsed.success) {
+          return { error: parsed.error.issues[0]?.message ?? "Enter a valid email address for the client invitation." };
+        }
+
+        return {
+          requiresConfirmation: true,
+          proposalType: "CREATE_INVITATION",
+          title: "Invite Client",
+          description: "After confirmation, this emails a single-use invitation link that expires in seven days. A copyable link is also provided. Creating a new invitation will revoke any unused invitation for this email.",
+          invitationPreview: {
+            email: parsed.data.email,
+            role: parsed.data.role,
+          },
+          payload: parsed.data,
         };
       },
     }),

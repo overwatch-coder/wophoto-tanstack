@@ -28,6 +28,7 @@ import {
   ImageIcon,
   UploadCloud,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,6 +130,7 @@ function getToolProgressLabel(toolName: string, rawArgs: unknown): string {
     query_sla_risks: "Reviewing upcoming deadlines",
     create_project: "Preparing project setup",
     create_task_batch: "Preparing task assignments",
+    create_invitation: "Preparing client invitation",
     prepare_client_feedback: "Drafting your review",
     generate_wrapup_report: "Preparing a delivery summary",
     navigate_to: "Finding the right workspace page",
@@ -337,7 +339,12 @@ function AttachmentChips({
 export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhoto Studio Copilot" }: StudioCopilotProps) {
   const router = useRouter();
   const [displayMode, setDisplayMode] = useState<"collapsed" | "drawer" | "center">(initialMode);
-  const [proposalStatus, setProposalStatus] = useState<Record<string, { state: "applying" | "success" | "error"; message: string }>>({});
+  const [proposalStatus, setProposalStatus] = useState<Record<string, {
+    state: "applying" | "success" | "error";
+    message: string;
+    invitePath?: string;
+    copied?: boolean;
+  }>>({});
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -582,6 +589,22 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
     }
   };
 
+  const handleCopyInvitationLink = async (proposalId: string, invitePath: string) => {
+    const inviteUrl = new URL(invitePath, window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setProposalStatus((prev) => ({
+        ...prev,
+        [proposalId]: { ...prev[proposalId], state: "success", message: "Invitation link copied.", invitePath, copied: true },
+      }));
+    } catch {
+      setProposalStatus((prev) => ({
+        ...prev,
+        [proposalId]: { ...prev[proposalId], state: "success", message: "Copy failed. Select the link above and copy it manually.", invitePath, copied: false },
+      }));
+    }
+  };
+
   const handleConfirmProposal = async (
     proposalId: string,
     proposalType: string,
@@ -594,12 +617,20 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposalType, payload }),
       });
-      const result = (await response.json()) as { error?: string; message?: string };
+      const result = (await response.json()) as { error?: string; message?: string; invitePath?: string };
       if (!response.ok) throw new Error(result.error || "The proposal could not be applied.");
-      setProposalStatus((prev) => ({ ...prev, [proposalId]: { state: "success", message: result.message || "Applied successfully." } }));
+      setProposalStatus((prev) => ({
+        ...prev,
+        [proposalId]: {
+          state: "success",
+          message: result.message || "Applied successfully.",
+          invitePath: result.invitePath,
+        },
+      }));
       if (proposalType === "CREATE_PROJECT" || proposalType === "CREATE_TASK_BATCH") {
         router.refresh();
       }
+      if (proposalType === "CREATE_INVITATION") router.refresh();
     } catch (confirmationError) {
       setProposalStatus((prev) => ({
         ...prev,
@@ -853,6 +884,9 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                   const status = proposalStatus[proposalId];
                                   const proposalType = typeof res.proposalType === "string" ? res.proposalType : "";
                                   const payload = res.payload;
+                                  const invitationPreview = res.invitationPreview && typeof res.invitationPreview === "object"
+                                    ? res.invitationPreview as { email?: unknown; role?: unknown }
+                                    : null;
                                   const isApplying = status?.state === "applying";
                                   const isConfirmed = status?.state === "success";
 
@@ -872,6 +906,12 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                           <p className="text-[11px] text-muted-foreground mt-0.5">
                                             {(res.description as string) || ""}
                                           </p>
+                                          {proposalType === "CREATE_INVITATION" && invitationPreview && (
+                                            <dl className="mt-2 grid gap-1 rounded-lg bg-muted/50 px-3 py-2 text-[11px] sm:grid-cols-2">
+                                              <div><dt className="text-muted-foreground">Recipient</dt><dd className="break-all font-medium text-foreground">{String(invitationPreview.email ?? "")}</dd></div>
+                                              <div><dt className="text-muted-foreground">Role</dt><dd className="font-medium text-foreground">{invitationPreview.role === "CLIENT" ? "Client" : ""}</dd></div>
+                                            </dl>
+                                          )}
                                         </div>
 
                                         <Button
@@ -890,7 +930,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                           ) : (
                                             <>
                                               <Play className="h-3 w-3 fill-current" />
-                                              <span>Confirm & Apply</span>
+                                              <span>{proposalType === "CREATE_INVITATION" ? "Create invitation" : "Confirm & Apply"}</span>
                                             </>
                                           )}
                                         </Button>
@@ -902,6 +942,14 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                         <p className={`text-[11px] ${isConfirmed ? "text-emerald-600 dark:text-emerald-400" : isApplying ? "text-muted-foreground" : "text-destructive"}`}>
                                           {status.message}
                                         </p>
+                                      )}
+                                      {status?.invitePath && (
+                                        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
+                                          <code className="min-w-0 flex-1 break-all text-[10px] text-foreground">{status.invitePath}</code>
+                                          <Button type="button" size="sm" variant="outline" onClick={() => void handleCopyInvitationLink(proposalId, status.invitePath!)} className="h-7 shrink-0 gap-1.5 text-[10px]">
+                                            <Copy className="size-3" />{status.copied ? "Copied" : "Copy link"}
+                                          </Button>
+                                        </div>
                                       )}
                                     </div>
                                   );
@@ -1235,6 +1283,9 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                               const status = proposalStatus[proposalId];
                               const proposalType = typeof res.proposalType === "string" ? res.proposalType : "";
                               const payload = res.payload;
+                              const invitationPreview = res.invitationPreview && typeof res.invitationPreview === "object"
+                                ? res.invitationPreview as { email?: unknown; role?: unknown }
+                                : null;
                               const isApplying = status?.state === "applying";
                               const isConfirmed = status?.state === "success";
 
@@ -1253,6 +1304,12 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                     <p className="text-[10px] text-muted-foreground mt-0.5">
                                       {(res.description as string) || ""}
                                     </p>
+                                    {proposalType === "CREATE_INVITATION" && invitationPreview && (
+                                      <dl className="mt-2 grid gap-1 rounded-lg bg-muted/50 px-2.5 py-2 text-[10px] sm:grid-cols-2">
+                                        <div><dt className="text-muted-foreground">Recipient</dt><dd className="break-all font-medium text-foreground">{String(invitationPreview.email ?? "")}</dd></div>
+                                        <div><dt className="text-muted-foreground">Role</dt><dd className="font-medium text-foreground">{invitationPreview.role === "CLIENT" ? "Client" : ""}</dd></div>
+                                      </dl>
+                                    )}
                                   </div>
 
                                   {res.proposalType === "CREATE_TASK_BATCH" && (
@@ -1275,7 +1332,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                     ) : (
                                       <>
                                         <Play className="h-3 w-3 fill-current" />
-                                        <span>Confirm & Apply</span>
+                                        <span>{proposalType === "CREATE_INVITATION" ? "Create invitation" : "Confirm & Apply"}</span>
                                       </>
                                     )}
                                   </Button>
@@ -1283,6 +1340,14 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                     <p className={`text-[10px] ${isConfirmed ? "text-emerald-600 dark:text-emerald-400" : isApplying ? "text-muted-foreground" : "text-destructive"}`}>
                                       {status.message}
                                     </p>
+                                  )}
+                                  {status?.invitePath && (
+                                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2">
+                                      <code className="break-all text-[10px] text-foreground">{status.invitePath}</code>
+                                      <Button type="button" size="sm" variant="outline" onClick={() => void handleCopyInvitationLink(proposalId, status.invitePath!)} className="h-7 w-full gap-1.5 text-[10px]">
+                                        <Copy className="size-3" />{status.copied ? "Copied" : "Copy link"}
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
                               );

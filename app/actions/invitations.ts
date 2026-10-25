@@ -1,13 +1,14 @@
 "use server";
 
-import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 import { InvitationStatus, UserRole } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { decryptInvitationToken, encryptInvitationToken } from "@/lib/invitation-token";
+import { createInvitationForManager } from "@/lib/invitations";
 import { createInvitationSchema, invitationIdSchema, invitationTokenSchema } from "@/lib/validation/invitations";
 import { InputValidationError, parseInput } from "@/lib/validation/common";
 
@@ -15,6 +16,8 @@ export type InvitationFormState = {
   error?: string;
   invitePath?: string;
   invitationId?: string;
+  emailDelivery?: { status: "sent" | "preview" | "failed" };
+  message?: string;
 };
 
 export async function createInvitation(
@@ -32,44 +35,7 @@ export async function createInvitation(
   } catch (error) {
     return { error: error instanceof InputValidationError ? error.message : "Enter an email address and choose a role." };
   }
-
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, status: true },
-  });
-
-  if (existingUser) {
-    return { error: "That email already belongs to a WoPhoto account. Ask a manager to restore access if the account is suspended." };
-  }
-
-  const token = randomBytes(32).toString("base64url");
-  const tokenHash = createHash("sha256").update(token).digest("hex");
-  const tokenEncrypted = encryptInvitationToken(token);
-  const now = new Date();
-
-  const [, invitation] = await prisma.$transaction([
-    prisma.invitation.updateMany({
-      where: {
-        email,
-        usedAt: null,
-        status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
-      },
-      data: { status: InvitationStatus.REVOKED, tokenEncrypted: null },
-    }),
-    prisma.invitation.create({
-      data: {
-        email,
-        role,
-        tokenHash,
-        tokenEncrypted,
-        expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-        invitedById: manager.id,
-      },
-    }),
-  ]);
-
-  revalidatePath("/manager/invitations");
-  return { invitePath: `/invite/${token}`, invitationId: invitation.id };
+  return createInvitationForManager(manager.id, { email, role });
 }
 
 export async function getInvitationLink(id: string): Promise<InvitationFormState> {

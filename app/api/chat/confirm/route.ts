@@ -1,12 +1,15 @@
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { createProjectForManager, createProjectInputSchema, createTaskBatchForManager, createTaskBatchInputSchema } from "@/lib/ai/actions";
+import { createInvitationForManager } from "@/lib/invitations";
+import { createClientInvitationProposalSchema } from "@/lib/validation/invitations";
 import { UserRole } from "@/generated/prisma/client";
 import { z } from "zod";
 
 const confirmationSchema = z.discriminatedUnion("proposalType", [
   z.object({ proposalType: z.literal("CREATE_PROJECT"), payload: createProjectInputSchema }).strict(),
   z.object({ proposalType: z.literal("CREATE_TASK_BATCH"), payload: createTaskBatchInputSchema }).strict(),
+  z.object({ proposalType: z.literal("CREATE_INVITATION"), payload: createClientInvitationProposalSchema }).strict(),
 ]);
 
 export async function POST(request: Request) {
@@ -31,11 +34,13 @@ export async function POST(request: Request) {
   try {
     const result = parsed.data.proposalType === "CREATE_PROJECT"
       ? await createProjectForManager(session.user.id, parsed.data.payload)
-      : await createTaskBatchForManager(session.user.id, parsed.data.payload);
+      : parsed.data.proposalType === "CREATE_TASK_BATCH"
+        ? await createTaskBatchForManager(session.user.id, parsed.data.payload)
+        : await createInvitationForManager(session.user.id, parsed.data.payload);
     if ("error" in result) return Response.json({ error: result.error }, { status: 422 });
     if (parsed.data.proposalType === "CREATE_PROJECT") {
       revalidatePath("/manager/projects");
-    } else {
+    } else if (parsed.data.proposalType === "CREATE_TASK_BATCH") {
       revalidatePath("/manager/tasks");
       revalidatePath("/manager/projects");
     }

@@ -55,10 +55,11 @@ export function InvitationForm() {
       </form>
       {state.invitationId ? (
         <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
+          {state.message ? <p role="status" className="text-sm text-muted-foreground">{state.message}</p> : null}
           <p className="text-sm font-medium">Invitation link, expires in 7 days</p>
           <InvitationLinkActions key={state.invitationId} id={state.invitationId} recoverable />
           <p className="text-xs text-muted-foreground">
-            Share this link with the invited person. It can be accepted once and only for the email entered above.
+            Email delivery status: {state.emailDelivery?.status === "sent" ? "sent" : state.emailDelivery?.status === "preview" ? "not configured" : "failed"}. The link can be accepted once and only for the email entered above.
           </p>
         </div>
       ) : null}

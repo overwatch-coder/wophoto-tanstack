@@ -7,5 +7,10 @@ export const createInvitationSchema = z.object({
   role: z.enum([UserRole.WORKER, UserRole.CLIENT], { error: "Choose Worker or Client. Manager access is provisioned separately." }),
 });
 
+export const createClientInvitationProposalSchema = z.object({
+  email: createInvitationSchema.shape.email,
+  role: z.literal(UserRole.CLIENT),
+}).strict();
+
 export const invitationIdSchema = idSchema;
 export const invitationTokenSchema = z.string().min(32, "This invitation link is invalid.").max(256, "This invitation link is invalid.");

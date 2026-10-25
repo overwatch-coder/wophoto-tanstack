@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getFocusedToolNames, hasPendingClientFeedbackClarification, restrictTools } from "@/lib/ai/tool-routing";
+import { getFocusedToolNames, getPendingClarificationToolName, restrictTools } from "@/lib/ai/tool-routing";
 import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
 
 describe("Copilot tool routing", () => {
@@ -27,11 +27,26 @@ describe("Copilot tool routing", () => {
       }] },
       { role: "user", content: "My PhD journey" },
     ];
-    expect(hasPendingClientFeedbackClarification(messages)).toBe(true);
-    expect(getFocusedToolNames("My PhD journey", "CLIENT", true))
+    expect(getPendingClarificationToolName(messages)).toBe("prepare_client_feedback");
+    expect(getFocusedToolNames("My PhD journey", "CLIENT", "prepare_client_feedback"))
       .toEqual(["prepare_client_feedback"]);
-    expect(hasPendingClientFeedbackClarification([{ role: "user" }, { role: "assistant" }]))
-      .toBe(false);
+    expect(getPendingClarificationToolName([{ role: "user" }, { role: "assistant" }])).toBeNull();
+  });
+
+  it("routes client invitation requests and email replies to the invitation proposal tool", () => {
+    expect(getFocusedToolNames("Can you invite a client if I give you the email?", "MANAGER"))
+      .toEqual(["create_invitation"]);
+    const messages = [
+      { role: "assistant", parts: [{ type: "tool-invocation", toolInvocation: {
+        toolName: "create_invitation",
+        state: "result",
+        result: { needsInput: true, message: "What email address?" },
+      } }] },
+      { role: "user", content: "client@example.com" },
+    ];
+    expect(getPendingClarificationToolName(messages)).toBe("create_invitation");
+    expect(getFocusedToolNames("client@example.com", "MANAGER", "create_invitation"))
+      .toEqual(["create_invitation"]);
   });
 
   it("routes direct counts to the database query tool", () => {

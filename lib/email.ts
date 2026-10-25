@@ -1,4 +1,5 @@
 import "server-only";
+import nodemailer from "nodemailer";
 
 export type SendEmailInput = {
   to: string;
@@ -6,8 +7,10 @@ export type SendEmailInput = {
   title: string;
   message: string;
   link?: string | null;
+  linkLabel?: string | null;
   projectName?: string | null;
   actorName?: string | null;
+  footerText?: string | null;
 };
 
 export async function sendNotificationEmail(input: SendEmailInput): Promise<{
@@ -17,8 +20,8 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   error?: string;
 }> {
   const deliveryMode = process.env.EMAIL_DELIVERY_MODE?.trim().toLowerCase() === "test" ? "test" : "live";
+  const provider = process.env.EMAIL_PROVIDER?.trim().toLowerCase() || "resend";
   const configuredTestRecipient = process.env.EMAIL_TEST_RECIPIENT?.trim();
-  const from = process.env.EMAIL_FROM?.trim() || "WoPhoto Studio <notifications@wophoto.studio>";
 
   // In test mode, never send to the notification's real recipient. A missing
   // test inbox is a configuration error rather than a reason to fall through.
@@ -34,6 +37,20 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   const subject = deliveryMode === "test" ? `[TEST] ${input.subject}` : input.subject;
   const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3000";
   const fullLink = safeNotificationLink(baseUrl, input.link);
+
+  if (provider !== "resend" && provider !== "gmail") {
+    return { success: false, status: "failed", error: "EMAIL_PROVIDER must be either 'resend' or 'gmail'." };
+  }
+
+  const gmailUser = process.env.GMAIL_SMTP_USER?.trim();
+  const gmailAppPassword = process.env.GMAIL_SMTP_APP_PASSWORD?.replace(/\s/g, "");
+  if (provider === "gmail" && (!gmailUser || !gmailAppPassword)) {
+    return {
+      success: false,
+      status: "failed",
+      error: "Gmail SMTP is selected, but GMAIL_SMTP_USER or GMAIL_SMTP_APP_PASSWORD is missing.",
+    };
+  }
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -72,20 +89,47 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
     }
 
     <div style="text-align: left; margin-top: 20px;">
-      <a href="${escapeHtml(fullLink)}" class="button" target="_blank" rel="noopener noreferrer">View in WoPhoto Studio &rarr;</a>
+      <a href="${escapeHtml(fullLink)}" class="button" target="_blank" rel="noopener noreferrer">${escapeHtml(input.linkLabel || "View in WoPhoto Studio")} &rarr;</a>
     </div>
 
     <div class="footer">
-      This is an automated notification from WoPhoto Studio. You received this because you are an active member of this project.
+      ${escapeHtml(input.footerText || "This is an automated message from WoPhoto Studio.")}
     </div>
   </div>
 </body>
 </html>
   `;
 
-  // Resend dispatch if RESEND_API_KEY is available.
+  if (provider === "gmail") {
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
+      auth: { user: gmailUser!, pass: gmailAppPassword! },
+    });
+    try {
+      const info = await transporter.sendMail({
+        from: process.env.GMAIL_FROM?.trim() || `WoPhoto Studio <${gmailUser}>`,
+        to: recipient,
+        subject,
+        html: htmlContent,
+      });
+      return { success: true, status: "sent", messageId: info.messageId };
+    } catch (error) {
+      console.error("[email] Gmail SMTP delivery failed:", error);
+      return { success: false, status: "failed", error: "Gmail SMTP could not send this email. Check the Gmail account and App Password configuration." };
+    } finally {
+      transporter.close();
+    }
+  }
+
+  // Resend remains the default provider and is selected explicitly in production.
   if (process.env.RESEND_API_KEY) {
     try {
+      const from = process.env.EMAIL_FROM?.trim() || "WoPhoto Studio <notifications@wophoto.studio>";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         signal: AbortSignal.timeout(10000),
