@@ -12,6 +12,7 @@ import {
 import { requireRole } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
 import { generateNextAssetTag } from "@/lib/inventory"
+import { recordInventoryActivity } from "@/lib/inventory-activity"
 import {
   createInventoryItemSchema,
   updateInventoryItemSchema,
@@ -41,7 +42,7 @@ export async function createInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    await requireRole(UserRole.MANAGER)
+    const user = await requireRole(UserRole.MANAGER)
 
     const parsed = createInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -84,20 +85,29 @@ export async function createInventoryItem(
       }
     }
 
-    const item = await prisma.inventoryItem.create({
-      data: {
-        assetTag,
-        name,
-        category: category || "General",
-        model: model || null,
-        serialNumber: serialNumber || null,
-        status: InventoryStatus.AVAILABLE,
-        condition: condition || InventoryCondition.GOOD,
-        location: location || null,
-        purchaseDate: purchaseDate || null,
-        metadata: (metadata || {}) as Prisma.InputJsonValue,
-        notes: notes || null,
-      },
+    const item = await prisma.$transaction(async (tx) => {
+      const created = await tx.inventoryItem.create({
+        data: {
+          assetTag,
+          name,
+          category: category || "General",
+          model: model || null,
+          serialNumber: serialNumber || null,
+          status: InventoryStatus.AVAILABLE,
+          condition: condition || InventoryCondition.GOOD,
+          location: location || null,
+          purchaseDate: purchaseDate || null,
+          metadata: (metadata || {}) as Prisma.InputJsonValue,
+          notes: notes || null,
+        },
+      })
+      await recordInventoryActivity(tx, {
+        itemId: created.id,
+        actor: user,
+        action: "ITEM_CREATED",
+        details: { assetTag: created.assetTag, name: created.name },
+      })
+      return created
     })
 
     revalidateInventory()
@@ -120,7 +130,7 @@ export async function updateInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    await requireRole(UserRole.MANAGER)
+    const user = await requireRole(UserRole.MANAGER)
 
     const parsed = updateInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -168,9 +178,7 @@ export async function updateInventoryItem(
       }
     }
 
-    const updated = await prisma.inventoryItem.update({
-      where: { id },
-      data: {
+    const updateData: Prisma.InventoryItemUpdateInput = {
         ...(name !== undefined ? { name } : {}),
         ...(category !== undefined ? { category } : {}),
         ...(assetTag !== undefined ? { assetTag } : {}),
@@ -187,7 +195,19 @@ export async function updateInventoryItem(
           ? { metadata: (metadata || {}) as Prisma.InputJsonValue }
           : {}),
         ...(notes !== undefined ? { notes: notes || null } : {}),
-      },
+      }
+    const changedFields = Object.keys(updateData)
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.inventoryItem.update({ where: { id }, data: updateData })
+      if (changedFields.length > 0) {
+        await recordInventoryActivity(tx, {
+          itemId: result.id,
+          actor: user,
+          action: "ITEM_UPDATED",
+          details: { changedFields },
+        })
+      }
+      return result
     })
 
     revalidateInventory()
@@ -210,7 +230,7 @@ export async function retireInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    await requireRole(UserRole.MANAGER)
+    const user = await requireRole(UserRole.MANAGER)
 
     const parsed = retireInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -231,19 +251,30 @@ export async function retireInventoryItem(
       }
     }
 
-    const retirement = await prisma.inventoryItem.updateMany({
-      where: {
-        id,
-        status: {
-          in: [InventoryStatus.AVAILABLE, InventoryStatus.MAINTENANCE],
+    const retirement = await prisma.$transaction(async (tx) => {
+      const result = await tx.inventoryItem.updateMany({
+        where: {
+          id,
+          status: {
+            in: [InventoryStatus.AVAILABLE, InventoryStatus.MAINTENANCE],
+          },
         },
-      },
-      data: {
-        status: InventoryStatus.RETIRED,
-        notes: reason
-          ? `${item.notes ? item.notes + "\n" : ""}[Retired: ${new Date().toLocaleDateString()}] ${reason}`
-          : item.notes,
-      },
+        data: {
+          status: InventoryStatus.RETIRED,
+          notes: reason
+            ? `${item.notes ? item.notes + "\n" : ""}[Retired: ${new Date().toLocaleDateString()}] ${reason}`
+            : item.notes,
+        },
+      })
+      if (result.count === 1) {
+        await recordInventoryActivity(tx, {
+          itemId: item.id,
+          actor: user,
+          action: "ITEM_RETIRED",
+          details: { reason: reason || null },
+        })
+      }
+      return result
     })
     if (retirement.count === 0) {
       return {
@@ -272,7 +303,7 @@ export async function retireInventoryItems(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    await requireRole(UserRole.MANAGER)
+    const user = await requireRole(UserRole.MANAGER)
 
     const parsed = retireInventoryItemsSchema.safeParse(data)
     if (!parsed.success) {
@@ -326,6 +357,12 @@ export async function retireInventoryItems(
         if (result.count !== 1) {
           throw new Error(`${item.name} changed status. Refresh and try again.`)
         }
+        await recordInventoryActivity(tx, {
+          itemId: item.id,
+          actor: user,
+          action: "ITEM_RETIRED",
+          details: { reason: reason || null },
+        })
       }
     })
 
@@ -367,7 +404,7 @@ export async function checkoutInventoryItem(
       })
       if (reservation.count === 0) return null
 
-      return tx.inventoryLoan.create({
+      const loan = await tx.inventoryLoan.create({
         data: {
           itemId,
           borrowerId: user.id,
@@ -376,6 +413,16 @@ export async function checkoutInventoryItem(
           status: LoanStatus.ACTIVE,
         },
       })
+      await recordInventoryActivity(tx, {
+        itemId,
+        actor: user,
+        action: "ITEM_CHECKED_OUT",
+        details: {
+          loanId: loan.id,
+          expectedReturnAt: expectedReturnAt?.toISOString() ?? null,
+        },
+      })
+      return loan
     })
 
     if (!loan) {
@@ -427,10 +474,10 @@ export async function returnInventoryItem(
     if (!loan) return { error: "Active loan record not found." }
     if (loan.status !== LoanStatus.ACTIVE)
       return { error: "This loan has already been returned." }
-    if (user.role === UserRole.WORKER && loan.borrowerId !== user.id) {
+    if (loan.borrowerId !== user.id) {
       return {
         error:
-          "You are not authorized to return gear checked out by another worker.",
+          "Only the person who checked out this item can return it.",
       }
     }
 
@@ -439,7 +486,7 @@ export async function returnInventoryItem(
         where: {
           id: loanId,
           status: LoanStatus.ACTIVE,
-          ...(user.role === UserRole.WORKER ? { borrowerId: user.id } : {}),
+          borrowerId: user.id,
         },
         data: {
           status: LoanStatus.RETURNED,
@@ -469,9 +516,21 @@ export async function returnInventoryItem(
         )
       }
 
+      await recordInventoryActivity(tx, {
+        itemId: loan.itemId,
+        actor: user,
+        action: "ITEM_RETURNED",
+        details: {
+          loanId: loan.id,
+          condition,
+          issueReported: hasIssue,
+        },
+        occurredAt: returnedAt,
+      })
+
       // 2. If issue flagged, create maintenance ticket and set item to MAINTENANCE
       if (hasIssue) {
-        await tx.inventoryMaintenanceLog.create({
+        const maintenance = await tx.inventoryMaintenanceLog.create({
           data: {
             itemId: loan.itemId,
             reportedById: user.id,
@@ -479,6 +538,13 @@ export async function returnInventoryItem(
             description: issueDetails || "Item returned with condition issue.",
             status: MaintenanceStatus.OPEN,
           },
+        })
+        await recordInventoryActivity(tx, {
+          itemId: loan.itemId,
+          actor: user,
+          action: "MAINTENANCE_REPORTED",
+          details: { maintenanceLogId: maintenance.id, title: maintenance.title },
+          occurredAt: returnedAt,
         })
       }
       return true
@@ -573,6 +639,16 @@ export async function resolveMaintenanceIssue(
           },
         })
       }
+      await recordInventoryActivity(tx, {
+        itemId: log.itemId,
+        actor: user,
+        action: "MAINTENANCE_RESOLVED",
+        details: {
+          maintenanceLogId: log.id,
+          restoredCondition: restoredCondition || InventoryCondition.GOOD,
+          cost: cost ?? null,
+        },
+      })
       return true
     })
 

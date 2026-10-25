@@ -29,5 +29,5 @@ async function ClientWorkRequestsContent({ searchParams }: { searchParams: Promi
     if (nextCursor) query.set("cursor", nextCursor);
     return `/client/work-requests${query.size ? `?${query}` : ""}`;
   };
-  return <ClientWorkRequests data={data} options={options} nextHref={data.nextCursor ? url(data.nextCursor) : undefined} previousHref={cursor ? "/client/work-requests" : undefined} focusRequest={focusRequest} />;
+  return <ClientWorkRequests key={requestId ?? "work-requests"} data={data} options={options} nextHref={data.nextCursor ? url(data.nextCursor) : undefined} previousHref={cursor ? "/client/work-requests" : undefined} focusRequest={focusRequest} />;
 }

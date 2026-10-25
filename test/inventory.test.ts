@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   maintenanceCreate: vi.fn(),
   maintenanceUpdate: vi.fn(),
   maintenanceUpdateMany: vi.fn(),
+  activityFindMany: vi.fn(),
+  activityCount: vi.fn(),
+  activityCreate: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -34,6 +37,7 @@ vi.mock("@/lib/authz", () => ({ requireRole: mocks.requireRole }));
 const mockPrismaTx = {
   inventoryItem: {
     findUnique: mocks.itemFindUnique,
+    create: mocks.itemCreate,
     update: mocks.itemUpdate,
     updateMany: mocks.itemUpdateMany,
     count: mocks.itemCount,
@@ -51,6 +55,9 @@ const mockPrismaTx = {
     update: mocks.maintenanceUpdate,
     updateMany: mocks.maintenanceUpdateMany,
     count: mocks.maintenanceCount,
+  },
+  inventoryActivityLog: {
+    create: mocks.activityCreate,
   },
 };
 
@@ -82,6 +89,11 @@ vi.mock("@/lib/prisma", () => ({
       create: mocks.maintenanceCreate,
       update: mocks.maintenanceUpdate,
       updateMany: mocks.maintenanceUpdateMany,
+    },
+    inventoryActivityLog: {
+      findMany: mocks.activityFindMany,
+      count: mocks.activityCount,
+      create: mocks.activityCreate,
     },
     $transaction: mocks.transaction,
   },
@@ -121,6 +133,10 @@ describe("Inventory Management System", () => {
     mocks.loanUpdateMany.mockResolvedValue({ count: 1 });
     mocks.maintenanceUpdateMany.mockResolvedValue({ count: 1 });
     mocks.itemUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.maintenanceCreate.mockResolvedValue({ id: "maintenance-1" });
+    mocks.activityCreate.mockResolvedValue({ id: "activity-1" });
+    mocks.activityFindMany.mockResolvedValue([]);
+    mocks.activityCount.mockResolvedValue(0);
   });
 
   describe("Input validation", () => {
@@ -436,11 +452,11 @@ describe("Inventory Management System", () => {
         condition: InventoryCondition.GOOD,
       });
 
-      expect(result.error).toContain("not authorized to return gear checked out by another worker");
+      expect(result.error).toContain("Only the person who checked out this item can return it.");
       expect(mocks.loanUpdateMany).not.toHaveBeenCalled();
     });
 
-    it("allows a manager to return gear on behalf of any worker", async () => {
+    it("blocks a manager from returning gear checked out by another user", async () => {
       mocks.requireRole.mockResolvedValue({ id: "manager-admin", role: UserRole.MANAGER });
 
       mocks.loanFindUnique.mockResolvedValue({
@@ -456,8 +472,8 @@ describe("Inventory Management System", () => {
         condition: InventoryCondition.GOOD,
       });
 
-      expect(result.success).toBeDefined();
-      expect(mocks.loanUpdateMany).toHaveBeenCalled();
+      expect(result.error).toContain("Only the person who checked out this item can return it.");
+      expect(mocks.loanUpdateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -607,6 +623,34 @@ describe("Inventory Management System", () => {
       const catalog = await getInventoryCatalog();
       expect(catalog.items).toHaveLength(1);
       expect(catalog.items[0]?.activeLoan?.isOverdue).toBe(true);
+    });
+
+    it("limits worker activity history to events performed by that worker", async () => {
+      mocks.requireRole.mockResolvedValue({ id: "worker-1", role: UserRole.WORKER });
+      mocks.itemCount.mockResolvedValue(0);
+      mocks.itemGroupBy.mockResolvedValue([]);
+      mocks.itemFindMany.mockResolvedValue([]);
+
+      await getInventoryCatalog();
+
+      expect(mocks.activityFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { actorId: "worker-1" } }),
+      );
+      expect(mocks.activityCount).toHaveBeenCalledWith({ where: { actorId: "worker-1" } });
+    });
+
+    it("shows all activity history to managers", async () => {
+      mocks.requireRole.mockResolvedValue({ id: "manager-1", role: UserRole.MANAGER });
+      mocks.itemCount.mockResolvedValue(0);
+      mocks.itemGroupBy.mockResolvedValue([]);
+      mocks.itemFindMany.mockResolvedValue([]);
+
+      await getInventoryCatalog();
+
+      expect(mocks.activityFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+      expect(mocks.activityCount).toHaveBeenCalledWith({ where: {} });
     });
 
     it("marks loan not overdue when expectedReturnAt is in the future", async () => {

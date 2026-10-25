@@ -67,8 +67,25 @@ export async function getInventoryCatalog(filters: InventoryCatalogFilters = {})
     ...(category && category !== "ALL" ? { category } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
   };
+  const activeCheckoutWhere: Prisma.InventoryItemWhereInput = {
+    ...searchWhere,
+    ...(category && category !== "ALL" ? { category } : {}),
+    status: InventoryStatus.IN_USE,
+  };
+  const activityWhere: Prisma.InventoryActivityLogWhereInput = {
+    ...(user.role === UserRole.WORKER ? { actorId: user.id } : {}),
+    ...(search
+      ? {
+          OR: [
+            { item: { name: { contains: search, mode: Prisma.QueryMode.insensitive } } },
+            { item: { assetTag: { contains: search, mode: Prisma.QueryMode.insensitive } } },
+            { actorLabel: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          ],
+        }
+      : {}),
+  };
 
-  const [total, items, stats] = await Promise.all([
+  const [total, items, stats, checkoutTotal, checkoutItems, activityTotal, activityLogs] = await Promise.all([
     prisma.inventoryItem.count({ where }),
     prisma.inventoryItem.findMany({
       where,
@@ -95,6 +112,39 @@ export async function getInventoryCatalog(filters: InventoryCatalogFilters = {})
     prisma.inventoryItem.groupBy({
       by: ["status"],
       _count: { id: true },
+    }),
+    prisma.inventoryItem.count({ where: activeCheckoutWhere }),
+    prisma.inventoryItem.findMany({
+      where: activeCheckoutWhere,
+      orderBy: { updatedAt: "desc" },
+      skip: (requestedPage - 1) * pageSize,
+      take: pageSize,
+      include: {
+        loans: {
+          where: { status: LoanStatus.ACTIVE },
+          take: 1,
+          include: {
+            borrower: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.inventoryActivityLog.count({ where: activityWhere }),
+    prisma.inventoryActivityLog.findMany({
+      where: activityWhere,
+      orderBy: { createdAt: "desc" },
+      skip: (requestedPage - 1) * pageSize,
+      take: pageSize,
+      include: {
+        item: { select: { id: true, name: true, assetTag: true } },
+      },
     }),
   ]);
 
@@ -137,13 +187,45 @@ export async function getInventoryCatalog(filters: InventoryCatalogFilters = {})
     };
   });
 
+  const formattedCheckoutItems = checkoutItems.map((item) => {
+    const activeLoan = item.loans[0] || null;
+    const isOverdue =
+      activeLoan &&
+      activeLoan.expectedReturnAt &&
+      new Date(activeLoan.expectedReturnAt) < now;
+
+    return {
+      ...item,
+      activeLoan: activeLoan
+        ? {
+            ...activeLoan,
+            isOverdue: Boolean(isOverdue),
+          }
+        : null,
+    };
+  });
+
   return {
     items: formattedItems,
+    checkoutItems: formattedCheckoutItems,
     pagination: {
       total,
       page,
       pageSize,
       totalPages,
+    },
+    checkoutPagination: {
+      total: checkoutTotal,
+      page: Math.min(requestedPage, Math.max(1, Math.ceil(checkoutTotal / pageSize))),
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(checkoutTotal / pageSize)),
+    },
+    activityLogs,
+    activityPagination: {
+      total: activityTotal,
+      page: Math.min(requestedPage, Math.max(1, Math.ceil(activityTotal / pageSize))),
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(activityTotal / pageSize)),
     },
     stats: statsMap,
     currentUser: {

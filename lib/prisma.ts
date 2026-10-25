@@ -44,7 +44,9 @@ const hasCurrentSchemaDelegates = Boolean(
     typeof (cachedPrisma as unknown as { inventoryLoan?: { findMany?: unknown } })
       .inventoryLoan?.findMany === "function" &&
     typeof (cachedPrisma as unknown as { inventoryMaintenanceLog?: { findMany?: unknown } })
-      .inventoryMaintenanceLog?.findMany === "function",
+      .inventoryMaintenanceLog?.findMany === "function" &&
+    typeof (cachedPrisma as unknown as { inventoryActivityLog?: { count?: unknown } })
+      .inventoryActivityLog?.count === "function",
 );
 
 // `prisma generate` can add models while `next dev` is already running. The

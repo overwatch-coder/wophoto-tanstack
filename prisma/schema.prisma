@@ -120,28 +120,29 @@ model User {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
-  accounts           Account[]
-  sessions           Session[]
-  sentInvitations    Invitation[]         @relation("InvitationSender")
-  acceptedInvitation Invitation?          @relation("InvitationRecipient")
-  managedProjects    Project[]            @relation("ProjectManager")
-  clientProjects     Project[]            @relation("ProjectClient")
-  createdTasks       Task[]               @relation("TaskCreator")
-  taskAssignments    TaskAssignee[]
-  comments           Comment[]
-  ratings            Rating[]
-  specializations    UserSpecialization[]
-  clientFeedbacks    ClientFeedback[]     @relation("ClientFeedbacks")
-  resolvedFeedbacks  ClientFeedback[]     @relation("FeedbackResponses")
-  assignedFeedbacks  ClientFeedback[]     @relation("FeedbackAssignedWorker")
-  notifications          Notification[]       @relation("UserNotifications")
-  triggeredNotifications Notification[]       @relation("NotificationActor")
-  preferences            UserPreference?
+  accounts                Account[]
+  sessions                Session[]
+  sentInvitations         Invitation[]              @relation("InvitationSender")
+  acceptedInvitation      Invitation?               @relation("InvitationRecipient")
+  managedProjects         Project[]                 @relation("ProjectManager")
+  clientProjects          Project[]                 @relation("ProjectClient")
+  createdTasks            Task[]                    @relation("TaskCreator")
+  taskAssignments         TaskAssignee[]
+  comments                Comment[]
+  ratings                 Rating[]
+  specializations         UserSpecialization[]
+  clientFeedbacks         ClientFeedback[]          @relation("ClientFeedbacks")
+  resolvedFeedbacks       ClientFeedback[]          @relation("FeedbackResponses")
+  assignedFeedbacks       ClientFeedback[]          @relation("FeedbackAssignedWorker")
+  notifications           Notification[]            @relation("UserNotifications")
+  triggeredNotifications  Notification[]            @relation("NotificationActor")
+  preferences             UserPreference?
   borrowedInventoryItems  InventoryLoan[]           @relation("InventoryBorrower")
   reportedMaintenanceLogs InventoryMaintenanceLog[] @relation("MaintenanceReporter")
   resolvedMaintenanceLogs InventoryMaintenanceLog[] @relation("MaintenanceResolver")
-  clientWorkRequests      WorkRequest[]               @relation("WorkRequestClient")
-  managedWorkRequests    WorkRequest[]               @relation("WorkRequestManager")
+  inventoryActivityLogs   InventoryActivityLog[]    @relation("InventoryActivityActor")
+  clientWorkRequests      WorkRequest[]             @relation("WorkRequestClient")
+  managedWorkRequests     WorkRequest[]             @relation("WorkRequestManager")
 
   @@index([role, status])
 }
@@ -213,15 +214,15 @@ model Project {
   managerId   String
   clientId    String
 
-  manager  User      @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
-  client   User      @relation("ProjectClient", fields: [clientId], references: [id], onDelete: Restrict)
-  tasks     Task[]
-  comments  Comment[]
-  ratings   Rating[]
-  feedbacks ClientFeedback[]
-  notifications Notification[]
-  workRequests WorkRequest[] @relation("WorkRequestProject")
-  createdFromWorkRequest WorkRequest? @relation("WorkRequestCreatedProject")
+  manager                User             @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
+  client                 User             @relation("ProjectClient", fields: [clientId], references: [id], onDelete: Restrict)
+  tasks                  Task[]
+  comments               Comment[]
+  ratings                Rating[]
+  feedbacks              ClientFeedback[]
+  notifications          Notification[]
+  workRequests           WorkRequest[]    @relation("WorkRequestProject")
+  createdFromWorkRequest WorkRequest?     @relation("WorkRequestCreatedProject")
 
   @@index([managerId, updatedAt])
   @@index([clientId, updatedAt])
@@ -253,7 +254,7 @@ model Task {
   ratings         Rating[]
   feedbacks       ClientFeedback[]
   notifications   Notification[]
-  workRequestFor  WorkRequest?          @relation("WorkRequestTask")
+  workRequestFor  WorkRequest?         @relation("WorkRequestTask")
 
   @@index([projectId, status, dueAt])
   @@index([deletedAt, dueAt])
@@ -352,10 +353,10 @@ model ClientFeedback {
   assignedWorkerId String?
   assignedWorker   User?   @relation("FeedbackAssignedWorker", fields: [assignedWorkerId], references: [id], onDelete: SetNull)
 
-  delegationNote   String?   @db.Text
-  delegatedAt      DateTime?
+  delegationNote String?   @db.Text
+  delegatedAt    DateTime?
 
-  workerNote       String?   @db.Text
+  workerNote        String?   @db.Text
   workerSubmittedAt DateTime?
 
   respondedById String?
@@ -368,55 +369,55 @@ model ClientFeedback {
 }
 
 model Notification {
-  id           String               @id @default(cuid())
+  id           String                  @id @default(cuid())
   userId       String
   type         NotificationType
-  category     NotificationCategory @default(UPDATE)
+  category     NotificationCategory    @default(UPDATE)
   title        String
-  message      String               @db.Text
+  message      String                  @db.Text
   link         String?
-  read         Boolean              @default(false)
-  inAppVisible Boolean              @default(true)
-  emailSent    Boolean              @default(false)
+  read         Boolean                 @default(false)
+  inAppVisible Boolean                 @default(true)
+  emailSent    Boolean                 @default(false)
   emailStatus  NotificationEmailStatus @default(UNKNOWN)
   emailSubject String?
-  dedupeKey    String?              @unique
+  dedupeKey    String?                 @unique
 
-  projectId    String?
-  taskId       String?
-  actorId      String?
+  projectId String?
+  taskId    String?
+  actorId   String?
 
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user         User                 @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
-  actor        User?                @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
-  project      Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  task         Task?                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  actor   User?    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([userId, read, createdAt])
   @@index([userId, createdAt])
 }
 
 model UserPreference {
-  userId               String         @id
+  userId               String             @id
   location             String?
-  notificationChannels Json           @default("{}")
-  density              SettingsDensity @default(COZY)
-  soundAlerts          Boolean        @default(true)
+  notificationChannels Json               @default("{}")
+  density              SettingsDensity    @default(COZY)
+  soundAlerts          Boolean            @default(true)
   defaultLanding       String?
   workerAvailability   WorkerAvailability @default(AVAILABLE)
 
   // AI Assistant Preferences
-  aiCopilotName         String          @default("WoPhoto Studio Copilot")
-  aiProvider            String          @default("OPENAI")
-  aiModel               String          @default("gpt-6.1-sol")
-  aiApiKeyEncrypted     String?         @db.Text
+  aiCopilotName         String  @default("WoPhoto Studio Copilot")
+  aiProvider            String  @default("OPENAI")
+  aiModel               String  @default("gpt-6.1-sol")
+  aiApiKeyEncrypted     String? @db.Text
   aiApiKeyProvider      String?
   aiCustomEndpoint      String?
-  aiAutonomousExecution Boolean         @default(false)
+  aiAutonomousExecution Boolean @default(false)
 
-  updatedAt            DateTime       @updatedAt
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -465,6 +466,7 @@ model InventoryItem {
 
   loans           InventoryLoan[]
   maintenanceLogs InventoryMaintenanceLog[]
+  activityLogs    InventoryActivityLog[]
 
   @@index([status, category])
   @@index([assetTag])
@@ -516,6 +518,33 @@ model InventoryMaintenanceLog {
   @@index([status, startedAt])
 }
 
+enum InventoryActivityAction {
+  ITEM_CREATED
+  ITEM_UPDATED
+  ITEM_RETIRED
+  ITEM_CHECKED_OUT
+  ITEM_RETURNED
+  MAINTENANCE_REPORTED
+  MAINTENANCE_RESOLVED
+}
+
+model InventoryActivityLog {
+  id         String                  @id @default(cuid())
+  itemId     String
+  actorId    String?
+  actorLabel String
+  action     InventoryActivityAction
+  details    Json                    @default("{}")
+  createdAt  DateTime                @default(now())
+
+  item  InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  actor User?         @relation("InventoryActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([itemId, createdAt])
+  @@index([actorId, createdAt])
+}
+
 enum WorkRequestType {
   WORK
   PROJECT
@@ -530,27 +559,27 @@ enum WorkRequestStatus {
 }
 
 model WorkRequest {
-  id              String           @id @default(cuid())
-  type            WorkRequestType
-  title           String
-  details         String           @db.Text
-  requestedDueAt  DateTime?
-  status          WorkRequestStatus @default(SUBMITTED)
-  managerNote     String?          @db.Text
-  reviewedAt      DateTime?
-  clientId        String
-  managerId       String
-  projectId       String?
-  createdProjectId String?         @unique
-  createdTaskId   String?          @unique
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id               String            @id @default(cuid())
+  type             WorkRequestType
+  title            String
+  details          String            @db.Text
+  requestedDueAt   DateTime?
+  status           WorkRequestStatus @default(SUBMITTED)
+  managerNote      String?           @db.Text
+  reviewedAt       DateTime?
+  clientId         String
+  managerId        String
+  projectId        String?
+  createdProjectId String?           @unique
+  createdTaskId    String?           @unique
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
-  client        User      @relation("WorkRequestClient", fields: [clientId], references: [id], onDelete: Restrict)
-  manager       User      @relation("WorkRequestManager", fields: [managerId], references: [id], onDelete: Restrict)
-  project       Project?  @relation("WorkRequestProject", fields: [projectId], references: [id], onDelete: Cascade)
+  client         User     @relation("WorkRequestClient", fields: [clientId], references: [id], onDelete: Restrict)
+  manager        User     @relation("WorkRequestManager", fields: [managerId], references: [id], onDelete: Restrict)
+  project        Project? @relation("WorkRequestProject", fields: [projectId], references: [id], onDelete: Cascade)
   createdProject Project? @relation("WorkRequestCreatedProject", fields: [createdProjectId], references: [id], onDelete: SetNull)
-  createdTask   Task?     @relation("WorkRequestTask", fields: [createdTaskId], references: [id], onDelete: Restrict)
+  createdTask    Task?    @relation("WorkRequestTask", fields: [createdTaskId], references: [id], onDelete: Restrict)
 
   @@index([clientId, createdAt, id])
   @@index([managerId, status, createdAt, id])

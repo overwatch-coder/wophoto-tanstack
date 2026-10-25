@@ -23,6 +23,13 @@ import { returnInventoryItem } from "@/app/actions/inventory"
 import { InventoryCondition } from "@/generated/prisma/browser"
 import { Loader2, AlertCircle, Wrench } from "lucide-react"
 
+const conditionLabels: Record<InventoryCondition, string> = {
+  [InventoryCondition.EXCELLENT]: "Excellent",
+  [InventoryCondition.GOOD]: "Good",
+  [InventoryCondition.FAIR]: "Fair",
+  [InventoryCondition.NEEDS_ATTENTION]: "Needs attention",
+}
+
 interface ReturnDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -127,27 +134,27 @@ export function ReturnDialog({
               value={condition}
               onValueChange={(val) => setCondition(val as InventoryCondition)}
             >
-              <SelectTrigger id="returnCondition" className="h-9 text-xs">
-                <SelectValue />
+              <SelectTrigger id="returnCondition" className="h-9 w-full text-xs">
+                <SelectValue>{conditionLabels[condition]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem
                   value={InventoryCondition.EXCELLENT}
                   className="text-xs"
                 >
-                  Excellent (Clean, mint condition)
+                  {conditionLabels[InventoryCondition.EXCELLENT]} (Clean, mint condition)
                 </SelectItem>
                 <SelectItem value={InventoryCondition.GOOD} className="text-xs">
-                  Good (Standard working order)
+                  {conditionLabels[InventoryCondition.GOOD]} (Standard working order)
                 </SelectItem>
                 <SelectItem value={InventoryCondition.FAIR} className="text-xs">
-                  Fair (Functional with cosmetic wear)
+                  {conditionLabels[InventoryCondition.FAIR]} (Functional with cosmetic wear)
                 </SelectItem>
                 <SelectItem
                   value={InventoryCondition.NEEDS_ATTENTION}
                   className="text-xs"
                 >
-                  Needs Attention (Damage / issue present)
+                  {conditionLabels[InventoryCondition.NEEDS_ATTENTION]} (Damage / issue present)
                 </SelectItem>
               </SelectContent>
             </Select>

@@ -56,6 +56,9 @@ export function CheckoutDialog({
 
       if (res.error) throw new Error(res.error)
 
+      setExpectedReturnAt("")
+      setNotes("")
+      setError(null)
       onOpenChange(false)
       onSuccess?.()
     } catch (err) {

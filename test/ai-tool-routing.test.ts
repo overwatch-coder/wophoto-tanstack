@@ -72,6 +72,19 @@ describe("Copilot tool routing", () => {
       .toEqual(["query_studio_data"]);
   });
 
+  it("routes client work request lookups to the database tool, not smart search or request creation", () => {
+    expect(getFocusedToolNames("How many work requests do I have?", "CLIENT"))
+      .toEqual(["query_studio_data"]);
+    expect(getFocusedToolNames("Do I have work or project requests?", "CLIENT"))
+      .toEqual(["query_studio_data"]);
+    expect(getFocusedToolNames("Show my work requests", "CLIENT"))
+      .toEqual(["query_studio_data"]);
+    expect(getFocusedToolNames("Find my work request about portraits", "CLIENT"))
+      .toEqual(["query_studio_data"]);
+    expect(getFocusedToolNames("Submit a work request for my product project", "CLIENT"))
+      .toEqual(["prepare_work_request"]);
+  });
+
   it("routes inventory reads to one structured query and inventory changes through confirmation", () => {
     expect(getFocusedToolNames("How many cameras are available in inventory?", "MANAGER"))
       .toEqual(["query_studio_data"]);

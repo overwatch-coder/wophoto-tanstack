@@ -23,6 +23,8 @@ export function getPendingClarificationToolName(messages: unknown): string | nul
 export function getFocusedToolNames(message: string, role?: string, pendingClarificationToolName: string | null = null): string[] | null {
   const text = message.toLocaleLowerCase();
   const asksToCreate = /\b(create|make|add|start|set up|build|generate|draft|prepare|write)\b/.test(text);
+  const asksToRead = /\b(how many|count|number of|list|show me|show|check|look up|what are|which are|get me|fetch|retrieve|status of|progress on|do i have|have i submitted|what do i have|are there)\b/.test(text);
+  const asksToFind = /\b(find|search|look for|locate)\b/.test(text);
   if (role === "CLIENT" && pendingClarificationToolName === "prepare_client_feedback") return ["prepare_client_feedback"];
   if (role === "CLIENT" && pendingClarificationToolName === "prepare_work_request") return ["prepare_work_request"];
   if (role === "MANAGER" && pendingClarificationToolName === "create_invitation") return ["create_invitation"];
@@ -30,7 +32,11 @@ export function getFocusedToolNames(message: string, role?: string, pendingClari
     return ["prepare_client_feedback"];
   }
   if (role === "CLIENT" && (asksToCreate || /\b(submit|request)\b/.test(text)) && /\b(work|project|task|request)\b/.test(text)) {
+    if ((asksToRead || asksToFind) && /\b(work|project)?\s*requests?\b/.test(text)) return ["query_studio_data"];
     return ["prepare_work_request"];
+  }
+  if (role !== "WORKER" && (asksToRead || asksToFind) && /\b(work|project)?\s*requests?\b/.test(text)) {
+    return ["query_studio_data"];
   }
   if (
     role === "MANAGER" &&
@@ -56,7 +62,7 @@ export function getFocusedToolNames(message: string, role?: string, pendingClari
   if (asksToCreate && mentionsProject && mentionsTasks) return null;
   if (asksToCreate && mentionsProject) return ["create_project"];
   if (asksToCreate && mentionsTasks) return ["create_task_batch"];
-  if (/\b(how many|count|number of|list|show me|give me|get me|fetch|retrieve)\b/.test(text)) {
+  if (asksToRead || /\b(give me)\b/.test(text)) {
     return ["query_studio_data"];
   }
   if (/\b(available|capacity|workload|queue load|who is free)\b/.test(text)) {

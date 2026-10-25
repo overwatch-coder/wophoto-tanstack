@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   ratingFindMany: vi.fn(),
   invitationCount: vi.fn(),
   invitationFindMany: vi.fn(),
+  workRequestCount: vi.fn(),
+  workRequestFindMany: vi.fn(),
   userCount: vi.fn(),
   userFindMany: vi.fn(),
   inventoryItemCount: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock("@/lib/prisma", () => ({
     comment: { count: mocks.commentCount, findMany: mocks.commentFindMany },
     rating: { count: mocks.ratingCount, findMany: mocks.ratingFindMany },
     invitation: { count: mocks.invitationCount, findMany: mocks.invitationFindMany },
+    workRequest: { count: mocks.workRequestCount, findMany: mocks.workRequestFindMany },
     user: { count: mocks.userCount, findMany: mocks.userFindMany },
     inventoryItem: { count: mocks.inventoryItemCount, findMany: mocks.inventoryItemFindMany },
     inventoryLoan: { count: mocks.inventoryLoanCount, findMany: mocks.inventoryLoanFindMany },
@@ -67,6 +70,8 @@ describe("Studio Copilot database queries", () => {
     mocks.inventoryLoanFindMany.mockResolvedValue([]);
     mocks.inventoryMaintenanceCount.mockResolvedValue(0);
     mocks.inventoryMaintenanceFindMany.mockResolvedValue([]);
+    mocks.workRequestCount.mockResolvedValue(0);
+    mocks.workRequestFindMany.mockResolvedValue([]);
   });
 
   it("returns the exact manager scoped project count with no filters", async () => {
@@ -121,6 +126,39 @@ describe("Studio Copilot database queries", () => {
     expect(mocks.projectCount).toHaveBeenCalledWith({
       where: { AND: [{ clientId: "client-1" }] },
     });
+  });
+
+  it("returns a client's exact work request count scoped to that client", async () => {
+    mocks.workRequestCount.mockResolvedValue(3);
+    const input = studioDataQuerySchema.parse({ entity: "WORK_REQUESTS", operation: "COUNT" });
+
+    const result = await queryStudioData(client, input);
+
+    expect(result).toMatchObject({ entity: "WORK_REQUESTS", operation: "COUNT", count: 3 });
+    expect(mocks.workRequestCount).toHaveBeenCalledWith({ where: { AND: [{ clientId: "client-1" }] } });
+  });
+
+  it("lists only a manager's work requests and keeps the query paginated", async () => {
+    mocks.workRequestCount.mockResolvedValue(2);
+    mocks.workRequestFindMany.mockResolvedValue([]);
+    const input = studioDataQuerySchema.parse({ entity: "WORK_REQUESTS", operation: "LIST", limit: 1 });
+
+    await queryStudioData(manager, input);
+
+    expect(mocks.workRequestFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { AND: [{ managerId: "manager-1" }] },
+      take: 2,
+      skip: 0,
+    }));
+  });
+
+  it("does not expose client work requests to workers", async () => {
+    const input = studioDataQuerySchema.parse({ entity: "WORK_REQUESTS", operation: "COUNT" });
+
+    const result = await queryStudioData(worker, input);
+
+    expect(result).toMatchObject({ error: "Worker accounts cannot query client work requests." });
+    expect(mocks.workRequestCount).not.toHaveBeenCalled();
   });
 
   it("scopes worker task counts to their assigned active tasks", async () => {

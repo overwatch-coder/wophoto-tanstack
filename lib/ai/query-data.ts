@@ -26,6 +26,7 @@ export const studioDataQuerySchema = z.object({
     "COMMENTS",
     "RATINGS",
     "INVITATIONS",
+    "WORK_REQUESTS",
     "TEAM",
     "INVENTORY",
     "INVENTORY_LOANS",
@@ -167,6 +168,12 @@ function getInvitationScope(ctx: QueryContext): Prisma.InvitationWhereInput {
   return { acceptedUserId: ctx.userId };
 }
 
+function getWorkRequestScope(ctx: QueryContext): Prisma.WorkRequestWhereInput {
+  if (ctx.role === UserRole.MANAGER) return { managerId: ctx.userId };
+  if (ctx.role === UserRole.CLIENT) return { clientId: ctx.userId };
+  throw new Error("Worker accounts cannot query client work requests.");
+}
+
 function projectTaskScope(ctx: QueryContext): Prisma.TaskWhereInput {
   return {
     deletedAt: null,
@@ -250,6 +257,23 @@ function addFilterClause(entity: StudioDataQuery["entity"], filter: QueryFilter,
     if (field === "type") return { type: enumCondition(filter, field, ["REVISION", "REVIEW", "COMPLAINT"]) };
     if (field === "score") return { score: numberCondition(filter, field) };
     if (field === "createdAt" || field === "updatedAt") return { [field]: dateCondition(filter, field) };
+  }
+
+  if (entity === "WORK_REQUESTS") {
+    if (field === "title" || field === "details" || field === "projectName") {
+      if (field === "projectName") {
+        return { OR: [
+          { project: { name: stringCondition(filter, field) } },
+          { createdProject: { name: stringCondition(filter, field) } },
+        ] };
+      }
+      return { [field]: stringCondition(filter, field) };
+    }
+    if (field === "type") return { type: enumCondition(filter, field, ["WORK", "PROJECT"]) };
+    if (field === "status") return { status: enumCondition(filter, field, ["SUBMITTED", "NEEDS_INFO", "DECLINED", "IN_PROGRESS", "COMPLETED"]) };
+    if (field === "requestedDueAt" || field === "createdAt" || field === "updatedAt") {
+      return { [field]: dateCondition(filter, field) };
+    }
   }
 
   if (entity === "NOTIFICATIONS") {
@@ -344,6 +368,7 @@ function getEntityWhere(ctx: QueryContext, input: StudioDataQuery) {
   else if (input.entity === "COMMENTS") clauses.push(getCommentScope(ctx));
   else if (input.entity === "RATINGS") clauses.push(getRatingScope(ctx));
   else if (input.entity === "INVITATIONS") clauses.push(getInvitationScope(ctx));
+  else if (input.entity === "WORK_REQUESTS") clauses.push(getWorkRequestScope(ctx));
   else if (input.entity === "TEAM") {
     if (ctx.role === UserRole.MANAGER) {
       clauses.push({ role: UserRole.WORKER, acceptedInvitation: { is: { invitedById: ctx.userId } } });
@@ -425,6 +450,7 @@ async function countEntity(entity: StudioDataQuery["entity"], where: Record<stri
     case "COMMENTS": return prisma.comment.count({ where: where as Prisma.CommentWhereInput });
     case "RATINGS": return prisma.rating.count({ where: where as Prisma.RatingWhereInput });
     case "INVITATIONS": return prisma.invitation.count({ where: where as Prisma.InvitationWhereInput });
+    case "WORK_REQUESTS": return prisma.workRequest.count({ where: where as Prisma.WorkRequestWhereInput });
     case "TEAM": return prisma.user.count({ where: where as Prisma.UserWhereInput });
     case "INVENTORY": return prisma.inventoryItem.count({ where: where as Prisma.InventoryItemWhereInput });
     case "INVENTORY_LOANS": return prisma.inventoryLoan.count({ where: where as Prisma.InventoryLoanWhereInput });
@@ -498,6 +524,19 @@ async function listEntity(entity: StudioDataQuery["entity"], where: Record<strin
       return prisma.invitation.findMany({
         where: where as Prisma.InvitationWhereInput,
         select: { id: true, email: true, role: true, status: true, createdAt: true, expiresAt: true, acceptedAt: true },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }], take, skip,
+      });
+    case "WORK_REQUESTS":
+      return prisma.workRequest.findMany({
+        where: where as Prisma.WorkRequestWhereInput,
+        select: {
+          id: true, type: true, title: true, details: true, requestedDueAt: true,
+          status: true, managerNote: true, reviewedAt: true, createdAt: true, updatedAt: true,
+          project: { select: { id: true, name: true } },
+          createdProject: { select: { id: true, name: true } },
+          createdTask: { select: { id: true, title: true, status: true, dueAt: true } },
+          ...(role === UserRole.MANAGER ? { client: { select: { name: true, email: true } } } : {}),
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }], take, skip,
       });
     case "TEAM":

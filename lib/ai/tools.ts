@@ -210,7 +210,7 @@ export function createStudioTools(ctx: ToolContext) {
     // 2. GENERAL DATABASE QUERY TOOL (Read-only, allowlisted and role-scoped)
     query_studio_data: defineStudioTool({
       description:
-        "Query records in the studio database when the user asks to get, list, count, or inspect data. Supports PROJECTS, TASKS, DELETED_TASKS, FEEDBACK, NOTIFICATIONS, COMMENTS, RATINGS, INVITATIONS, TEAM, INVENTORY, INVENTORY_LOANS, and INVENTORY_MAINTENANCE, with LIST, GET, or COUNT operations. Inventory is available only to managers and workers; workers can read only their own loan records, while maintenance records are manager only. Use explicit filters for exact counts or criteria (for example INVENTORY with status EQUALS AVAILABLE). For LIST/GET, results include approved summaries and pages of at most 20 records. Filters support EQUALS, NOT_EQUALS, CONTAINS, BEFORE, AFTER, GTE, LTE on supported entity fields. This is the authoritative retrieval/count tool; do not use smart_search to infer whether a table or category has records. Access is restricted to the signed-in user's role and ownership scope.",
+        "Query records in the studio database when the user asks to get, list, count, or inspect data. Supports PROJECTS, TASKS, DELETED_TASKS, FEEDBACK, WORK_REQUESTS, NOTIFICATIONS, COMMENTS, RATINGS, INVITATIONS, TEAM, INVENTORY, INVENTORY_LOANS, and INVENTORY_MAINTENANCE, with LIST, GET, or COUNT operations. WORK_REQUESTS are available to managers for requests assigned to their studio and clients for their own requests; workers cannot read them. Inventory is available only to managers and workers; workers can read only their own loan records, while maintenance records are manager only. Use explicit filters for exact counts or criteria (for example INVENTORY with status EQUALS AVAILABLE). For LIST/GET, results include approved summaries and pages of at most 20 records. Filters support EQUALS, NOT_EQUALS, CONTAINS, BEFORE, AFTER, GTE, LTE on supported entity fields. This is the authoritative retrieval/count tool; do not use smart_search to infer whether a table or category has records. Access is restricted to the signed-in user's role and ownership scope.",
       parameters: studioDataQuerySchema,
       execute: async (input) => queryStudioData({ userId, role }, input),
     }),
@@ -389,7 +389,7 @@ export function createStudioTools(ctx: ToolContext) {
         projectName: z.string().trim().min(1).max(120).optional().describe("Existing client owned project name for a WORK request"),
         title: z.string().trim().min(2).max(160).describe("Request title or proposed project name"),
         details: z.string().trim().min(10).max(5000).describe("Request details drafted only from what the client said"),
-        requestedDueAt: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional().describe("Optional requested date in YYYY-MM-DD form"),
+        requestedDueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Optional requested date in YYYY-MM-DD form"),
       }).strict(),
       execute: async ({ type, projectName, title, details, requestedDueAt }) => {
         if (role !== UserRole.CLIENT) return { error: "Only clients can prepare work requests." };

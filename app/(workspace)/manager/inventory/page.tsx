@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { connection } from "next/server"
 import { UserRole } from "@/generated/prisma/client"
 import { requireRole } from "@/lib/authz"
 import { getInventoryCatalog, getMaintenanceQueue } from "@/lib/inventory"
@@ -39,6 +40,7 @@ async function ManagerInventoryContent({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  await connection()
   await requireRole(UserRole.MANAGER)
   const params = await searchParams
 
@@ -62,7 +64,11 @@ async function ManagerInventoryContent({
     <div className="container mx-auto max-w-7xl py-6">
       <InventoryCatalogView
         initialItems={catalog.items as unknown as CatalogItem[]}
+        checkoutItems={catalog.checkoutItems as unknown as CatalogItem[]}
         pagination={catalog.pagination}
+        checkoutPagination={catalog.checkoutPagination}
+        activityLogs={catalog.activityLogs}
+        activityPagination={catalog.activityPagination}
         stats={catalog.stats}
         currentUser={catalog.currentUser}
         isManager={true}
