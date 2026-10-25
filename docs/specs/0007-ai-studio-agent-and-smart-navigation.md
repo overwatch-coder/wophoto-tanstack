@@ -1,9 +1,9 @@
 # Spec 0007: AI Studio Agent and Smart Navigation
 
-- **Status**: Accepted
+- **Status**: Implemented
 - **Date**: 2026-10-24
 - **Author**: Antigravity Pair Programming
-- **Scope**: Studio wide AI assistant with autonomous tools, deep navigation, multi provider support, and shadcn AI components
+- **Scope**: Studio wide AI assistant with autonomous tools, deep navigation, multi provider support, multimodal file processing, and shadcn AI components
 
 ---
 
@@ -45,12 +45,19 @@ The agent uses Vercel AI SDK to orchestrate real studio actions through tool cal
 ### 4. Studio Action Tools
 - `smart_search`: Keyword search across client reviews, tasks, deliverables, and projects. A no-match result is not evidence that the underlying data category is empty.
 - `query_studio_data`: Role-scoped LIST, GET, and COUNT retrieval across approved business records (projects, active/deleted tasks, feedback, notifications, comments, ratings, invitations, and team). Enforces allowlisted filters, projections, and a 20-record page cap; does not provide arbitrary SQL or access to credentials/session data.
-- `create_project`: Creates project container with name, client, priority, and SLA target.
+- `create_project`: Prepares a project with its name, a concise grounded description, and an explicitly selected active client owned by the manager.
+- `prepare_client_feedback`: For client review requests, prepares a review draft for one of that client's projects and shows it as an inline card. The client can submit from chat or open the existing form to edit it. Submission uses the existing client authorization and validation action.
 - `create_task_batch`: Creates batch tasks and distributes them across retouchers according to active capacity.
 - `query_team_capacity`: Queries retoucher availability, active queue count, and specializations.
 - `query_sla_risks`: Identifies deliverables close to 24h or 4h cutoff thresholds.
 - `generate_wrapup_report`: Computes project turnaround metrics, approval counts, and delivery summary.
 - `navigate_to`: Generates clickable deep links with focused parameter anchors leading to reviews, tasks, or settings.
+- Tool efficiency and turn limits:
+  - Clear single-intent requests expose only their matching tool, reducing speculative lookups across unrelated tables.
+  - Direct project creation asks for a client email when one was not supplied; it never guesses a client from exploratory searches or the manager's email.
+  - Provider loops stop after a confirmation proposal or a required clarification, so they do not spend another model step after the user has a clear next action.
+  - A project proposal includes a concise description from the user's context or a neutral name-based draft; confirmation saves it, invalidates the project route, and refreshes the current page immediately.
+  - Ambiguous multi-action requests retain the full role-checked toolset; provider loops remain capped to prevent runaway calls.
 
 ### 5. Standard shadcn AI Component Library
 - Installs and integrates:
@@ -59,6 +66,30 @@ The agent uses Vercel AI SDK to orchestrate real studio actions through tool cal
   - `components/ui/trace.tsx`: Tool execution steps with status indicators, expandable inputs, and outputs.
   - `components/ui/collapsible.tsx`: Expandable trace and proposal inspector blocks.
 - Preserves existing `components/ui/button.tsx` customizations.
+
+### 6. Multimodal Attachments and Document Processing
+- Chat attachment interface:
+  - File picker button (clean paperclip icon, no star icons) and drag and drop area in both floating drawer and command center.
+  - Attachment preview chips with removal buttons, a Clear all control, and a five-file limit before sending.
+  - Clicking an attached image opens an accessible full-size preview dialog.
+- Supported file types:
+  - Visual files (JPEG, PNG, WebP, GIF) processed via native model vision. Known text-only models are blocked with an actionable explanation before a provider request is sent.
+  - Structured data spreadsheets (CSV, Excel xls/xlsx) parsed into structured table rows.
+  - Document briefs (PDF, Word docx) parsed into text extracts.
+  - Plain text and Markdown files parsed as UTF-8 text.
+- Automated creation bridge:
+  - AI reads extracted tables, shot lists, or review notes and generates an approved batch creation proposal for projects or tasks.
+- Validation and security:
+  - File size capped at 10MB per file.
+  - Strict MIME type verification on both client and server before processing.
+
+### Verification Record
+- Manager browser verification: PNG image analysis, PDF and DOCX text extraction, and an XLSX task list with three distinct titles, worker assignments, priorities, and due dates.
+- The spreadsheet proposal preserved all three rows. It was inspected and left unconfirmed, so verification created no tasks.
+- An unmatched worker name was surfaced for correction; the assistant did not substitute a different worker.
+- Automated route tests confirm a known text-only Groq model is rejected before the provider adapter runs, while a vision-capable Groq model is passed through.
+- Client and worker data scope and manager-only proposal confirmation are covered by role-scoped automated tests. Browser verification was performed with the available manager session.
+- Attachment data remains in the active client-side conversation only. Chat history and uploaded file storage are not persisted; persistent storage is deferred until chat history retention is designed.
 
 ---
 

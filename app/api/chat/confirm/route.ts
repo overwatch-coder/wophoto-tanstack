@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { revalidatePath } from "next/cache";
 import { createProjectForManager, createProjectInputSchema, createTaskBatchForManager, createTaskBatchInputSchema } from "@/lib/ai/actions";
 import { UserRole } from "@/generated/prisma/client";
 import { z } from "zod";
@@ -32,6 +33,12 @@ export async function POST(request: Request) {
       ? await createProjectForManager(session.user.id, parsed.data.payload)
       : await createTaskBatchForManager(session.user.id, parsed.data.payload);
     if ("error" in result) return Response.json({ error: result.error }, { status: 422 });
+    if (parsed.data.proposalType === "CREATE_PROJECT") {
+      revalidatePath("/manager/projects");
+    } else {
+      revalidatePath("/manager/tasks");
+      revalidatePath("/manager/projects");
+    }
     return Response.json(result);
   } catch (error) {
     console.error("AI proposal confirmation failed:", error);

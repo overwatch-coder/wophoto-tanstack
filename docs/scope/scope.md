@@ -143,15 +143,22 @@ Code in `lib/notifications.ts`, `lib/email.ts`, `app/api/notifications/`, `app/a
 
 ### 11. AI Studio Copilot & smart navigation · done
 Give each workspace role a floating assistant that searches studio records, runs permitted tools, and links users directly to relevant work.
-**Done when:** the assistant streams replies, respects role and action safety rules, and completes tool calls with each configured provider integration.
+**Done when:** the assistant streams replies, respects role and action safety rules, processes multimodal file attachments (images, PDFs, documents, spreadsheets), and completes tool calls with each configured provider integration.
 - [x] Design it (spec): `docs/specs/0007-ai-studio-agent-and-smart-navigation.md`
 - [x] Build it: `/develop AI Studio Copilot & smart navigation`
   - [x] Add encrypted provider settings, model selection, and server side key resolution.
   - [x] Add role checked search, capacity, deadline, navigation, and approved write tools.
   - [x] Add the floating copilot, command center, and streamed tool traces.
   - [x] Integrate provider specific chat paths and model catalogs.
-- [x] Verify it: provider tool call and result round trips passed for all configured models.
-- [x] Test it: `/test AI Studio Copilot & smart navigation`
+  - [x] Add attachment upload UI (paperclip / drag and drop with file preview chips) to floating copilot and command center.
+  - [x] Build server-side file and document ingestion pipeline (images via native vision, spreadsheets/csv, PDFs, Word docs).
+  - [x] Extract structured project and task parameters from uploaded briefs or spreadsheets and feed them into tool proposals.
+- [x] Verify it: test image screenshot analysis and document-driven task creation end to end, including vision fallback handling.
+  - [x] In the manager browser session, attach an image, an XLSX with three distinct task rows, a PDF, and a DOCX; confirm image analysis and extracted document content.
+  - [x] Inspect a task proposal and verify each title, assignee, and due date; do not apply the proposal during verification.
+  - [x] Verify an unmatched spreadsheet assignee is reported and requires correction instead of being assigned to another worker.
+  - [x] Add route tests proving known text-only image models are rejected before provider calls and supported vision models continue; existing role-scoped query and confirmation tests cover client/worker boundaries.
+- [x] Test it: `/test AI Studio Copilot & smart navigation` (automated tests for file validation, size limits, and role access).
 Spec 0007 · code in `components/ai/`, `app/api/chat/`, and `lib/ai/`
 
 ## Slice 9: Inventory management · needs a decision

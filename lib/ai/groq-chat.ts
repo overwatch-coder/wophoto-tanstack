@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createDataStreamResponse, formatDataStreamPart, type ToolSet, type UIMessage } from "ai";
+import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
 
 type ExecutableTool = {
   description?: string;
@@ -136,6 +137,11 @@ export function createGroqChatResponse(args: {
           }
 
           stream.write(formatDataStreamPart("tool_result", { toolCallId, result: toolOutput }));
+          if (isTerminalToolResult(toolOutput)) {
+            stream.write(formatDataStreamPart("text", getTerminalToolMessage(toolOutput)));
+            stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+            return;
+          }
           history.push({
             role: "tool",
             tool_call_id: toolCallId,

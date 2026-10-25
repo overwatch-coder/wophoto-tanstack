@@ -5,8 +5,10 @@ import OpenAI from "openai";
 import type {
   FunctionTool,
   ResponseInput,
+  ResponseInputContent,
   ResponseInputItem,
 } from "openai/resources/responses/responses";
+import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
 
 type ExecutableTool = {
   description?: string;
@@ -46,8 +48,30 @@ export function createOpenAIResponsesChatResponse(args: {
   }));
   const input: ResponseInput = messages.flatMap((message): ResponseInputItem[] => {
     const text = getPlainText(message).trim();
-    if (!text || message.role === "data") return [];
+    if (message.role === "data") return [];
     const role = message.role === "system" ? "system" : message.role === "user" ? "user" : "assistant";
+
+    const attachments = (message as { experimental_attachments?: Array<{ url: string; contentType?: string }> }).experimental_attachments;
+    if (message.role === "user" && attachments && Array.isArray(attachments) && attachments.length > 0) {
+      const contentParts: ResponseInputContent[] = [];
+      if (text) {
+        contentParts.push({ type: "input_text", text });
+      }
+      for (const att of attachments) {
+        if (typeof att.url === "string" && (att.url.startsWith("data:image/") || att.contentType?.startsWith("image/"))) {
+          contentParts.push({
+            type: "input_image",
+            image_url: att.url,
+            detail: "auto",
+          });
+        }
+      }
+      if (contentParts.length > 0) {
+        return [{ role: "user", content: contentParts }];
+      }
+    }
+
+    if (!text) return [];
     return [{ role, content: text }];
   });
 
@@ -139,6 +163,11 @@ export function createOpenAIResponsesChatResponse(args: {
           }
 
           stream.write(formatDataStreamPart("tool_result", { toolCallId, result: toolOutput }));
+          if (isTerminalToolResult(toolOutput)) {
+            stream.write(formatDataStreamPart("text", getTerminalToolMessage(toolOutput)));
+            stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+            return;
+          }
           input.push({
             type: "function_call_output",
             call_id: toolCallId,

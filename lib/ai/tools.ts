@@ -4,7 +4,11 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/generated/prisma/client";
-import { createProjectForManager, createTaskBatchForManager } from "@/lib/ai/actions";
+import {
+  createProjectForManager,
+  createTaskBatchForManager,
+  prepareTaskBatchForManager,
+} from "@/lib/ai/actions";
 import { createToolInputSchema } from "@/lib/ai/tool-schema";
 import { queryStudioData, studioDataQuerySchema } from "@/lib/ai/query-data";
 
@@ -321,17 +325,75 @@ export function createStudioTools(ctx: ToolContext) {
       },
     }),
 
+    // Prepare a client review draft without saving it. The client submits it from the form.
+    prepare_client_feedback: defineStudioTool({
+      description: "For a client who asks to draft or write a review, prepare a review card that opens the existing feedback form with its project, rating, and review text filled in. This tool never submits or saves feedback. Only use projects owned by the signed-in client.",
+      parameters: z.object({
+        projectName: z.string().trim().min(1).max(120).optional().describe("Project name mentioned by the client, if any"),
+        details: z.string().trim().min(3).max(5000).describe("Review text drafted from the client's request, without inventing events or facts"),
+        score: z.number().int().min(1).max(5).default(5).describe("Star rating selected or reasonably inferred from the client's stated sentiment; use 5 only if no sentiment or rating is specified"),
+      }),
+      execute: async ({ projectName, details, score }) => {
+        if (role !== UserRole.CLIENT) {
+          return { error: "Only clients can prepare a client review draft." };
+        }
+
+        const projects = await prisma.project.findMany({
+          where: {
+            clientId: userId,
+            ...(projectName ? { name: { contains: projectName, mode: "insensitive" as const } } : {}),
+          },
+          select: { id: true, name: true },
+          orderBy: { updatedAt: "desc" },
+          take: 10,
+        });
+        const exactMatch = projectName
+          ? projects.filter((project) => project.name.toLocaleLowerCase() === projectName.toLocaleLowerCase())
+          : [];
+        const project = exactMatch.length === 1 ? exactMatch[0] : projects.length === 1 ? projects[0] : null;
+
+        if (!project) {
+          return {
+            needsInput: true,
+            message: projects.length === 0
+              ? "Which of your projects should this review be about?"
+              : `Which project should this review be about? I found: ${projects.map((item) => item.name).join(", ")}.`,
+          };
+        }
+
+        return {
+          clientFeedbackDraft: {
+            projectId: project.id,
+            projectName: project.name,
+            type: "REVIEW",
+            score,
+            details,
+          },
+          message: `Review draft ready for ${project.name}. Open the form to review it and submit when ready.`,
+        };
+      },
+    }),
+
     // 4. CREATE PROJECT TOOL (State-mutating, Manager only)
     create_project: defineStudioTool({
-      description: "Create a new production project container in the studio database.",
+      description: "Prepare a new production project. Include a concise description supplied by the user or draft one using only the context they provided. If they gave only a project name, use a neutral one-sentence description based on that name; do not invent clients, dates, deliverables, or other facts. Ask for the client's email if it was not supplied.",
       parameters: z.object({
         name: z.string().min(2).describe("Name of the project or campaign"),
-        clientEmail: z.string().email().describe("Email of the active client account to associate with the project"),
+        projectDescription: z.string().trim().max(1000).optional().describe("A concise project description, based only on details the user supplied. If there is no context beyond the name, use a neutral description such as 'Production project for [name].'"),
+        clientEmail: z.string().email().optional().describe("Email of the active client account to associate with the project. If not supplied by the user, ask for it; never guess or use the manager's email."),
       }),
-      execute: async ({ name, clientEmail }) => {
+      execute: async ({ name, projectDescription, clientEmail }) => {
         if (role !== UserRole.MANAGER) {
           return { error: "Only managers are authorized to create projects." };
         }
+        if (!clientEmail) {
+          return {
+            needsInput: true,
+            message: "Which active client account should this project belong to? Please provide the client's email address.",
+          };
+        }
+
+        const description = projectDescription?.trim() || `Production project for ${name}.`;
 
         // Check if confirmation is required (Safe Multi-Tier Mode)
         if (!autonomousExecution) {
@@ -339,56 +401,49 @@ export function createStudioTools(ctx: ToolContext) {
             requiresConfirmation: true,
             proposalType: "CREATE_PROJECT",
             title: `Create Project: ${name}`,
-            description: `Will create a new project container named "${name}"${clientEmail ? ` for client ${clientEmail}` : ""}.`,
-            payload: { name, clientEmail },
+            description: `Will create "${name}" for ${clientEmail} with this description: ${description}`,
+            payload: { name, description, clientEmail },
           };
         }
 
-        return createProjectForManager(userId, { name, clientEmail });
+        return createProjectForManager(userId, { name, description, clientEmail });
       },
     }),
 
     // 5. CREATE TASK BATCH TOOL (State-mutating, Manager only)
     create_task_batch: defineStudioTool({
-      description: "Generate and assign batch retouching or photography tasks.",
+      description: "Create and assign studio tasks. For a spreadsheet, pass one task object per data row, preserving each row's title, due date (YYYY-MM-DD), and assignee name or email. Never collapse distinct spreadsheet rows into one shared title or discard row details. For a general batch request, use taskCount and baseTitle instead. Leave assignee blank only when the sheet does not specify one; those tasks will be assigned by current workload.",
       parameters: z.object({
         projectId: z.string().optional().describe("Associated manager owned project ID"),
-        taskCount: z.number().int().min(1).max(20).describe("Number of tasks to generate"),
-        baseTitle: z.string().trim().min(2).max(120).describe("Base title for the tasks"),
+        tasks: z.array(z.object({
+          title: z.string().trim().min(2).max(120).describe("Task title from this specific spreadsheet row"),
+          dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("The row due date as YYYY-MM-DD"),
+          assignee: z.string().trim().min(1).max(254).optional().describe("Worker name or email from the row; omit if the row has no assignee"),
+          priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+        }).strict()).min(1).max(20).optional().describe("One entry per task row in an uploaded sheet"),
+        taskCount: z.number().int().min(1).max(20).optional().describe("Number of generic tasks when no row data is provided"),
+        baseTitle: z.string().trim().min(2).max(120).optional().describe("Shared base title for a generic task batch"),
         priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
       }),
-      execute: async ({
-        projectId,
-        taskCount,
-        baseTitle,
-        priority = "MEDIUM",
-      }) => {
+      execute: async (args) => {
         if (role !== UserRole.MANAGER) {
           return { error: "Only managers are authorized to create and assign tasks." };
         }
-
-        let targetProjectId = projectId;
-        if (!targetProjectId) {
-          const defaultProject = await prisma.project.findFirst({
-            where: { managerId: userId },
-            orderBy: { createdAt: "desc" },
-            select: { id: true },
-          });
-          targetProjectId = defaultProject?.id;
-        }
-        if (!targetProjectId) return { error: "Create or select one of your projects first." };
+        const prepared = await prepareTaskBatchForManager(userId, args);
+        if ("error" in prepared) return prepared;
 
         if (!autonomousExecution) {
           return {
             requiresConfirmation: true,
             proposalType: "CREATE_TASK_BATCH",
-            title: `Generate Batch of ${taskCount} Tasks`,
-            description: `Will create ${taskCount} tasks with title base "${baseTitle}" at ${priority} priority.`,
-            payload: { projectId: targetProjectId, taskCount, baseTitle, priority },
+            title: `Create ${prepared.preview.length} Tasks`,
+            description: `Will add these tasks to ${prepared.projectName}. Check each title, assignee, and due date before applying.`,
+            preview: prepared.preview,
+            payload: prepared.payload,
           };
         }
 
-        return createTaskBatchForManager(userId, { projectId: targetProjectId, taskCount, baseTitle, priority });
+        return createTaskBatchForManager(userId, prepared.payload);
       },
     }),
 

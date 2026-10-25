@@ -152,6 +152,44 @@ describe("Client Feedback & Request Actions", () => {
       expect(mocks.revalidatePath).toHaveBeenCalledWith("/client/project-feedback");
       expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/reviews");
     });
+
+    it("successfully submits a client review with its rating and review text", async () => {
+      mocks.requireRole.mockResolvedValue({ id: "client-1", name: "Client One", role: UserRole.CLIENT });
+      mocks.findFirstProject.mockResolvedValue({
+        id: "proj-1",
+        managerId: "manager-1",
+        name: "My PhD journey",
+      });
+      mocks.createClientFeedback.mockResolvedValue({ id: "review-123" });
+
+      const formData = new FormData();
+      formData.set("projectId", "proj-1");
+      formData.set("type", "REVIEW");
+      formData.set("score", "3");
+      formData.set("title", "Project review");
+      formData.set("details", "The project is taking longer than expected.");
+
+      const result = await createClientFeedback({}, formData);
+
+      expect(result).toEqual({
+        success: "Review submitted successfully.",
+        createdId: "review-123",
+      });
+      expect(mocks.createClientFeedback).toHaveBeenCalledWith({
+        data: {
+          projectId: "proj-1",
+          taskId: null,
+          clientId: "client-1",
+          type: FeedbackType.REVIEW,
+          status: FeedbackStatus.NEW,
+          score: 3,
+          title: "Project review",
+          details: "The project is taking longer than expected.",
+        },
+      });
+      expect(mocks.revalidatePath).toHaveBeenCalledWith("/client/project-feedback");
+      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/reviews");
+    });
   });
 
   describe("delegateFeedbackToWorker", () => {

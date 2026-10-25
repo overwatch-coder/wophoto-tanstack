@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MessageSquareText,
@@ -55,6 +55,12 @@ import {
 import { getProfileImageSrc } from "@/lib/profile-image";
 import { Pagination } from "@/components/ui/pagination";
 import { useDebounce } from "@uidotdev/usehooks";
+import {
+  clearClientFeedbackDraft,
+  getClientFeedbackDraftSnapshot,
+  parseClientFeedbackDraftJson,
+  subscribeClientFeedbackDraft,
+} from "@/lib/client-feedback-draft";
 
 export function FeedbackWorkspace({
   initialData,
@@ -69,6 +75,15 @@ export function FeedbackWorkspace({
   const searchParams = useSearchParams();
   const currentSearch = searchParams.toString();
   const targetFeedbackId = searchParams.get("feedbackId");
+  const shouldOpenNewFeedback = searchParams.get("newFeedback") === "1";
+  const clientFeedbackDraftRaw = useSyncExternalStore(
+    subscribeClientFeedbackDraft,
+    getClientFeedbackDraftSnapshot,
+    () => null,
+  );
+  const clientReviewDraft = roleView === "CLIENT" && shouldOpenNewFeedback && clientFeedbackDraftRaw
+    ? parseClientFeedbackDraftJson(clientFeedbackDraftRaw, projects)
+    : null;
   const initialTargetFeedback = targetFeedbackId
     ? feedbacks.find((item) => item.id === targetFeedbackId) ?? null
     : null;
@@ -112,9 +127,11 @@ export function FeedbackWorkspace({
   const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null);
 
   const clearFeedbackTargetFromUrl = () => {
-    if (!targetFeedbackId) return;
+    if (!targetFeedbackId && !shouldOpenNewFeedback) return;
+    clearClientFeedbackDraft();
     const params = new URLSearchParams(currentSearch);
     params.delete("feedbackId");
+    params.delete("newFeedback");
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
@@ -128,7 +145,13 @@ export function FeedbackWorkspace({
   const [newDetails, setNewDetails] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, startCreateTransition] = useTransition();
-  const isReviewRequest = newType === FeedbackType.REVIEW;
+  const activeProjectId = clientReviewDraft?.projectId ?? newProjectId;
+  const activeTaskId = clientReviewDraft ? "" : newTaskId;
+  const activeType = clientReviewDraft?.type ?? newType;
+  const activeScore = clientReviewDraft?.score ?? newScore;
+  const activeDetails = clientReviewDraft?.details ?? newDetails;
+  const isReviewRequest = activeType === FeedbackType.REVIEW;
+  const isCreateDialogOpen = isCreateModalOpen || Boolean(clientReviewDraft);
 
   // Manager action mode: "resolve" (direct) or "delegate" (give work to worker)
   const [managerActionMode, setManagerActionMode] = useState<"resolve" | "delegate">(
@@ -155,6 +178,7 @@ export function FeedbackWorkspace({
   const [workerSubmissionNote, setWorkerSubmissionNote] = useState("");
   const [isWorkerSubmitting, startWorkerTransition] = useTransition();
 
+
   const closeDetail = () => {
     setActiveDetailItem(null);
     setManagerReplyText("");
@@ -171,9 +195,22 @@ export function FeedbackWorkspace({
   };
 
   const currentProjectForNew =
-    projects.find((p) => p.id === newProjectId) || projects[0];
+    projects.find((p) => p.id === activeProjectId) || projects[0];
+
+  const materializeClientReviewDraft = () => {
+    if (!clientReviewDraft) return;
+    setNewProjectId(clientReviewDraft.projectId);
+    setNewTaskId("");
+    setNewType(FeedbackType.REVIEW);
+    setNewScore(clientReviewDraft.score);
+    setNewTitle("");
+    setNewDetails(clientReviewDraft.details);
+    setEditingFeedbackId(null);
+    clearClientFeedbackDraft();
+  };
 
   const resetCreateForm = () => {
+    clearClientFeedbackDraft();
     setEditingFeedbackId(null);
     setNewTitle("");
     setNewDetails("");
@@ -184,6 +221,7 @@ export function FeedbackWorkspace({
   };
 
   const openEditFeedback = (item: ClientFeedbackViewItem) => {
+    clearClientFeedbackDraft();
     setEditingFeedbackId(item.id);
     setNewProjectId(item.projectId);
     setNewTaskId(item.taskId || "");
@@ -227,18 +265,18 @@ export function FeedbackWorkspace({
   // Handle Create Request submission inside Modal (Client)
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectId || (!isReviewRequest && !newTitle.trim()) || !newDetails.trim()) {
+    if (!activeProjectId || (!isReviewRequest && !newTitle.trim()) || !activeDetails.trim()) {
       setCreateError("Please fill out all required fields.");
       return;
     }
 
     const formData = new FormData();
-    formData.append("projectId", newProjectId);
-    if (newTaskId) formData.append("taskId", newTaskId);
-    formData.append("type", newType);
-    if (isReviewRequest) formData.append("score", String(newScore));
+    formData.append("projectId", activeProjectId);
+    if (activeTaskId) formData.append("taskId", activeTaskId);
+    formData.append("type", activeType);
+    if (isReviewRequest) formData.append("score", String(activeScore));
     else formData.append("title", newTitle.trim());
-    formData.append("details", newDetails.trim());
+    formData.append("details", activeDetails.trim());
 
     if (editingFeedbackId) formData.append("feedbackId", editingFeedbackId);
 
@@ -815,7 +853,7 @@ export function FeedbackWorkspace({
       {/* ------------------------------------------------------------- */}
       {/* 1. SHORT SHADCN MODAL: CREATE REQUEST FORM (Client)           */}
       {/* ------------------------------------------------------------- */}
-      <Dialog open={isCreateModalOpen} onOpenChange={(open) => open ? setIsCreateModalOpen(true) : closeCreateModal()}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => open ? setIsCreateModalOpen(true) : closeCreateModal()}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
@@ -842,8 +880,9 @@ export function FeedbackWorkspace({
                 <Label htmlFor="m-proj" className="text-xs font-medium">Campaign / Shoot</Label>
                 <select
                   id="m-proj"
-                  value={newProjectId}
+                  value={activeProjectId}
                   onChange={(e) => {
+                    materializeClientReviewDraft();
                     setNewProjectId(e.target.value);
                     setNewTaskId("");
                   }}
@@ -861,8 +900,11 @@ export function FeedbackWorkspace({
                 <Label htmlFor="m-task" className="text-xs font-medium">Specific Deliverable (Optional)</Label>
                 <select
                   id="m-task"
-                  value={newTaskId}
-                  onChange={(e) => setNewTaskId(e.target.value)}
+                  value={activeTaskId}
+                  onChange={(e) => {
+                    materializeClientReviewDraft();
+                    setNewTaskId(e.target.value);
+                  }}
                   className="w-full h-9 rounded-xl border border-border bg-card px-3 text-xs text-foreground"
                 >
                   <option value="">Whole Shoot / General Campaign</option>
@@ -890,14 +932,15 @@ export function FeedbackWorkspace({
                       key={t.value}
                       type="button"
                       onClick={() => {
+                        materializeClientReviewDraft();
                         setNewType(t.value);
                         setNewTitle("");
                         setNewScore(5);
                         setCreateError(null);
                       }}
-                      aria-pressed={newType === t.value}
+                      aria-pressed={activeType === t.value}
                       className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-all ${
-                        newType === t.value
+                        activeType === t.value
                           ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                           : "border border-border bg-muted/30 text-muted-foreground hover:bg-muted"
                       }`}
@@ -916,20 +959,23 @@ export function FeedbackWorkspace({
                       <button
                         key={s}
                         type="button"
-                        onClick={() => setNewScore(s)}
+                        onClick={() => {
+                          materializeClientReviewDraft();
+                          setNewScore(s);
+                        }}
                         aria-label={`Rate this project ${s} out of 5 stars`}
-                        aria-pressed={s === newScore}
+                        aria-pressed={s === activeScore}
                         className="p-0.5 transition-transform hover:scale-110"
                       >
                         <Star
                           className={`size-3.5 ${
-                            s <= newScore ? "fill-amber-500 text-amber-500" : "text-muted-foreground/30"
+                            s <= activeScore ? "fill-amber-500 text-amber-500" : "text-muted-foreground/30"
                           }`}
                         />
                       </button>
                     ))}
                     <span className="ml-1.5 text-[11px] text-muted-foreground">
-                      {newScore === 5 ? "Exceptional" : `${newScore} / 5 Stars`}
+                      {activeScore === 5 ? "Exceptional" : `${activeScore} / 5 Stars`}
                     </span>
                   </div>
                 </div>
@@ -939,15 +985,18 @@ export function FeedbackWorkspace({
             {!isReviewRequest && (
               <div className="space-y-1">
                 <Label htmlFor="m-title" className="text-xs font-medium">
-                  {newType === FeedbackType.COMPLAINT ? "Issue Subject" : "Request Subject"}
+                  {activeType === FeedbackType.COMPLAINT ? "Issue Subject" : "Request Subject"}
                 </Label>
                 <Input
                   id="m-title"
                   required
                   value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
+                  onChange={(e) => {
+                    materializeClientReviewDraft();
+                    setNewTitle(e.target.value);
+                  }}
                   placeholder={
-                    newType === FeedbackType.COMPLAINT
+                    activeType === FeedbackType.COMPLAINT
                       ? "Briefly describe the issue"
                       : "e.g. Tone down highlight exposure on portrait #04"
                   }
@@ -960,7 +1009,7 @@ export function FeedbackWorkspace({
               <Label htmlFor="m-details" className="text-xs font-medium">
                 {isReviewRequest
                   ? "Your Review"
-                  : newType === FeedbackType.COMPLAINT
+                  : activeType === FeedbackType.COMPLAINT
                   ? "Issue Details"
                   : "Revision Instructions"}
               </Label>
@@ -968,12 +1017,15 @@ export function FeedbackWorkspace({
                 id="m-details"
                 required
                 rows={isReviewRequest ? 4 : 3}
-                value={newDetails}
-                onChange={(e) => setNewDetails(e.target.value)}
+                value={activeDetails}
+                onChange={(e) => {
+                  materializeClientReviewDraft();
+                  setNewDetails(e.target.value);
+                }}
                 placeholder={
                   isReviewRequest
                     ? "Share your experience with this project..."
-                    : newType === FeedbackType.COMPLAINT
+                    : activeType === FeedbackType.COMPLAINT
                     ? "Describe what happened and what needs attention..."
                     : "Provide specific details, frame numbers, color codes, or crop requests..."
                 }

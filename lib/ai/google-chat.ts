@@ -2,6 +2,7 @@ import "server-only";
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from "@google/genai";
 import { createDataStreamResponse, formatDataStreamPart, type ToolSet, type UIMessage } from "ai";
+import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
 
 type ExecutableTool = {
   description?: string;
@@ -58,14 +59,37 @@ export function createGoogleGeminiChatResponse(args: {
   const toolMap = tools as Record<string, ExecutableTool>;
   const declarations = getToolDeclarations(tools);
 
-  // Keep only visible text from previous turns. Tool-call history is represented
+  // Keep only visible text and image attachments from previous turns. Tool-call history is represented
   // by the current Gemini response below, where the SDK retains its signatures.
   const contents: Content[] = messages.flatMap((message) => {
     const text = getPlainText(message).trim();
-    if (!text) return [];
+    const parts: Part[] = [];
+    if (text) {
+      parts.push({ text });
+    }
+
+    const attachments = (message as { experimental_attachments?: Array<{ url: string; contentType?: string }> }).experimental_attachments;
+    if (attachments && Array.isArray(attachments)) {
+      for (const att of attachments) {
+        if (typeof att.url === "string" && att.url.startsWith("data:") && att.url.includes(";base64,")) {
+          const [header, base64Data] = att.url.split(";base64,");
+          const mimeType = att.contentType || header.replace("data:", "") || "image/jpeg";
+          if (mimeType.startsWith("image/") && base64Data) {
+            parts.push({
+              inlineData: {
+                mimeType,
+                data: base64Data,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    if (parts.length === 0) return [];
     return [{
       role: message.role === "assistant" ? "model" : "user",
-      parts: [{ text }],
+      parts,
     }];
   });
 
@@ -131,6 +155,11 @@ export function createGoogleGeminiChatResponse(args: {
           }
 
           stream.write(formatDataStreamPart("tool_result", { toolCallId, result: toolOutput }));
+          if (isTerminalToolResult(toolOutput)) {
+            stream.write(formatDataStreamPart("text", getTerminalToolMessage(toolOutput)));
+            stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+            return;
+          }
           functionResponses.push({
             functionResponse: {
               name: toolName,
