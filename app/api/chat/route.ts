@@ -254,8 +254,14 @@ Guidelines:
     if (error instanceof Error && /does not have access to model/i.test(error.message)) {
       return chatError(getSafeAIErrorMessage(error), 403);
     }
-    const safeMessage = error instanceof Error && /API key is missing|endpoint|allowed|decrypted|encryption/i.test(error.message)
-      ? error.message
+    const safeMessage = process.env.NODE_ENV !== "production" && error instanceof Error
+      ? `Copilot setup failed (${error.name}): ${error.message
+        .replace(/sk-[A-Za-z0-9_-]+/g, "[redacted]")
+        .replace(/AIza[A-Za-z0-9_-]+/g, "[redacted]")
+        .replace(/((?:api[_-]?key|token|secret))[=: ]+[^\s,;]+/gi, "$1=[redacted]")
+        .replace(/([?&](?:key|token|api[_-]?key)=)[^&\s]+/gi, "$1[redacted]")
+        .replace(/proj_[A-Za-z0-9]+/g, "[project]")
+        .slice(0, 240)}`
       : "The Copilot could not complete that request. Check the provider setup and try again.";
     return chatError(safeMessage, 500);
   }

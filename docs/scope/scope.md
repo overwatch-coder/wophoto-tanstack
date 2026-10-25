@@ -23,9 +23,11 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 10 | Notification center & delivery | Slice 7 | done |
 | 11 | AI Studio Copilot & smart navigation | Slice 8 | done |
 | 12 | Inventory management | Slice 9 | done |
-| 13 | Schedule & calendar | Slice 10 | planned |
+| 13 | Schedule & calendar | Slice 10 | done |
 | 14 | Brand asset library | Slice 11 | planned |
-| 15 | Client work requests & intake | Slice 12 | in-progress |
+| 15 | Client work requests & intake | Slice 12 | done |
+| 16 | Creative brief review & worker sign-off | Slice 13 | planned |
+| 17 | Explore briefs & template library | Slice 14 | planned |
 
 ## Foundations
 
@@ -180,12 +182,22 @@ Track shared studio equipment, computing gear, and creative project assets so te
 - [x] Test it: `/test inventory management`
 Spec 0008 · code in `app/actions/inventory.ts`, `lib/inventory.ts`, `components/inventory/`, and `app/(workspace)/`
 
-## Slice 10: Schedule & calendar · needs a decision
+## Slice 10: Schedule & calendar
 
-### 13. Schedule & calendar · planned · needs a decision
+### 13. Schedule & calendar · done
 Coordinate studio bookings, shoots, and work deadlines in a shared schedule.
-**Done when:** managers and workers can view relevant bookings and deadlines, and managers can create and update studio events without conflicts.
-- [ ] Design it (spec): `/architect schedule & calendar`
+**Done when:** managers can create and update studio events without conflicts, and managers and workers can view relevant bookings and deadlines.
+- [x] Design it (spec): `docs/specs/0010-schedule-and-calendar.md`
+- [x] Build it: `/develop schedule & calendar`
+  - [x] Add `ScheduleEventType` enum and `ScheduleEvent` model to `prisma/schema.prisma` with indexes and relations, run migration (AC-1, AC-2).
+  - [x] Create validation schemas in `lib/validation/schedule.ts` for event creation, updates, and conflict queries (AC-1, AC-2).
+  - [x] Implement data queries and server actions in `lib/schedule.ts` and `app/actions/schedule.ts` supporting CRUD, soft conflict detection, and task deadline merging (AC-1, AC-2, AC-3, AC-5, AC-8).
+  - [x] Build custom calendar grid components in `components/schedule/` supporting Month, Week, and Day agenda views with responsive controls (AC-4, AC-7).
+  - [x] Build event creation and editing modal in `components/schedule/event-dialog.tsx` with location presets, worker multi select, and soft conflict warning banners (AC-1, AC-3).
+  - [x] Wire page routes in `app/(workspace)/manager/schedule/page.tsx` and `app/(workspace)/worker/schedule/page.tsx`, removing placeholders from `[section]/page.tsx` (AC-4, AC-6, AC-8).
+- [x] Verify it: `/check verify schedule & calendar`
+- [x] Test it: `/test schedule & calendar` (automated tests for CRUD, bounds, soft conflicts, and worker isolation)
+Spec 0010 · code in `app/actions/schedule.ts`, `lib/schedule.ts`, `components/schedule/`, and `app/(workspace)/`
 
 ## Slice 11: Brand asset library · needs a decision
 
@@ -196,18 +208,34 @@ Store and share approved brand media and reference files with the right project 
 
 ## Slice 12: Client work requests & intake
 
-### 15. Client work requests & intake · in-progress
+### 15. Client work requests & intake · done
 Let clients request work on owned projects or propose a new project, track request status, and let managers review requests and create the project and assigned work after approval.
 **Done when:** clients can submit and track either request type from the portal or Copilot, and managers can respond, decline, or approve requests by creating assigned work.
 - [x] Design it (spec): `docs/specs/0009-client-work-requests-and-intake.md`
-- [ ] Build it: `/develop client work requests & intake`
-  - [ ] Add request records, ownership checks, and status actions.
-  - [ ] Build client request submission and status tracking.
-  - [ ] Build manager request triage and task conversion.
-  - [ ] Add Copilot request drafting and explicit submit confirmation.
-- [ ] Verify it: `/check verify client work requests & intake`
-- [ ] Test it: `/test client work requests & intake`
+- [x] Build it: `/develop client work requests & intake`
+  - [x] Add request records, ownership checks, and status actions.
+  - [x] Build client request submission and status tracking.
+  - [x] Build manager request triage and task conversion.
+  - [x] Add Copilot request drafting and explicit submit confirmation.
+- [x] Verify it: `/check verify client work requests & intake`
+  - [x] Browser: client request table, existing-project and new-project forms, and manager triage/detail with accept-and-assign controls.
+  - [x] Worker access: request records are not exposed to workers; approved requests create assigned tasks and notify the selected workers. The worker browser profile available in this session was signed out, so this role boundary was verified with automated tests rather than an authenticated worker browser session.
+- [x] Test it: `/test client work requests & intake` (`npm test`, 37 files and 233 tests passed)
 Spec 0009 · code in `app/(workspace)/client/`, `app/(workspace)/manager/`, `app/actions/work-requests.ts`, `components/work-requests/`, and `lib/ai/`
+
+## Slice 13: Creative brief review & worker sign-off · needs a decision
+
+### 16. Creative brief review & worker sign-off · planned · needs a decision
+Provide a collaborative review workspace for project and shoot briefs so workers and managers align on deliverable specs, shot lists, and creative guidelines before production starts.
+**Done when:** managers can author or link project briefs, workers can inspect assigned project briefs and submit questions or sign-off acknowledgments, and managers can track team readiness.
+- [ ] Design it (spec): `/architect creative brief review & worker sign-off`
+
+## Slice 14: Explore briefs & template library · needs a decision
+
+### 17. Explore briefs & template library · planned · needs a decision
+Provide a discovery portal and template repository for managers to search past studio briefs, organize standard creative brief templates, and spin up new projects from templates.
+**Done when:** managers can search and filter the studio brief catalog across campaigns and services, create reusable templates, and generate new project briefs from templates.
+- [ ] Design it (spec): `/architect explore briefs & template library`
 
 ## Legend
 

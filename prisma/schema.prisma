@@ -143,6 +143,8 @@ model User {
   inventoryActivityLogs   InventoryActivityLog[]    @relation("InventoryActivityActor")
   clientWorkRequests      WorkRequest[]             @relation("WorkRequestClient")
   managedWorkRequests     WorkRequest[]             @relation("WorkRequestManager")
+  createdScheduleEvents   ScheduleEvent[]           @relation("CreatedScheduleEvents")
+  assignedScheduleEvents  ScheduleEvent[]           @relation("ScheduleEventAssignees")
 
   @@index([role, status])
 }
@@ -223,6 +225,7 @@ model Project {
   notifications          Notification[]
   workRequests           WorkRequest[]    @relation("WorkRequestProject")
   createdFromWorkRequest WorkRequest?     @relation("WorkRequestCreatedProject")
+  scheduleEvents         ScheduleEvent[]
 
   @@index([managerId, updatedAt])
   @@index([clientId, updatedAt])
@@ -584,4 +587,36 @@ model WorkRequest {
   @@index([clientId, createdAt, id])
   @@index([managerId, status, createdAt, id])
   @@index([projectId, status])
+}
+
+enum ScheduleEventType {
+  SHOOT
+  STUDIO_BOOKING
+  CLIENT_MEETING
+  MAINTENANCE
+  DEADLINE
+  OTHER
+}
+
+model ScheduleEvent {
+  id          String            @id @default(cuid())
+  title       String
+  description String?           @db.Text
+  eventType   ScheduleEventType @default(SHOOT)
+  startAt     DateTime
+  endAt       DateTime
+  allDay      Boolean           @default(false)
+  location    String?
+  projectId   String?
+  project     Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdById String
+  createdBy   User              @relation("CreatedScheduleEvents", fields: [createdById], references: [id], onDelete: Restrict)
+  assignees   User[]            @relation("ScheduleEventAssignees")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([startAt, endAt])
+  @@index([location, startAt, endAt])
+  @@index([projectId])
+  @@index([createdById])
 }

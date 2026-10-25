@@ -9,7 +9,6 @@ import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleto
 const sectionTitles: Record<string, string> = {
   "brief-review": "Brief Review",
   "brand-assets": "Brand Assets",
-  schedule: "Schedule",
 }
 
 export default function WorkerSectionPage({

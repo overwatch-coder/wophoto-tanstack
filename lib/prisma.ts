@@ -46,12 +46,14 @@ const hasCurrentSchemaDelegates = Boolean(
     typeof (cachedPrisma as unknown as { inventoryMaintenanceLog?: { findMany?: unknown } })
       .inventoryMaintenanceLog?.findMany === "function" &&
     typeof (cachedPrisma as unknown as { inventoryActivityLog?: { count?: unknown } })
-      .inventoryActivityLog?.count === "function",
+      .inventoryActivityLog?.count === "function" &&
+    typeof (cachedPrisma as unknown as { scheduleEvent?: { findMany?: unknown } })
+      .scheduleEvent?.findMany === "function",
 );
 
 // `prisma generate` can add models while `next dev` is already running. The
 // global singleton survives hot reloads, so check all models added by the
-// current schema change before reusing it.
+// current schema changes before reusing it.
 if (cachedPrisma && !hasCurrentSchemaDelegates) {
   void cachedPrisma.$disconnect().catch((error) => {
     console.warn("[prisma] Could not disconnect a stale development client:", error);
