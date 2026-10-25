@@ -26,6 +26,7 @@ describe("role aware workspace navigation", () => {
       ["Brief Review", "/manager/brief-review"],
       ["Explore Briefs", "/manager/explore-briefs"],
       ["Reviews", "/manager/reviews"],
+      ["Work Requests", "/manager/work-requests"],
       ["Brand Assets", "/manager/brand-assets"],
       ["Inventory", "/manager/inventory"],
       ["Deleted Tasks", "/manager/deleted-tasks"],
@@ -35,6 +36,7 @@ describe("role aware workspace navigation", () => {
     ])
     expect(workspaceNavigation.WORKER[0]).toMatchObject({ title: "Dashboard", href: "/worker" })
     expect(workspaceNavigation.CLIENT[0]).toMatchObject({ title: "Dashboard", href: "/client" })
+    expect(workspaceNavigation.CLIENT.map(({ title, href }) => [title, href])).toContainEqual(["Work Requests", "/client/work-requests"])
   })
 
   it("gives each navigation destination a route (AC-6)", () => {

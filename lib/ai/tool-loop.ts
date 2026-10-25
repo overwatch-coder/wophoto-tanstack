@@ -1,7 +1,7 @@
 export function isTerminalToolResult(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
-  const result = value as { requiresConfirmation?: unknown; needsInput?: unknown; clientFeedbackDraft?: unknown };
-  return result.requiresConfirmation === true || result.needsInput === true || Boolean(result.clientFeedbackDraft);
+  const result = value as { requiresConfirmation?: unknown; needsInput?: unknown; clientFeedbackDraft?: unknown; workRequestDraft?: unknown };
+  return result.requiresConfirmation === true || result.needsInput === true || Boolean(result.clientFeedbackDraft) || Boolean(result.workRequestDraft);
 }
 
 export function getTerminalToolMessage(value: unknown): string {

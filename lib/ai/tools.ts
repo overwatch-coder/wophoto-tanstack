@@ -12,6 +12,8 @@ import {
 import { createToolInputSchema } from "@/lib/ai/tool-schema";
 import { queryStudioData, studioDataQuerySchema } from "@/lib/ai/query-data";
 import { createClientInvitationProposalSchema } from "@/lib/validation/invitations";
+import { WorkRequestType } from "@/generated/prisma/client";
+import { inventoryActionPayloadSchema, prepareInventoryAction } from "@/lib/ai/inventory-proposals";
 
 export interface ToolContext {
   userId: string;
@@ -35,6 +37,11 @@ function defineStudioTool<TArgs, TResult>(config: {
 
 export function createStudioTools(ctx: ToolContext) {
   const { userId, role, autonomousExecution } = ctx;
+  const inventoryActionTool = role === UserRole.CLIENT ? null : defineStudioTool({
+    description: "Prepare, but never automatically apply, an inventory change. First use query_studio_data to find the item or record ID and check its current state. Supported actions are CREATE_ITEM and UPDATE_ITEM and RETIRE_ITEM for managers, CHECKOUT_ITEM and RETURN_ITEM for managers or workers (workers can only return their own loans), and RESOLVE_MAINTENANCE for managers. Always return a confirmation proposal card. This explicit confirmation is required even if autonomous execution is enabled.",
+    parameters: inventoryActionPayloadSchema,
+    execute: async (input) => prepareInventoryAction(userId, role, input),
+  });
 
   return {
     // 1. SMART SEARCH TOOL (Read-only, Role-enforced)
@@ -203,7 +210,7 @@ export function createStudioTools(ctx: ToolContext) {
     // 2. GENERAL DATABASE QUERY TOOL (Read-only, allowlisted and role-scoped)
     query_studio_data: defineStudioTool({
       description:
-        "Query records in the studio database when the user asks to get, list, count, or inspect data. Supports PROJECTS, TASKS, DELETED_TASKS, FEEDBACK, NOTIFICATIONS, COMMENTS, RATINGS, INVITATIONS, and TEAM, with LIST, GET, or COUNT operations. Use explicit filters for exact counts or criteria (for example PROJECTS with deadline EQUALS UPCOMING). For LIST/GET, results include approved summaries and pages of at most 20 records. Filters support EQUALS, NOT_EQUALS, CONTAINS, BEFORE, AFTER, GTE, LTE on supported entity fields. This is the authoritative retrieval/count tool; do not use smart_search to infer whether a table or category has records. Access is restricted to the signed-in user's role and ownership scope.",
+        "Query records in the studio database when the user asks to get, list, count, or inspect data. Supports PROJECTS, TASKS, DELETED_TASKS, FEEDBACK, NOTIFICATIONS, COMMENTS, RATINGS, INVITATIONS, TEAM, INVENTORY, INVENTORY_LOANS, and INVENTORY_MAINTENANCE, with LIST, GET, or COUNT operations. Inventory is available only to managers and workers; workers can read only their own loan records, while maintenance records are manager only. Use explicit filters for exact counts or criteria (for example INVENTORY with status EQUALS AVAILABLE). For LIST/GET, results include approved summaries and pages of at most 20 records. Filters support EQUALS, NOT_EQUALS, CONTAINS, BEFORE, AFTER, GTE, LTE on supported entity fields. This is the authoritative retrieval/count tool; do not use smart_search to infer whether a table or category has records. Access is restricted to the signed-in user's role and ownership scope.",
       parameters: studioDataQuerySchema,
       execute: async (input) => queryStudioData({ userId, role }, input),
     }),
@@ -371,6 +378,31 @@ export function createStudioTools(ctx: ToolContext) {
             details,
           },
           message: `Review draft ready for ${project.name}. Open the form to review it and submit when ready.`,
+        };
+      },
+    }),
+
+    prepare_work_request: defineStudioTool({
+      description: "For a client who wants to request new work or a new project, prepare a request card for client review. Do not save or submit the request. Existing-project work requires a project owned by the signed-in client. New-project requests do not use an existing project. Ask which project when the client has more than one possible project and did not identify it.",
+      parameters: z.object({
+        type: z.enum([WorkRequestType.WORK, WorkRequestType.PROJECT]).describe("WORK for work on an existing project, PROJECT to request a new project"),
+        projectName: z.string().trim().min(1).max(120).optional().describe("Existing client owned project name for a WORK request"),
+        title: z.string().trim().min(2).max(160).describe("Request title or proposed project name"),
+        details: z.string().trim().min(10).max(5000).describe("Request details drafted only from what the client said"),
+        requestedDueAt: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional().describe("Optional requested date in YYYY-MM-DD form"),
+      }).strict(),
+      execute: async ({ type, projectName, title, details, requestedDueAt }) => {
+        if (role !== UserRole.CLIENT) return { error: "Only clients can prepare work requests." };
+        let project: { id: string; name: string } | null = null;
+        if (type === WorkRequestType.WORK) {
+          const projects = await prisma.project.findMany({ where: { clientId: userId, ...(projectName ? { name: { contains: projectName, mode: "insensitive" as const } } : {}) }, select: { id: true, name: true }, orderBy: { updatedAt: "desc" }, take: 100 });
+          const exact = projectName ? projects.filter((item) => item.name.toLocaleLowerCase() === projectName.toLocaleLowerCase()) : [];
+          project = exact.length === 1 ? exact[0] : projects.length === 1 ? projects[0] : null;
+          if (!project) return { needsInput: true, message: projects.length === 0 ? "You do not have an existing project to attach this work request to. Should I prepare a new project request instead?" : `Which of your projects is this for? I found: ${projects.map((item) => item.name).slice(0, 10).join(", ")}.` };
+        }
+        return {
+          workRequestDraft: { type, projectId: project?.id ?? null, projectName: project?.name ?? null, title, details, requestedDueAt: requestedDueAt ?? null },
+          message: type === WorkRequestType.PROJECT ? "New project request prepared. Review the details and submit when ready." : `Work request prepared for ${project?.name}. Review the details and submit when ready.`,
         };
       },
     }),
@@ -557,5 +589,6 @@ export function createStudioTools(ctx: ToolContext) {
         };
       },
     }),
+    ...(inventoryActionTool ? { prepare_inventory_action: inventoryActionTool } : {}),
   };
 }

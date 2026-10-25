@@ -33,6 +33,11 @@ import {
   type TaskActionState,
 } from "@/app/actions/tasks"
 import { Button } from "@/components/ui/button"
+import { TableRowActions } from "@/components/ui/table-row-actions"
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogClose,
@@ -107,10 +112,14 @@ const labels: Record<TaskStatus, string> = {
 
 function availabilityLabel(value: Options["workers"][number]["availability"]) {
   switch (value) {
-    case "IN_SHOOT": return "In a studio shoot";
-    case "FOCUS_MODE": return "Focus time";
-    case "OFF_SHIFT": return "Off shift";
-    default: return "Available";
+    case "IN_SHOOT":
+      return "In a studio shoot"
+    case "FOCUS_MODE":
+      return "Focus time"
+    case "OFF_SHIFT":
+      return "Off shift"
+    default:
+      return "Available"
   }
 }
 const dateText = (date: Date | string | null) =>
@@ -172,9 +181,10 @@ export function TasksWorkspace({
   const priority =
     typeof searchParams.priority === "string" ? searchParams.priority : "ALL"
   const specialization =
-    typeof searchParams.specialization === "string" ? searchParams.specialization : "ALL"
-  const currentQuery =
-    typeof searchParams.q === "string" ? searchParams.q : ""
+    typeof searchParams.specialization === "string"
+      ? searchParams.specialization
+      : "ALL"
+  const currentQuery = typeof searchParams.q === "string" ? searchParams.q : ""
   const [searchQuery, setSearchQuery] = useState(currentQuery)
   const debouncedSearchQuery = useDebounce(searchQuery, 350)
   const [prevQuery, setPrevQuery] = useState(currentQuery)
@@ -182,22 +192,31 @@ export function TasksWorkspace({
     setPrevQuery(currentQuery)
     setSearchQuery(currentQuery)
   }
-  const targetTaskId = typeof searchParams.taskId === "string" ? searchParams.taskId : undefined
+  const targetTaskId =
+    typeof searchParams.taskId === "string" ? searchParams.taskId : undefined
   const taskAction = searchParams.taskAction === "review" ? "review" : "view"
   const openedTaskTarget = useRef<string | null>(null)
   const [view, setView] = useState("table")
   const visible = data.tasks
-  const boardTasks = (data as { boardTasks?: TaskItem[] }).boardTasks ?? data.tasks
+  const boardTasks =
+    (data as { boardTasks?: TaskItem[] }).boardTasks ?? data.tasks
 
   useEffect(() => {
     if (!targetTaskId) {
       openedTaskTarget.current = null
       return
     }
-    if (openedTaskTarget.current === targetTaskId || !boardTasks.some((task) => task.id === targetTaskId)) return
+    if (
+      openedTaskTarget.current === targetTaskId ||
+      !boardTasks.some((task) => task.id === targetTaskId)
+    )
+      return
 
     openedTaskTarget.current = targetTaskId
-    const eventName = role === "MANAGER" && taskAction === "review" ? "task-review" : "task-view"
+    const eventName =
+      role === "MANAGER" && taskAction === "review"
+        ? "task-review"
+        : "task-view"
     window.dispatchEvent(new CustomEvent(eventName, { detail: targetTaskId }))
 
     const params = new URLSearchParams()
@@ -206,8 +225,21 @@ export function TasksWorkspace({
     if (specialization !== "ALL") params.set("specialization", specialization)
     if (currentQuery.trim()) params.set("q", currentQuery.trim())
     const query = params.toString()
-    router.replace(query ? `${window.location.pathname}?${query}` : window.location.pathname, { scroll: false })
-  }, [boardTasks, currentQuery, priority, role, router, specialization, status, targetTaskId, taskAction])
+    router.replace(
+      query ? `${window.location.pathname}?${query}` : window.location.pathname,
+      { scroll: false }
+    )
+  }, [
+    boardTasks,
+    currentQuery,
+    priority,
+    role,
+    router,
+    specialization,
+    status,
+    targetTaskId,
+    taskAction,
+  ])
 
   const applyFilters = useCallback(
     (
@@ -222,7 +254,9 @@ export function TasksWorkspace({
       if (nextPriority !== "ALL") params.set("priority", nextPriority)
       if (nextSpec !== "ALL") params.set("specialization", nextSpec)
       if (nextQuery.trim()) params.set("q", nextQuery.trim())
-      const url = params.size ? `?${params.toString()}` : window.location.pathname
+      const url = params.size
+        ? `?${params.toString()}`
+        : window.location.pathname
       if (replace) {
         router.replace(url, { scroll: false })
       } else {
@@ -233,9 +267,21 @@ export function TasksWorkspace({
   )
 
   useEffect(() => {
-    if (debouncedSearchQuery.trim() !== searchQuery.trim() || debouncedSearchQuery.trim() === currentQuery.trim()) return
+    if (
+      debouncedSearchQuery.trim() !== searchQuery.trim() ||
+      debouncedSearchQuery.trim() === currentQuery.trim()
+    )
+      return
     applyFilters(status, priority, specialization, debouncedSearchQuery, true)
-  }, [debouncedSearchQuery, searchQuery, currentQuery, status, priority, specialization, applyFilters])
+  }, [
+    debouncedSearchQuery,
+    searchQuery,
+    currentQuery,
+    status,
+    priority,
+    specialization,
+    applyFilters,
+  ])
 
   function resetAllFilters() {
     setSearchQuery("")
@@ -274,7 +320,12 @@ export function TasksWorkspace({
             key={state}
             type="button"
             onClick={() =>
-              applyFilters(status === state ? "ALL" : state, priority, specialization, searchQuery)
+              applyFilters(
+                status === state ? "ALL" : state,
+                priority,
+                specialization,
+                searchQuery
+              )
             }
             className={`rounded-md border bg-card px-4 py-3 text-left transition-colors hover:border-primary/40 ${status === state ? "border-primary ring-1 ring-primary/20" : ""}`}
           >
@@ -290,18 +341,25 @@ export function TasksWorkspace({
       <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex w-full flex-1 flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search tasks, clients, projects…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 pl-9 pr-3 text-xs sm:text-sm"
+              className="h-10 pr-3 pl-9 text-xs sm:text-sm"
             />
           </div>
           <Select
             value={status}
-            onValueChange={(value) => applyFilters(value ?? "ALL", priority, specialization, searchQuery)}
+            onValueChange={(value) =>
+              applyFilters(
+                value ?? "ALL",
+                priority,
+                specialization,
+                searchQuery
+              )
+            }
             items={statusFilterItems}
           >
             <SelectTrigger
@@ -321,7 +379,9 @@ export function TasksWorkspace({
           </Select>
           <Select
             value={priority}
-            onValueChange={(value) => applyFilters(status, value ?? "ALL", specialization, searchQuery)}
+            onValueChange={(value) =>
+              applyFilters(status, value ?? "ALL", specialization, searchQuery)
+            }
             items={priorityFilterItems}
           >
             <SelectTrigger
@@ -341,7 +401,9 @@ export function TasksWorkspace({
           </Select>
           <Select
             value={specialization}
-            onValueChange={(value) => applyFilters(status, priority, value ?? "ALL", searchQuery)}
+            onValueChange={(value) =>
+              applyFilters(status, priority, value ?? "ALL", searchQuery)
+            }
             items={specializationFilterItems}
           >
             <SelectTrigger
@@ -715,8 +777,12 @@ function CreateTaskDialog({
                               )}
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate">{worker.name || worker.email}</span>
-                              <span className="block text-xs text-muted-foreground">{availabilityLabel(worker.availability)}</span>
+                              <span className="block truncate">
+                                {worker.name || worker.email}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                {availabilityLabel(worker.availability)}
+                              </span>
                             </span>
                           </label>
                         )
@@ -807,9 +873,11 @@ function CreateTaskDialog({
 function ViewTaskDialog({
   task,
   compact = false,
+  showTrigger = true,
 }: {
   task: TaskItem
   compact?: boolean
+  showTrigger?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -823,6 +891,7 @@ function ViewTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {showTrigger ? (
       <DialogTrigger
         render={
           <Button
@@ -837,6 +906,7 @@ function ViewTaskDialog({
           </Button>
         }
       />
+      ) : null}
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-xl leading-snug font-semibold">
@@ -1058,7 +1128,10 @@ function AssigneeAvatars({
               initial
             )}
           </span>
-          <span className="min-w-0 truncate text-sm font-medium text-foreground" title={displayName}>
+          <span
+            className="min-w-0 truncate text-sm font-medium text-foreground"
+            title={displayName}
+          >
             {displayName}
           </span>
         </div>
@@ -1123,7 +1196,6 @@ function AssigneeAvatars({
           {allNames}
         </span>
       </div>
-
     </div>
   )
 }
@@ -1180,12 +1252,22 @@ function TaskTable({
         {tasks.map((task) => (
           <TableRow key={task.id} className="h-[72px] align-middle">
             <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
-              <p className="truncate font-medium text-foreground" title={task.title}>{task.title}</p>
+              <p
+                className="truncate font-medium text-foreground"
+                title={task.title}
+              >
+                {task.title}
+              </p>
             </TableCell>
             <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
-              <p className="truncate font-medium" title={task.project.name}>{task.project.name}</p>
+              <p className="truncate font-medium" title={task.project.name}>
+                {task.project.name}
+              </p>
               {task.project.client?.name ? (
-                <p className="truncate text-xs text-muted-foreground" title={task.project.client.name}>
+                <p
+                  className="truncate text-xs text-muted-foreground"
+                  title={task.project.client.name}
+                >
                   {task.project.client.name}
                 </p>
               ) : null}
@@ -1193,12 +1275,12 @@ function TaskTable({
             <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
               <AssigneeAvatars assignees={task.assignees} />
             </TableCell>
-            <TableCell className="h-[72px] whitespace-nowrap px-4 py-3">
+            <TableCell className="h-[72px] px-4 py-3 whitespace-nowrap">
               <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground capitalize">
                 {task.priority.toLowerCase()}
               </span>
             </TableCell>
-            <TableCell className="h-[72px] whitespace-nowrap px-4 py-3 text-sm">
+            <TableCell className="h-[72px] px-4 py-3 text-sm whitespace-nowrap">
               <span
                 className={
                   task.dueAt &&
@@ -1209,11 +1291,13 @@ function TaskTable({
                 }
               >
                 {dateText(
-                  task.type === TaskType.DAILY_ENTRY ? task.workDate : task.dueAt
+                  task.type === TaskType.DAILY_ENTRY
+                    ? task.workDate
+                    : task.dueAt
                 )}
               </span>
             </TableCell>
-            <TableCell className="h-[72px] whitespace-nowrap px-4 py-3">
+            <TableCell className="h-[72px] px-4 py-3 whitespace-nowrap">
               <span className="inline-flex w-max max-w-full rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-primary">
                 {
                   labels[
@@ -1224,8 +1308,14 @@ function TaskTable({
                 }
               </span>
             </TableCell>
-            <TableCell className="h-[72px] whitespace-nowrap px-3 py-3">
-              <TaskControls task={task} role={role} options={options} compact />
+            <TableCell className="h-[72px] px-3 py-3 whitespace-nowrap">
+              <TaskControls
+                task={task}
+                role={role}
+                options={options}
+                compact
+                tableActions
+              />
             </TableCell>
           </TableRow>
         ))}
@@ -1262,11 +1352,13 @@ function TaskControls({
   role,
   options,
   compact = false,
+  tableActions = false,
 }: {
   task: TaskItem
   role: "MANAGER" | "WORKER"
   options: Options
   compact?: boolean
+  tableActions?: boolean
 }) {
   const [pending, start] = useTransition()
   const [error, setError] = useState("")
@@ -1276,6 +1368,118 @@ function TaskControls({
       const result = await updateAssignmentStatus(task.id, next)
       setError(result.error ?? "")
     })
+
+  if (tableActions) {
+    const canEditWorkerEntry =
+      role === "WORKER" &&
+      task.type === TaskType.DAILY_ENTRY &&
+      (own === TaskStatus.TODO || own === TaskStatus.IN_PROGRESS)
+    const canEditManagerTask =
+      role === "MANAGER" &&
+      task.type === TaskType.ASSIGNED &&
+      task.status !== TaskStatus.COMPLETED
+
+    return (
+      <>
+        <TableRowActions label={`Actions for ${task.title}`}>
+          <DropdownMenuItem
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent("task-view", { detail: task.id })
+              )
+            }
+          >
+            <Eye aria-hidden="true" />
+            View details
+          </DropdownMenuItem>
+          {role === "WORKER" && own === TaskStatus.TODO ? (
+            <DropdownMenuItem
+              disabled={pending}
+              onClick={() => update(TaskStatus.IN_PROGRESS)}
+            >
+              <Play aria-hidden="true" />
+              Start task
+            </DropdownMenuItem>
+          ) : null}
+          {role === "WORKER" && own === TaskStatus.IN_PROGRESS ? (
+            <DropdownMenuItem
+              disabled={pending}
+              onClick={() => update(TaskStatus.TODO)}
+            >
+              <RotateCcw aria-hidden="true" />
+              Move to to do
+            </DropdownMenuItem>
+          ) : null}
+          {role === "WORKER" &&
+          (own === TaskStatus.TODO || own === TaskStatus.IN_PROGRESS) ? (
+            <DropdownMenuItem
+              disabled={pending}
+              onClick={() => update(TaskStatus.IN_REVIEW)}
+            >
+              Submit for review
+            </DropdownMenuItem>
+          ) : null}
+          {canEditWorkerEntry || canEditManagerTask ? (
+            <DropdownMenuItem
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("task-edit", { detail: task.id })
+                )
+              }
+            >
+              <Pencil aria-hidden="true" />
+              Edit task
+            </DropdownMenuItem>
+          ) : null}
+          {role === "MANAGER" && task.status === TaskStatus.IN_REVIEW ? (
+            <DropdownMenuItem
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("task-review", { detail: task.id })
+                )
+              }
+            >
+              Review task
+            </DropdownMenuItem>
+          ) : null}
+          {role === "MANAGER" ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("task-delete", { detail: task.id })
+                  )
+                }
+              >
+                <Trash2 aria-hidden="true" />
+                Delete task
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </TableRowActions>
+        <ViewTaskDialog task={task} compact showTrigger={false} />
+        {canEditWorkerEntry || canEditManagerTask ? (
+          <EditTaskDialog
+            task={task}
+            role={role}
+            options={options}
+            compact
+            showTrigger={false}
+          />
+        ) : null}
+        {role === "MANAGER" ? (
+          <DeleteTask taskId={task.id} showTrigger={false} />
+        ) : null}
+        {error ? (
+          <span role="alert" className="sr-only text-xs text-destructive">
+            {error}
+          </span>
+        ) : null}
+      </>
+    )
+  }
 
   if (role === "WORKER") {
     return (
@@ -1382,13 +1586,23 @@ function EditTaskDialog({
   role,
   options,
   compact = false,
+  showTrigger = true,
 }: {
   task: TaskItem
   role: "MANAGER" | "WORKER"
   options: Options
   compact?: boolean
+  showTrigger?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (showTrigger) return
+    const openEditor = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === task.id) setOpen(true)
+    }
+    window.addEventListener("task-edit", openEditor)
+    return () => window.removeEventListener("task-edit", openEditor)
+  }, [showTrigger, task.id])
   const action =
     role === "MANAGER"
       ? updateAssignedTask.bind(null, task.id)
@@ -1418,6 +1632,7 @@ function EditTaskDialog({
         if (!next) setError("")
       }}
     >
+      {showTrigger ? (
       <DialogTrigger
         render={
           <Button
@@ -1434,6 +1649,7 @@ function EditTaskDialog({
           </Button>
         }
       />
+      ) : null}
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit task</DialogTitle>
@@ -1487,7 +1703,9 @@ function EditTaskDialog({
             <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor={`edit-task-start-${task.id}`}>Start date</Label>
+                  <Label htmlFor={`edit-task-start-${task.id}`}>
+                    Start date
+                  </Label>
                   <Input
                     id={`edit-task-start-${task.id}`}
                     name="startAt"
@@ -1553,8 +1771,12 @@ function EditTaskDialog({
                           )}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate">{worker.name || worker.email}</span>
-                          <span className="block text-xs text-muted-foreground">{availabilityLabel(worker.availability)}</span>
+                          <span className="block truncate">
+                            {worker.name || worker.email}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {availabilityLabel(worker.availability)}
+                          </span>
                         </span>
                       </label>
                     )
@@ -1614,12 +1836,27 @@ function EditTaskDialog({
   )
 }
 
-function DeleteTask({ taskId }: { taskId: string }) {
+function DeleteTask({
+  taskId,
+  showTrigger = true,
+}: {
+  taskId: string
+  showTrigger?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [pending, start] = useTransition()
   const [error, setError] = useState("")
+  useEffect(() => {
+    if (showTrigger) return
+    const openDelete = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === taskId) setOpen(true)
+    }
+    window.addEventListener("task-delete", openDelete)
+    return () => window.removeEventListener("task-delete", openDelete)
+  }, [showTrigger, taskId])
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
+      {showTrigger ? (
       <AlertDialogTrigger
         render={
           <Button
@@ -1632,6 +1869,7 @@ function DeleteTask({ taskId }: { taskId: string }) {
           </Button>
         }
       />
+      ) : null}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this task?</AlertDialogTitle>
@@ -1880,7 +2118,7 @@ function ReviewDialog({ tasks }: { tasks: TaskItem[] }) {
               onClick={() => setDecision("approve")}
               className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs transition-colors ${
                 decision === "approve"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  ? "bg-background font-semibold text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -1892,7 +2130,7 @@ function ReviewDialog({ tasks }: { tasks: TaskItem[] }) {
               onClick={() => setDecision("return")}
               className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs transition-colors ${
                 decision === "return"
-                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  ? "bg-background font-semibold text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -1903,7 +2141,8 @@ function ReviewDialog({ tasks }: { tasks: TaskItem[] }) {
 
           {decision === "approve" ? (
             <p className="text-xs text-muted-foreground">
-              Mark this deliverable as completed for all assignees and update the project timeline.
+              Mark this deliverable as completed for all assignees and update
+              the project timeline.
             </p>
           ) : (
             <div className="space-y-3">

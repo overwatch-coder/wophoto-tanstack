@@ -27,6 +27,9 @@ export const studioDataQuerySchema = z.object({
     "RATINGS",
     "INVITATIONS",
     "TEAM",
+    "INVENTORY",
+    "INVENTORY_LOANS",
+    "INVENTORY_MAINTENANCE",
   ]),
   operation: z.enum(["LIST", "GET", "COUNT"]),
   recordId: z.string().trim().min(1).max(100).optional(),
@@ -297,6 +300,35 @@ function addFilterClause(entity: StudioDataQuery["entity"], filter: QueryFilter,
     };
   }
 
+  if (entity === "INVENTORY") {
+    if (field === "name" || field === "category" || field === "assetTag" || field === "model" || field === "location") {
+      return { [field]: stringCondition(filter, field) };
+    }
+    if (field === "status") return { status: enumCondition(filter, field, ["AVAILABLE", "IN_USE", "MAINTENANCE", "RETIRED"]) };
+    if (field === "condition") return { condition: enumCondition(filter, field, ["EXCELLENT", "GOOD", "FAIR", "NEEDS_ATTENTION"]) };
+    if (field === "purchaseDate" || field === "createdAt" || field === "updatedAt") return { [field]: dateCondition(filter, field) };
+  }
+
+  if (entity === "INVENTORY_LOANS") {
+    if (field === "itemName") return { item: { name: stringCondition(filter, field) } };
+    if (field === "assetTag") return { item: { assetTag: stringCondition(filter, field) } };
+    if (field === "borrowerName") return { borrower: { name: stringCondition(filter, field) } };
+    if (field === "status") return { status: enumCondition(filter, field, ["ACTIVE", "RETURNED"]) };
+    if (field === "hasIssueReport") return { hasIssueReport: booleanCondition(filter, field) };
+    if (field === "checkedOutAt" || field === "expectedReturnAt" || field === "returnedAt" || field === "createdAt") return { [field]: dateCondition(filter, field) };
+  }
+
+  if (entity === "INVENTORY_MAINTENANCE") {
+    if (field === "title" || field === "description" || field === "itemName" || field === "assetTag") {
+      if (field === "itemName") return { item: { name: stringCondition(filter, field) } };
+      if (field === "assetTag") return { item: { assetTag: stringCondition(filter, field) } };
+      return { [field]: stringCondition(filter, field) };
+    }
+    if (field === "status") return { status: enumCondition(filter, field, ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]) };
+    if (field === "cost") return { cost: numberCondition(filter, field) };
+    if (field === "startedAt" || field === "resolvedAt") return { [field]: dateCondition(filter, field) };
+  }
+
   throw new Error(`Field '${field}' does not support ${operator} for ${entity}.`);
 }
 
@@ -320,6 +352,13 @@ function getEntityWhere(ctx: QueryContext, input: StudioDataQuery) {
     } else {
       throw new Error("Client accounts cannot query internal team records.");
     }
+  } else if (input.entity === "INVENTORY") {
+    if (ctx.role === UserRole.CLIENT) throw new Error("Client accounts cannot query internal inventory.");
+  } else if (input.entity === "INVENTORY_LOANS") {
+    if (ctx.role === UserRole.CLIENT) throw new Error("Client accounts cannot query internal inventory.");
+    if (ctx.role === UserRole.WORKER) clauses.push({ borrowerId: ctx.userId });
+  } else if (input.entity === "INVENTORY_MAINTENANCE") {
+    if (ctx.role !== UserRole.MANAGER) throw new Error("Maintenance records can only be queried by a manager.");
   }
 
   if (input.operation === "GET" && input.recordId) clauses.push({ id: input.recordId });
@@ -387,6 +426,9 @@ async function countEntity(entity: StudioDataQuery["entity"], where: Record<stri
     case "RATINGS": return prisma.rating.count({ where: where as Prisma.RatingWhereInput });
     case "INVITATIONS": return prisma.invitation.count({ where: where as Prisma.InvitationWhereInput });
     case "TEAM": return prisma.user.count({ where: where as Prisma.UserWhereInput });
+    case "INVENTORY": return prisma.inventoryItem.count({ where: where as Prisma.InventoryItemWhereInput });
+    case "INVENTORY_LOANS": return prisma.inventoryLoan.count({ where: where as Prisma.InventoryLoanWhereInput });
+    case "INVENTORY_MAINTENANCE": return prisma.inventoryMaintenanceLog.count({ where: where as Prisma.InventoryMaintenanceLogWhereInput });
   }
 }
 
@@ -472,6 +514,42 @@ async function listEntity(entity: StudioDataQuery["entity"], where: Record<strin
         },
         orderBy: [{ name: "asc" }, { id: "asc" }], take, skip,
       });
+    case "INVENTORY":
+      return prisma.inventoryItem.findMany({
+        where: where as Prisma.InventoryItemWhereInput,
+        select: {
+          id: true, name: true, assetTag: true, category: true, model: true,
+          status: true, condition: true, location: true, purchaseDate: true,
+          metadata: true, notes: true, createdAt: true, updatedAt: true,
+          loans: { where: { status: "ACTIVE" }, take: 1, select: {
+            id: true, borrowerId: true, borrower: { select: { name: true } },
+            checkedOutAt: true, expectedReturnAt: true,
+          } },
+        },
+        orderBy: [{ status: "asc" }, { updatedAt: "desc" }, { id: "desc" }], take, skip,
+      });
+    case "INVENTORY_LOANS":
+      return prisma.inventoryLoan.findMany({
+        where: where as Prisma.InventoryLoanWhereInput,
+        select: {
+          id: true, status: true, checkedOutAt: true, expectedReturnAt: true, returnedAt: true,
+          returnCondition: true, hasIssueReport: true, issueDetails: true,
+          borrowerId: true, borrower: { select: { name: true } },
+          item: { select: { id: true, name: true, assetTag: true, category: true } },
+        },
+        orderBy: [{ checkedOutAt: "desc" }, { id: "desc" }], take, skip,
+      });
+    case "INVENTORY_MAINTENANCE":
+      return prisma.inventoryMaintenanceLog.findMany({
+        where: where as Prisma.InventoryMaintenanceLogWhereInput,
+        select: {
+          id: true, title: true, description: true, resolutionNotes: true,
+          cost: true, status: true, startedAt: true, resolvedAt: true,
+          item: { select: { id: true, name: true, assetTag: true } },
+          reportedBy: { select: { name: true } }, resolvedBy: { select: { name: true } },
+        },
+        orderBy: [{ startedAt: "desc" }, { id: "desc" }], take, skip,
+      });
   }
 }
 
@@ -504,6 +582,38 @@ function serializeRows(entity: StudioDataQuery["entity"], rows: unknown[]) {
       deletedAt: row.deletedAt instanceof Date ? row.deletedAt.toISOString() : null,
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : undefined,
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : undefined,
+    }));
+  }
+  if (entity === "INVENTORY") {
+    return (rows as Array<Record<string, unknown>>).map((row) => ({
+      ...row,
+      purchaseDate: row.purchaseDate instanceof Date ? row.purchaseDate.toISOString() : null,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : undefined,
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : undefined,
+      loans: Array.isArray(row.loans) ? row.loans.map((loan) => {
+        const item = loan as Record<string, unknown>;
+        return {
+          ...item,
+          checkedOutAt: item.checkedOutAt instanceof Date ? item.checkedOutAt.toISOString() : null,
+          expectedReturnAt: item.expectedReturnAt instanceof Date ? item.expectedReturnAt.toISOString() : null,
+        };
+      }) : [],
+    }));
+  }
+  if (entity === "INVENTORY_LOANS") {
+    return (rows as Array<Record<string, unknown>>).map((row) => ({
+      ...row,
+      checkedOutAt: row.checkedOutAt instanceof Date ? row.checkedOutAt.toISOString() : null,
+      expectedReturnAt: row.expectedReturnAt instanceof Date ? row.expectedReturnAt.toISOString() : null,
+      returnedAt: row.returnedAt instanceof Date ? row.returnedAt.toISOString() : null,
+    }));
+  }
+  if (entity === "INVENTORY_MAINTENANCE") {
+    return (rows as Array<Record<string, unknown>>).map((row) => ({
+      ...row,
+      cost: row.cost === null || row.cost === undefined ? null : Number(row.cost),
+      startedAt: row.startedAt instanceof Date ? row.startedAt.toISOString() : null,
+      resolvedAt: row.resolvedAt instanceof Date ? row.resolvedAt.toISOString() : null,
     }));
   }
   return rows;

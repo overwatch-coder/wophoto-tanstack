@@ -6,6 +6,7 @@ import { useChat } from "@ai-sdk/react";
 import { useRouter } from "next/navigation";
 import type { UIMessage } from "ai";
 import { createClientFeedback } from "@/app/actions/feedback";
+import { createWorkRequest, type WorkRequestActionState } from "@/app/actions/work-requests";
 import {
   Bot,
   Maximize2,
@@ -78,6 +79,10 @@ interface StudioCopilotProps {
   copilotName?: string;
 }
 
+function getShortcutModifier() {
+  return /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? "⌘" : "Ctrl+";
+}
+
 const markdownComponents = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="my-1.5 last:mb-0">{children}</p>,
   ul: ({ children }: { children?: React.ReactNode }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
@@ -115,6 +120,9 @@ function getToolProgressLabel(toolName: string, rawArgs: unknown): string {
       RATINGS: "ratings",
       INVITATIONS: "invitations",
       TEAM: "team members",
+      INVENTORY: "inventory items",
+      INVENTORY_LOANS: "inventory loans",
+      INVENTORY_MAINTENANCE: "inventory maintenance records",
     };
     const entity = typeof args.entity === "string" ? entityLabels[args.entity] : undefined;
     const operation = typeof args.operation === "string" ? args.operation : "LIST";
@@ -132,6 +140,7 @@ function getToolProgressLabel(toolName: string, rawArgs: unknown): string {
     create_task_batch: "Preparing task assignments",
     create_invitation: "Preparing client invitation",
     prepare_client_feedback: "Drafting your review",
+    prepare_inventory_action: "Preparing inventory change",
     generate_wrapup_report: "Preparing a delivery summary",
     navigate_to: "Finding the right workspace page",
   };
@@ -191,6 +200,21 @@ function TaskProposalPreview({ value, compact = false }: { value: unknown; compa
         </div>
       ))}
     </div>
+  );
+}
+
+function InventoryProposalPreview({ value, compact = false }: { value: unknown; compact?: boolean }) {
+  if (!value || typeof value !== "object") return null;
+  const preview = value as { title?: unknown; values?: unknown };
+  const values = Array.isArray(preview.values) ? preview.values.filter((row): row is { label: string; value: string } =>
+    Boolean(row && typeof row === "object" && typeof row.label === "string" && typeof row.value === "string"),
+  ) : [];
+  if (values.length === 0) return null;
+  return (
+    <dl className={`grid gap-x-4 gap-y-1.5 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-2 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+      {typeof preview.title === "string" && <div className="sm:col-span-2 font-medium text-foreground">{preview.title}</div>}
+      {values.map((row) => <div key={`${row.label}-${row.value}`} className="min-w-0"><dt className="text-muted-foreground">{row.label}</dt><dd className="break-words font-medium text-foreground">{row.value}</dd></div>)}
+    </dl>
   );
 }
 
@@ -339,6 +363,7 @@ function AttachmentChips({
 export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhoto Studio Copilot" }: StudioCopilotProps) {
   const router = useRouter();
   const [displayMode, setDisplayMode] = useState<"collapsed" | "drawer" | "center">(initialMode);
+  const [shortcutModifier, setShortcutModifier] = useState<string | null>(null);
   const [proposalStatus, setProposalStatus] = useState<Record<string, {
     state: "applying" | "success" | "error";
     message: string;
@@ -376,6 +401,10 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
     ],
   });
   const isLoading = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    setShortcutModifier(getShortcutModifier());
+  }, []);
 
   const handleFileUpload = async (files: File[]) => {
     if (!files || files.length === 0) return;
@@ -512,13 +541,14 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
     }
   }, [displayMode]);
 
-  // Global keyboard shortcuts: Cmd+J for floating drawer, Cmd+K for command center, Escape to collapse
+  // Use the operating system's native modifier for the Copilot shortcuts.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
+      const modifierPressed = getShortcutModifier() === "⌘" ? e.metaKey : e.ctrlKey;
+      if (modifierPressed && e.key.toLowerCase() === "j") {
         e.preventDefault();
         setDisplayMode((prev) => (prev === "collapsed" ? "drawer" : "collapsed"));
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      } else if (modifierPressed && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setDisplayMode((prev) => (prev === "center" ? "drawer" : "center"));
       } else if (e.key === "Escape") {
@@ -589,6 +619,28 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
     }
   };
 
+  const handleSubmitClientWorkRequestDraft = async (
+    proposalId: string,
+    draft: { type: "WORK" | "PROJECT"; projectId: string | null; title: string; details: string; requestedDueAt: string | null },
+  ) => {
+    if (proposalStatus[proposalId]?.state === "applying" || proposalStatus[proposalId]?.state === "success") return;
+    setProposalStatus((previous) => ({ ...previous, [proposalId]: { state: "applying", message: "Submitting request…" } }));
+    try {
+      const formData = new FormData();
+      formData.set("type", draft.type);
+      formData.set("projectId", draft.projectId ?? "");
+      formData.set("title", draft.title);
+      formData.set("details", draft.details);
+      formData.set("requestedDueAt", draft.requestedDueAt ?? "");
+      const result: WorkRequestActionState = await createWorkRequest({}, formData);
+      if (result.error) throw new Error(result.error);
+      setProposalStatus((previous) => ({ ...previous, [proposalId]: { state: "success", message: result.success ?? "Request submitted." } }));
+      router.refresh();
+    } catch (submitError) {
+      setProposalStatus((previous) => ({ ...previous, [proposalId]: { state: "error", message: submitError instanceof Error ? submitError.message : "Could not submit the request. Please try again." } }));
+    }
+  };
+
   const handleCopyInvitationLink = async (proposalId: string, invitePath: string) => {
     const inviteUrl = new URL(invitePath, window.location.origin).toString();
     try {
@@ -627,7 +679,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
           invitePath: result.invitePath,
         },
       }));
-      if (proposalType === "CREATE_PROJECT" || proposalType === "CREATE_TASK_BATCH") {
+      if (proposalType === "CREATE_PROJECT" || proposalType === "CREATE_TASK_BATCH" || proposalType === "INVENTORY_ACTION") {
         router.refresh();
       }
       if (proposalType === "CREATE_INVITATION") router.refresh();
@@ -653,7 +705,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
           onClick={() => setDisplayMode("drawer")}
           aria-label={`Open ${copilotName}`}
           className="group relative flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary p-0 text-xs font-semibold text-primary-foreground shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 sm:h-auto sm:w-auto sm:gap-2 sm:px-3.5 sm:py-2.5 ring-4 ring-primary/10"
-          title={`Open ${copilotName} (⌘J)`}
+          title={shortcutModifier ? `Open ${copilotName} (${shortcutModifier}J)` : `Open ${copilotName}`}
         >
           <span className="relative hidden h-2 w-2 sm:flex">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -662,7 +714,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
           <Bot className="h-4 w-4" />
           <span className="hidden max-w-36 truncate tracking-tight sm:inline">{copilotName}</span>
           <span className="hidden sm:inline text-[10px] opacity-75 font-mono bg-primary-foreground/20 px-1 py-0.5 rounded">
-            ⌘J
+            {shortcutModifier ? `${shortcutModifier}J` : " "}
           </span>
         </button>
       </div>
@@ -857,6 +909,23 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                   );
                                 }
 
+                                if (res.workRequestDraft && typeof res.workRequestDraft === "object") {
+                                  const draft = res.workRequestDraft as { type: "WORK" | "PROJECT"; projectId: string | null; projectName: string | null; title: string; details: string; requestedDueAt: string | null };
+                                  const status = proposalStatus[ti.toolCallId];
+                                  const isSubmitting = status?.state === "applying";
+                                  const isSubmitted = status?.state === "success";
+                                  return (
+                                    <div key={`work-request-${ti.toolCallId}`} className="mt-2 rounded-xl border border-border bg-card p-4 text-xs">
+                                      <p className="font-semibold text-foreground">{draft.type === "PROJECT" ? "New project request" : `Work request: ${draft.projectName ?? "Project"}`}</p>
+                                      <p className="mt-2 font-medium text-foreground">{draft.title}</p>
+                                      <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{draft.details}</p>
+                                      {draft.requestedDueAt && <p className="mt-2 text-muted-foreground">Requested by {new Date(`${draft.requestedDueAt}T00:00:00`).toLocaleDateString()}</p>}
+                                      <div className="mt-3 flex flex-wrap items-center gap-2"><Button type="button" size="sm" disabled={isSubmitting || isSubmitted} onClick={() => void handleSubmitClientWorkRequestDraft(ti.toolCallId, draft)}>{isSubmitting ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : isSubmitted ? <Check className="mr-1.5 size-3.5" /> : <Send className="mr-1.5 size-3.5" />}{isSubmitting ? "Submitting…" : isSubmitted ? "Submitted" : "Submit request"}</Button></div>
+                                      {status?.message && <p className={`mt-2 break-words ${status.state === "error" ? "text-destructive" : status.state === "success" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>{status.message}</p>}
+                                    </div>
+                                  );
+                                }
+
                                 // Deep navigation links
                                 if (res.href && typeof res.href === "string") {
                                   return (
@@ -937,6 +1006,9 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                       </div>
                                       {res.proposalType === "CREATE_TASK_BATCH" && (
                                         <TaskProposalPreview value={res.preview} />
+                                      )}
+                                      {proposalType === "INVENTORY_ACTION" && (
+                                        <InventoryProposalPreview value={res.inventoryPreview} />
                                       )}
                                       {status && (
                                         <p className={`text-[11px] ${isConfirmed ? "text-emerald-600 dark:text-emerald-400" : isApplying ? "text-muted-foreground" : "text-destructive"}`}>
@@ -1111,7 +1183,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
             size="icon"
             onClick={() => setDisplayMode("center")}
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            title="Expand to Command Center (⌘K)"
+            title={shortcutModifier ? `Expand to Command Center (${shortcutModifier}K)` : "Expand to Command Center"}
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </Button>
@@ -1120,7 +1192,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
             size="icon"
             onClick={() => setDisplayMode("collapsed")}
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            title="Minimize (⌘J)"
+            title={shortcutModifier ? `Minimize (${shortcutModifier}J)` : "Minimize"}
           >
             <Minus className="h-3.5 w-3.5" />
           </Button>
@@ -1256,6 +1328,23 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                               );
                             }
 
+                            if (res.workRequestDraft && typeof res.workRequestDraft === "object") {
+                              const draft = res.workRequestDraft as { type: "WORK" | "PROJECT"; projectId: string | null; projectName: string | null; title: string; details: string; requestedDueAt: string | null };
+                              const status = proposalStatus[ti.toolCallId];
+                              const isSubmitting = status?.state === "applying";
+                              const isSubmitted = status?.state === "success";
+                              return (
+                                <div key={`work-request-${ti.toolCallId}`} className="mt-2 rounded-xl border border-border bg-card p-4 text-xs">
+                                  <p className="font-semibold text-foreground">{draft.type === "PROJECT" ? "New project request" : `Work request: ${draft.projectName ?? "Project"}`}</p>
+                                  <p className="mt-2 font-medium text-foreground">{draft.title}</p>
+                                  <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{draft.details}</p>
+                                  {draft.requestedDueAt && <p className="mt-2 text-muted-foreground">Requested by {new Date(`${draft.requestedDueAt}T00:00:00`).toLocaleDateString()}</p>}
+                                  <div className="mt-3 flex flex-wrap items-center gap-2"><Button type="button" size="sm" disabled={isSubmitting || isSubmitted} onClick={() => void handleSubmitClientWorkRequestDraft(ti.toolCallId, draft)}>{isSubmitting ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : isSubmitted ? <Check className="mr-1.5 size-3.5" /> : <Send className="mr-1.5 size-3.5" />}{isSubmitting ? "Submitting…" : isSubmitted ? "Submitted" : "Submit request"}</Button></div>
+                                  {status?.message && <p className={`mt-2 break-words ${status.state === "error" ? "text-destructive" : status.state === "success" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>{status.message}</p>}
+                                </div>
+                              );
+                            }
+
                             // Deep navigation link card
                             if (res.href && typeof res.href === "string") {
                               return (
@@ -1314,6 +1403,9 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
 
                                   {res.proposalType === "CREATE_TASK_BATCH" && (
                                     <TaskProposalPreview value={res.preview} compact />
+                                  )}
+                                  {proposalType === "INVENTORY_ACTION" && (
+                                    <InventoryProposalPreview value={res.inventoryPreview} compact />
                                   )}
 
                                   <Button

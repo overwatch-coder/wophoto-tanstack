@@ -1,10 +1,19 @@
-"use client";
+"use client"
 
-import { useState, useTransition } from "react";
-import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
-import { getInvitationLink, replaceInvitationLink, revokeInvitation } from "@/app/actions/invitations";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState, useTransition } from "react"
+import { Check, Copy, RefreshCw, Trash2 } from "lucide-react"
+import {
+  getInvitationLink,
+  replaceInvitationLink,
+  revokeInvitation,
+} from "@/app/actions/invitations"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { TableRowActions } from "@/components/ui/table-row-actions"
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -14,39 +23,50 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from "@/components/ui/alert-dialog"
 
-export function InvitationLinkActions({ id, recoverable }: { id: string; recoverable: boolean }) {
-  const [pending, startTransition] = useTransition();
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string>();
-  const [manualLink, setManualLink] = useState<string>();
-  const [replaceOpen, setReplaceOpen] = useState(false);
+export function InvitationLinkActions({
+  id,
+  recoverable,
+}: {
+  id: string
+  recoverable: boolean
+}) {
+  const [pending, startTransition] = useTransition()
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string>()
+  const [manualLink, setManualLink] = useState<string>()
+  const [replaceOpen, setReplaceOpen] = useState(false)
 
   function copyLink(replace = false) {
-    setCopied(false);
-    setError(undefined);
-    setManualLink(undefined);
+    setCopied(false)
+    setError(undefined)
+    setManualLink(undefined)
     startTransition(async () => {
       try {
-        const result = await (replace ? replaceInvitationLink(id) : getInvitationLink(id));
+        const result = await (replace
+          ? replaceInvitationLink(id)
+          : getInvitationLink(id))
         if (!result.invitePath) {
-          setError(result.error ?? "The invitation link could not be loaded.");
-          return;
+          setError(result.error ?? "The invitation link could not be loaded.")
+          return
         }
-        setReplaceOpen(false);
-        const link = new URL(result.invitePath, window.location.origin).toString();
+        setReplaceOpen(false)
+        const link = new URL(
+          result.invitePath,
+          window.location.origin
+        ).toString()
         try {
-          await navigator.clipboard.writeText(link);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2500);
+          await navigator.clipboard.writeText(link)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2500)
         } catch {
-          setManualLink(link);
+          setManualLink(link)
         }
       } catch {
-        setError("The invitation link could not be loaded. Try again.");
+        setError("The invitation link could not be loaded. Try again.")
       }
-    });
+    })
   }
 
   return (
@@ -63,8 +83,13 @@ export function InvitationLinkActions({ id, recoverable }: { id: string; recover
           >
             {copied ? (
               <>
-                <Check className="size-3 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                <span className="text-emerald-600 dark:text-emerald-400">Copied</span>
+                <Check
+                  className="size-3 text-emerald-600 dark:text-emerald-400"
+                  aria-hidden="true"
+                />
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  Copied
+                </span>
               </>
             ) : (
               <>
@@ -92,14 +117,24 @@ export function InvitationLinkActions({ id, recoverable }: { id: string; recover
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Replace this invitation link?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  Replace this invitation link?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  The previous link will stop working. Share the new link with the invited person. The role and expiration date will stay the same.
+                  The previous link will stop working. Share the new link with
+                  the invited person. The role and expiration date will stay the
+                  same.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+              {error ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={pending} className="rounded-full">Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={pending} className="rounded-full">
+                  Cancel
+                </AlertDialogCancel>
                 <Button
                   disabled={pending}
                   onClick={() => copyLink(true)}
@@ -112,34 +147,56 @@ export function InvitationLinkActions({ id, recoverable }: { id: string; recover
           </AlertDialog>
         ) : null}
       </div>
-      {copied ? <p role="status" className="sr-only">Invitation link copied.</p> : null}
-      {error && !replaceOpen ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
+      {copied ? (
+        <p role="status" className="sr-only">
+          Invitation link copied.
+        </p>
+      ) : null}
+      {error && !replaceOpen ? (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
       {manualLink ? (
         <div className="space-y-1">
-          <p role="status" className="text-xs text-muted-foreground">Clipboard unavailable. Select and copy the link below.</p>
-          <Input aria-label="Invitation link" readOnly value={manualLink} onFocus={(event) => event.currentTarget.select()} className="h-8 text-xs font-mono" />
+          <p role="status" className="text-xs text-muted-foreground">
+            Clipboard unavailable. Select and copy the link below.
+          </p>
+          <Input
+            aria-label="Invitation link"
+            readOnly
+            value={manualLink}
+            onFocus={(event) => event.currentTarget.select()}
+            className="h-8 font-mono text-xs"
+          />
         </div>
       ) : null}
     </div>
-  );
+  )
 }
 
-export function RevokeInvitationButton({ id, email }: { id: string; email: string }) {
-  const [pending, startTransition] = useTransition();
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
+export function RevokeInvitationButton({
+  id,
+  email,
+}: {
+  id: string
+  email: string
+}) {
+  const [pending, startTransition] = useTransition()
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string>()
 
   const handleRevoke = () => {
-    setError(undefined);
+    setError(undefined)
     startTransition(async () => {
-      const res = await revokeInvitation(id);
+      const res = await revokeInvitation(id)
       if (res.error) {
-        setError(res.error);
+        setError(res.error)
       } else {
-        setOpen(false);
+        setOpen(false)
       }
-    });
-  };
+    })
+      }
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
@@ -162,12 +219,21 @@ export function RevokeInvitationButton({ id, email }: { id: string; email: strin
         <AlertDialogHeader>
           <AlertDialogTitle>Revoke this invitation?</AlertDialogTitle>
           <AlertDialogDescription>
-            The invitation link for <strong className="text-foreground">{email}</strong> will be invalidated immediately. They will not be able to use it to join WoPhoto.
+            The invitation link for{" "}
+            <strong className="text-foreground">{email}</strong> will be
+            invalidated immediately. They will not be able to use it to join
+            WoPhoto.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending} className="rounded-full">Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending} className="rounded-full">
+            Cancel
+          </AlertDialogCancel>
           <Button
             variant="destructive"
             disabled={pending}
@@ -179,5 +245,191 @@ export function RevokeInvitationButton({ id, email }: { id: string; email: strin
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  );
+  )
+}
+
+export function InvitationTableActions({
+  id,
+  email,
+  recoverable,
+  canManageLink,
+  canRevoke,
+}: {
+  id: string
+  email: string
+  recoverable: boolean
+  canManageLink: boolean
+  canRevoke: boolean
+}) {
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string>()
+  const [copied, setCopied] = useState(false)
+  const [manualLink, setManualLink] = useState<string>()
+  const [manualLinkOpen, setManualLinkOpen] = useState(false)
+  const [replaceOpen, setReplaceOpen] = useState(false)
+  const [revokeOpen, setRevokeOpen] = useState(false)
+
+  const loadInvitationLink = (replace = false) => {
+    setError(undefined)
+    setCopied(false)
+    setManualLink(undefined)
+    startTransition(async () => {
+      try {
+        const result = await (replace
+          ? replaceInvitationLink(id)
+          : getInvitationLink(id))
+        if (!result.invitePath) {
+          setError(result.error ?? "The invitation link could not be loaded.")
+          return
+        }
+        const link = new URL(
+          result.invitePath,
+          window.location.origin
+        ).toString()
+        try {
+          await navigator.clipboard.writeText(link)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2500)
+        } catch {
+          setManualLink(link)
+          setManualLinkOpen(true)
+        }
+        setReplaceOpen(false)
+      } catch {
+        setError("The invitation link could not be loaded. Try again.")
+      }
+    })
+  }
+
+  const revoke = () => {
+    setError(undefined)
+    startTransition(async () => {
+      const result = await revokeInvitation(id)
+      if (result.error) setError(result.error)
+      else setRevokeOpen(false)
+    })
+  }
+
+  return (
+    <>
+      <TableRowActions label={`Actions for invitation to ${email}`}>
+        {canManageLink && recoverable ? (
+          <DropdownMenuItem
+            disabled={pending}
+            onClick={() => loadInvitationLink()}
+          >
+            {copied ? (
+              <Check aria-hidden="true" />
+            ) : (
+              <Copy aria-hidden="true" />
+            )}
+            {copied ? "Copied" : "Copy invitation link"}
+          </DropdownMenuItem>
+        ) : null}
+        {canManageLink ? (
+          <DropdownMenuItem
+            disabled={pending}
+            onClick={() => setReplaceOpen(true)}
+          >
+            <RefreshCw aria-hidden="true" />
+            {recoverable ? "Replace link" : "Create invitation link"}
+          </DropdownMenuItem>
+        ) : null}
+        {canRevoke ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={pending}
+              onClick={() => setRevokeOpen(true)}
+            >
+              <Trash2 aria-hidden="true" />
+              Revoke invitation
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </TableRowActions>
+
+      {error ? (
+        <p
+          role="alert"
+          className="mt-1 max-w-48 text-left text-xs text-destructive"
+        >
+          {error}
+        </p>
+      ) : null}
+
+      <AlertDialog open={replaceOpen} onOpenChange={setReplaceOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {recoverable
+                ? "Replace this invitation link?"
+                : "Create an invitation link?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {recoverable
+                ? "The previous link will stop working. The role and expiration date will stay the same."
+                : "A new link will be created for this invitation so you can copy and share it."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+            <Button disabled={pending} onClick={() => loadInvitationLink(true)}>
+              {pending
+                ? "Working…"
+                : recoverable
+                  ? "Replace link"
+                  : "Create link"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke this invitation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The invitation link for{" "}
+              <strong className="text-foreground">{email}</strong> will be
+              invalidated immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+            <Button variant="destructive" disabled={pending} onClick={revoke}>
+              {pending ? "Revoking…" : "Revoke invitation"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={manualLinkOpen} onOpenChange={setManualLinkOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Copy invitation link</AlertDialogTitle>
+            <AlertDialogDescription>
+              Clipboard access is unavailable. Select and copy the link below.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            aria-label="Invitation link"
+            readOnly
+            value={manualLink ?? ""}
+            onFocus={(event) => event.currentTarget.select()}
+            className="font-mono text-xs"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
 }

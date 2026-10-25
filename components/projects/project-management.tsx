@@ -48,6 +48,8 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Pagination } from "@/components/ui/pagination"
+import { TableRowActions } from "@/components/ui/table-row-actions"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import type { SearchParamsRecord } from "@/lib/pagination"
 import { useDebounce } from "@uidotdev/usehooks"
 import {
@@ -120,19 +122,30 @@ function ViewProjectDialog({
   completedTasks,
   totalTasks,
   percentComplete,
+  trigger = true,
 }: {
   project: ProjectItem
   status: "PLANNING" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED"
   completedTasks: number
   totalTasks: number
   percentComplete: number
+  trigger?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (trigger) return
+    const openProject = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === project.id) setOpen(true)
+    }
+    window.addEventListener("project-view", openProject)
+    return () => window.removeEventListener("project-view", openProject)
+  }, [project.id, trigger])
   const clientDisplayName =
     cleanClientName(project.client.name) || "Unnamed client"
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {trigger ? (
       <DialogTrigger
         render={
           <Button
@@ -145,6 +158,7 @@ function ViewProjectDialog({
           </Button>
         }
       />
+      ) : null}
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
         <DialogHeader className="pr-10">
           <div className="flex items-center gap-2">
@@ -497,9 +511,19 @@ export function ProjectManagement({
   )
 
   useEffect(() => {
-    if (debouncedSearchQuery.trim() !== searchQuery.trim() || debouncedSearchQuery.trim() === search.trim()) return
+    if (
+      debouncedSearchQuery.trim() !== searchQuery.trim() ||
+      debouncedSearchQuery.trim() === search.trim()
+    )
+      return
     updateProjectFilters(debouncedSearchQuery, selectedClient)
-  }, [debouncedSearchQuery, search, searchQuery, selectedClient, updateProjectFilters])
+  }, [
+    debouncedSearchQuery,
+    search,
+    searchQuery,
+    selectedClient,
+    updateProjectFilters,
+  ])
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -921,12 +945,27 @@ export function ProjectManagement({
 
                         {/* Actions */}
                         <TableCell className="px-5 py-3.5 text-right">
+                          <TableRowActions label={`Actions for ${p.name}`}>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                window.dispatchEvent(
+                                  new CustomEvent("project-view", {
+                                    detail: p.id,
+                                  })
+                                )
+                              }
+                            >
+                              <Eye aria-hidden="true" />
+                              View details
+                            </DropdownMenuItem>
+                          </TableRowActions>
                           <ViewProjectDialog
                             project={p}
                             status={p.status}
                             completedTasks={p.completedTasks}
                             totalTasks={p.totalTasks}
                             percentComplete={p.percentComplete}
+                            trigger={false}
                           />
                         </TableCell>
                       </TableRow>

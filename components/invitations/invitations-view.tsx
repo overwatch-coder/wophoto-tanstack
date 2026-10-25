@@ -15,10 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfileImageSrc } from "@/lib/profile-image"
-import {
-  InvitationLinkActions,
-  RevokeInvitationButton,
-} from "@/components/invitations/invitation-link-actions"
+import { InvitationTableActions } from "@/components/invitations/invitation-link-actions"
 import { CreateInvitationDialog } from "@/components/invitations/create-invitation-dialog"
 import { Pagination } from "@/components/ui/pagination"
 import { useDebounce } from "@uidotdev/usehooks"
@@ -86,7 +83,11 @@ export function InvitationsView({
   const now = new Date()
 
   useEffect(() => {
-    if (debouncedSearchTerm.trim() !== searchTerm.trim() || debouncedSearchTerm.trim() === searchQuery.trim()) return
+    if (
+      debouncedSearchTerm.trim() !== searchTerm.trim() ||
+      debouncedSearchTerm.trim() === searchQuery.trim()
+    )
+      return
     const params = new URLSearchParams(window.location.search)
     const query = debouncedSearchTerm.trim()
     if (query) params.set("q", query)
@@ -217,7 +218,7 @@ export function InvitationsView({
               <TableHead className="min-w-44 text-[11px] tracking-wide uppercase">
                 Link expiry / accepted
               </TableHead>
-              <TableHead className="min-w-40 px-4 text-right text-[11px] tracking-wide uppercase sm:px-6">
+              <TableHead className="w-16 px-3 text-right text-[11px] tracking-wide uppercase sm:px-4">
                 Actions
               </TableHead>
             </TableRow>
@@ -357,21 +358,16 @@ export function InvitationsView({
                     </TableCell>
 
                     {/* Actions */}
-                    <TableCell className="px-4 py-3.5 text-right sm:px-6">
-                      <div className="flex items-center justify-end gap-2">
-                        {isPending && (
-                          <InvitationLinkActions
-                            id={invitation.id}
-                            recoverable={Boolean(invitation.tokenEncrypted)}
-                          />
-                        )}
-                        {!isAccepted && !isRevoked && (
-                          <RevokeInvitationButton
-                            id={invitation.id}
-                            email={invitation.email}
-                          />
-                        )}
-                      </div>
+                    <TableCell className="px-3 py-3.5 text-right sm:px-4">
+                      {isPending || (!isAccepted && !isRevoked) ? (
+                        <InvitationTableActions
+                          id={invitation.id}
+                          email={invitation.email}
+                          recoverable={Boolean(invitation.tokenEncrypted)}
+                          canManageLink={isPending}
+                          canRevoke={!isAccepted && !isRevoked}
+                        />
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 )

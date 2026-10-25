@@ -18,6 +18,7 @@
 
 # production
 /build
+/spy-doc
 
 # misc
 .DS_Store

@@ -10,7 +10,6 @@ const sectionTitles: Record<string, string> = {
   "brief-review": "Brief Review",
   "explore-briefs": "Explore Briefs",
   "brand-assets": "Brand Assets",
-  inventory: "Inventory",
   schedule: "Schedule",
 }
 

@@ -44,7 +44,8 @@ The agent uses Vercel AI SDK to orchestrate real studio actions through tool cal
 
 ### 4. Studio Action Tools
 - `smart_search`: Keyword search across client reviews, tasks, deliverables, and projects. A no-match result is not evidence that the underlying data category is empty.
-- `query_studio_data`: Role-scoped LIST, GET, and COUNT retrieval across approved business records (projects, active/deleted tasks, feedback, notifications, comments, ratings, invitations, and team). Enforces allowlisted filters, projections, and a 20-record page cap; does not provide arbitrary SQL or access to credentials/session data.
+- `query_studio_data`: Role-scoped LIST, GET, and COUNT retrieval across approved business records (projects, active/deleted tasks, feedback, notifications, comments, ratings, invitations, team, inventory items, inventory loans, and inventory maintenance). Enforces allowlisted filters, projections, and a 20-record page cap; does not provide arbitrary SQL or access to credentials/session data.
+- `prepare_inventory_action`: Prepares manager inventory create, update, retire, and maintenance resolution actions, plus manager/worker checkout and return proposals. Every inventory write requires an explicit confirmation even when autonomous execution is enabled. Worker loan reads and returns are restricted to the signed-in worker; clients cannot access internal inventory.
 - `create_project`: Prepares a project with its name, a concise grounded description, and an explicitly selected active client owned by the manager.
 - `prepare_client_feedback`: For client review requests, prepares a review draft for one of that client's projects and shows it as an inline card. The client can submit from chat or open the existing form to edit it. Submission uses the existing client authorization and validation action.
 - `create_task_batch`: Creates batch tasks and distributes them across retouchers according to active capacity.
@@ -89,6 +90,7 @@ The agent uses Vercel AI SDK to orchestrate real studio actions through tool cal
 - An unmatched worker name was surfaced for correction; the assistant did not substitute a different worker.
 - Automated route tests confirm a known text-only Groq model is rejected before the provider adapter runs, while a vision-capable Groq model is passed through.
 - Client and worker data scope and manager-only proposal confirmation are covered by role-scoped automated tests. Browser verification was performed with the available manager session.
+- Inventory Copilot verification: focused routing tests confirm inventory reads use the structured query tool, new-item creation uses a single proposal tool, and existing-item changes expose only query plus proposal tools. Query and proposal tests cover manager/worker/client boundaries, worker-owned loan visibility/returns, available-item checkout, manager-only maintenance, and confirmation-only writes. Full Vitest, typecheck, and production build passed. Browser preview automation timed out twice during the inventory page check, so this Copilot inventory addition was not confirmed through a live UI session.
 - Attachment data remains in the active client-side conversation only. Chat history and uploaded file storage are not persisted; persistent storage is deferred until chat history retention is designed.
 
 ---

@@ -38,7 +38,13 @@ const hasCurrentSchemaDelegates = Boolean(
     cachedPreferenceFields.includes("aiApiKeyEncrypted") &&
     cachedPreferenceFields.includes("aiApiKeyProvider") &&
     cachedPreferenceFields.includes("aiCustomEndpoint") &&
-    cachedPreferenceFields.includes("aiAutonomousExecution"),
+    cachedPreferenceFields.includes("aiAutonomousExecution") &&
+    typeof (cachedPrisma as unknown as { inventoryItem?: { count?: unknown } })
+      .inventoryItem?.count === "function" &&
+    typeof (cachedPrisma as unknown as { inventoryLoan?: { findMany?: unknown } })
+      .inventoryLoan?.findMany === "function" &&
+    typeof (cachedPrisma as unknown as { inventoryMaintenanceLog?: { findMany?: unknown } })
+      .inventoryMaintenanceLog?.findMany === "function",
 );
 
 // `prisma generate` can add models while `next dev` is already running. The

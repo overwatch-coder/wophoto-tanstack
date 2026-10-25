@@ -14,7 +14,10 @@ import {
 } from "@/components/ui/sidebar"
 import { getWorkspacePageTitle, type WorkspaceRole } from "@/lib/navigation"
 import { HeaderNotificationBell } from "@/components/workspace/header-notification-bell"
-import { useWorkspacePreferences, WorkspacePreferencesProvider } from "@/components/workspace/workspace-preferences-context"
+import {
+  useWorkspacePreferences,
+  WorkspacePreferencesProvider,
+} from "@/components/workspace/workspace-preferences-context"
 import { StudioCopilot } from "@/components/ai/studio-copilot"
 import type { NotificationItemView } from "@/lib/notifications"
 import type { SettingsDensity } from "@/generated/prisma/browser"
@@ -81,7 +84,13 @@ function WorkspaceShellContent({
       className="workspace-shell"
       data-density={density.toLowerCase()}
     >
-      <AppSidebar email={email} image={image} name={name} role={role} userId={userId} />
+      <AppSidebar
+        email={email}
+        image={image}
+        name={name}
+        role={role}
+        userId={userId}
+      />
       <SidebarInset className="min-h-svh w-full max-w-full min-w-0 overflow-x-hidden rounded-none">
         <header className="flex min-h-16 shrink-0 items-center gap-3 border-b bg-background px-3 sm:px-5">
           <SidebarTrigger
@@ -108,7 +117,7 @@ function WorkspaceShellContent({
         </header>
         <div
           id="workspace-content"
-          className="w-full max-w-full min-w-0 flex-1 overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8"
+          className="w-full max-w-full min-w-0 flex-1 overflow-x-hidden px-3 py-6 sm:px-6 sm:py-8"
         >
           {children}
         </div>
@@ -139,13 +148,16 @@ function ThemeToggle() {
       onClick={() => {
         if (mounted) setTheme(resolvedTheme === "dark" ? "light" : "dark")
       }}
-      className="flex size-9 items-center justify-center p-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+      className="flex size-9 items-center justify-center rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
     >
       {mounted ? (
         resolvedTheme === "dark" ? (
           <Sun aria-hidden="true" className="size-4 shrink-0 text-orange-400" />
         ) : (
-          <Moon aria-hidden="true" className="size-4 shrink-0 text-foreground" />
+          <Moon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-foreground"
+          />
         )
       ) : (
         <span className="size-4 shrink-0" />

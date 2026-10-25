@@ -22,9 +22,10 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 9 | Settings & user preferences | Slice 6 | done |
 | 10 | Notification center & delivery | Slice 7 | done |
 | 11 | AI Studio Copilot & smart navigation | Slice 8 | done |
-| 12 | Inventory management | Slice 9 | planned |
+| 12 | Inventory management | Slice 9 | done |
 | 13 | Schedule & calendar | Slice 10 | planned |
 | 14 | Brand asset library | Slice 11 | planned |
+| 15 | Client work requests & intake | Slice 12 | in-progress |
 
 ## Foundations
 
@@ -153,20 +154,31 @@ Give each workspace role a floating assistant that searches studio records, runs
   - [x] Add attachment upload UI (paperclip / drag and drop with file preview chips) to floating copilot and command center.
   - [x] Build server-side file and document ingestion pipeline (images via native vision, spreadsheets/csv, PDFs, Word docs).
   - [x] Extract structured project and task parameters from uploaded briefs or spreadsheets and feed them into tool proposals.
+  - [x] Add role-scoped inventory queries and confirmation-only inventory action proposals for managers and workers; clients cannot access inventory.
 - [x] Verify it: test image screenshot analysis and document-driven task creation end to end, including vision fallback handling.
   - [x] In the manager browser session, attach an image, an XLSX with three distinct task rows, a PDF, and a DOCX; confirm image analysis and extracted document content.
   - [x] Inspect a task proposal and verify each title, assignee, and due date; do not apply the proposal during verification.
   - [x] Verify an unmatched spreadsheet assignee is reported and requires correction instead of being assigned to another worker.
   - [x] Add route tests proving known text-only image models are rejected before provider calls and supported vision models continue; existing role-scoped query and confirmation tests cover client/worker boundaries.
+  - [x] Verify inventory query routing and confirmation boundaries with focused role and proposal tests; full Vitest, typecheck, and production build pass.
 - [x] Test it: `/test AI Studio Copilot & smart navigation` (automated tests for file validation, size limits, and role access).
 Spec 0007 · code in `components/ai/`, `app/api/chat/`, and `lib/ai/`
 
-## Slice 9: Inventory management · needs a decision
+## Slice 9: Inventory management
 
-### 12. Inventory management · planned · needs a decision
-Track shared studio equipment and its checkout history so teams know what is available and who has each item.
-**Done when:** managers can record equipment, workers can check items in and out, and the studio can see current availability and item history.
-- [ ] Design it (spec): `/architect inventory management`
+### 12. Inventory management · done
+Track shared studio equipment, computing gear, and creative project assets so teams know what is available, what is in use, and who has each item.
+**Done when:** managers can record items with optional custom metadata, workers can self checkout and return items with condition logging, and damage flags transition items into maintenance.
+- [x] Design it (spec): `docs/specs/0008-inventory-management.md`
+- [x] Build it: `/develop inventory management`
+  - [x] Add Prisma schema models (`InventoryItem`, `InventoryLoan`, `InventoryMaintenanceLog`) with concurrency indexes and migrations (AC-1, AC-2, AC-5).
+  - [x] Build data access queries and server actions with role checks and atomic checkout locking (AC-1, AC-3, AC-4, AC-5, AC-8, AC-9, AC-10).
+  - [x] Build inventory catalog view with live search, category tabs, and status badges (AC-1, AC-3).
+  - [x] Build manager item creation, editing, and retirement modal (AC-1, AC-2, AC-9).
+  - [x] Build worker self checkout modal, return modal with condition logging, and manager maintenance drawer (AC-4, AC-6, AC-7, AC-8).
+- [x] Verify it: `/check verify inventory management`
+- [x] Test it: `/test inventory management`
+Spec 0008 · code in `app/actions/inventory.ts`, `lib/inventory.ts`, `components/inventory/`, and `app/(workspace)/`
 
 ## Slice 10: Schedule & calendar · needs a decision
 
@@ -181,6 +193,21 @@ Coordinate studio bookings, shoots, and work deadlines in a shared schedule.
 Store and share approved brand media and reference files with the right project teams.
 **Done when:** authorized users can find, preview, and manage shared brand assets with clear access rules.
 - [ ] Design it (spec): `/architect brand asset library`
+
+## Slice 12: Client work requests & intake
+
+### 15. Client work requests & intake · in-progress
+Let clients request work on owned projects or propose a new project, track request status, and let managers review requests and create the project and assigned work after approval.
+**Done when:** clients can submit and track either request type from the portal or Copilot, and managers can respond, decline, or approve requests by creating assigned work.
+- [x] Design it (spec): `docs/specs/0009-client-work-requests-and-intake.md`
+- [ ] Build it: `/develop client work requests & intake`
+  - [ ] Add request records, ownership checks, and status actions.
+  - [ ] Build client request submission and status tracking.
+  - [ ] Build manager request triage and task conversion.
+  - [ ] Add Copilot request drafting and explicit submit confirmation.
+- [ ] Verify it: `/check verify client work requests & intake`
+- [ ] Test it: `/test client work requests & intake`
+Spec 0009 · code in `app/(workspace)/client/`, `app/(workspace)/manager/`, `app/actions/work-requests.ts`, `components/work-requests/`, and `lib/ai/`
 
 ## Legend
 

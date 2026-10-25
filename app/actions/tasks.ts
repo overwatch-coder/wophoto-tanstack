@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { Prisma, NotificationType, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
+import { NotificationCategory, Prisma, NotificationType, TaskStatus, TaskType, UserRole, UserStatus, WorkRequestStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
@@ -218,11 +218,11 @@ export async function updateTaskStatus(taskId: string, next: TaskStatus): Promis
       return updateAssignmentStatus(taskId, next);
     }
 
-    await prisma.$transaction(async (tx) => {
+    const completedRequest = await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
       const task = await tx.task.findFirst({
         where: { id: taskId, deletedAt: null, project: { managerId: user.id } },
-        select: { id: true, status: true },
+        select: { id: true, status: true, projectId: true },
       });
       if (!task) throw new Error("Task not found or inaccessible.");
 
@@ -235,6 +235,11 @@ export async function updateTaskStatus(taskId: string, next: TaskStatus): Promis
           where: { id: taskId },
           data: { status: TaskStatus.COMPLETED, completedAt: new Date() },
         });
+        const linkedRequest = await tx.workRequest.findFirst({ where: { createdTaskId: taskId, status: WorkRequestStatus.IN_PROGRESS }, select: { id: true, title: true, clientId: true } });
+        if (linkedRequest) {
+          await tx.workRequest.update({ where: { id: linkedRequest.id }, data: { status: WorkRequestStatus.COMPLETED } });
+          return { ...linkedRequest, projectId: task.projectId };
+        }
       } else {
         await tx.taskAssignee.updateMany({
           where: { taskId },
@@ -245,7 +250,14 @@ export async function updateTaskStatus(taskId: string, next: TaskStatus): Promis
           data: { status: next, completedAt: null },
         });
       }
+      return null;
     });
+
+    if (completedRequest) {
+      try {
+        await createNotification({ userId: completedRequest.clientId, actorId: user.id, type: NotificationType.SYSTEM_ALERT, category: NotificationCategory.UPDATE, title: "Requested Work Completed", message: `The studio completed “${completedRequest.title}”.`, link: `/client/work-requests?requestId=${encodeURIComponent(completedRequest.id)}`, projectId: completedRequest.projectId, taskId });
+      } catch (error) { console.warn("[tasks] Could not notify client about completed request:", error); }
+    }
 
     invalidateTasks();
     return { success: `Task updated to ${next.toLowerCase().replaceAll("_", " ")}.`, taskId };
@@ -267,11 +279,14 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
     const { decision, returnUserIds, managerNote } = input;
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
-      const task = await tx.task.findFirst({ where: { id: taskId, deletedAt: null, status: TaskStatus.IN_REVIEW, project: { managerId: manager.id } }, select: { id: true, assignees: { select: { userId: true, status: true } } } });
+      const task = await tx.task.findFirst({ where: { id: taskId, deletedAt: null, status: TaskStatus.IN_REVIEW, project: { managerId: manager.id } }, select: { id: true, projectId: true, assignees: { select: { userId: true, status: true } }, workRequestFor: { select: { id: true, title: true, clientId: true } } } });
       if (!task || task.assignees.some((a) => a.status !== TaskStatus.IN_REVIEW)) throw new Error("This task is not ready for review.");
       if (decision === "approve") {
         await tx.taskAssignee.updateMany({ where: { taskId, status: TaskStatus.IN_REVIEW }, data: { status: TaskStatus.COMPLETED, managerNote: null } });
         await tx.task.update({ where: { id: taskId }, data: { status: TaskStatus.COMPLETED, completedAt: new Date() } });
+        if (task.workRequestFor) {
+          await tx.workRequest.updateMany({ where: { id: task.workRequestFor.id, status: WorkRequestStatus.IN_PROGRESS }, data: { status: WorkRequestStatus.COMPLETED } });
+        }
       } else if (decision === "return") {
         const userIds = [...new Set(returnUserIds)];
         if (userIds.some((id) => !task.assignees.some((a) => a.userId === id))) throw new Error("Select at least one assigned worker to resubmit.");
@@ -282,6 +297,20 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
 
     if (decision === "approve") {
       try {
+        const completedRequest = await prisma.workRequest.findFirst({ where: { createdTaskId: taskId, status: WorkRequestStatus.COMPLETED }, select: { id: true, title: true, clientId: true, projectId: true, createdProjectId: true } });
+        if (completedRequest) {
+          await createNotification({
+            userId: completedRequest.clientId,
+            actorId: manager.id,
+            type: NotificationType.SYSTEM_ALERT,
+            category: NotificationCategory.UPDATE,
+            title: "Requested Work Completed",
+            message: `The studio completed “${completedRequest.title}”.`,
+            link: `/client/work-requests?requestId=${encodeURIComponent(completedRequest.id)}`,
+            projectId: completedRequest.projectId ?? completedRequest.createdProjectId,
+            taskId,
+          });
+        }
         const fullTask = await prisma.task.findUnique({
           where: { id: taskId },
           select: { title: true, projectId: true, assignees: { select: { userId: true } } },

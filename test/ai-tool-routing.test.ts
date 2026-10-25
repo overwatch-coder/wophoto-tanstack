@@ -15,6 +15,15 @@ describe("Copilot tool routing", () => {
       .toBeNull();
   });
 
+  it("routes client work and new project requests to the intake draft tool", () => {
+    expect(getFocusedToolNames("I want to submit a work request for the product campaign", "CLIENT"))
+      .toEqual(["prepare_work_request"]);
+    expect(getFocusedToolNames("Can you create a new project for me?", "CLIENT"))
+      .toEqual(["prepare_work_request"]);
+    expect(getFocusedToolNames("Create a project for this client", "MANAGER"))
+      .toEqual(["create_project"]);
+  });
+
   it("keeps a short client reply focused on the review draft clarification", () => {
     const messages = [
       { role: "assistant", parts: [{
@@ -31,6 +40,15 @@ describe("Copilot tool routing", () => {
     expect(getFocusedToolNames("My PhD journey", "CLIENT", "prepare_client_feedback"))
       .toEqual(["prepare_client_feedback"]);
     expect(getPendingClarificationToolName([{ role: "user" }, { role: "assistant" }])).toBeNull();
+  });
+
+  it("keeps a short client reply focused on the work request clarification", () => {
+    const messages = [
+      { role: "assistant", parts: [{ type: "tool-invocation", toolInvocation: { toolName: "prepare_work_request", state: "result", result: { needsInput: true, message: "Which project?" } } }] },
+      { role: "user", content: "Spring campaign" },
+    ];
+    expect(getPendingClarificationToolName(messages)).toBe("prepare_work_request");
+    expect(getFocusedToolNames("Spring campaign", "CLIENT", "prepare_work_request")).toEqual(["prepare_work_request"]);
   });
 
   it("routes client invitation requests and email replies to the invitation proposal tool", () => {
@@ -54,6 +72,22 @@ describe("Copilot tool routing", () => {
       .toEqual(["query_studio_data"]);
   });
 
+  it("routes inventory reads to one structured query and inventory changes through confirmation", () => {
+    expect(getFocusedToolNames("How many cameras are available in inventory?", "MANAGER"))
+      .toEqual(["query_studio_data"]);
+    expect(getFocusedToolNames("Create a new inventory item named Sony FX3", "MANAGER"))
+      .toEqual(["prepare_inventory_action"]);
+    expect(getFocusedToolNames("Check out the Sony FX3 from inventory", "WORKER"))
+      .toEqual(["query_studio_data", "prepare_inventory_action"]);
+    expect(getFocusedToolNames("Check out the available Sony FX3 in inventory", "WORKER"))
+      .toEqual(["query_studio_data", "prepare_inventory_action"]);
+  });
+
+  it("does not expose inventory actions to clients", () => {
+    expect(getFocusedToolNames("Create a new inventory item", "CLIENT")).toEqual([]);
+    expect(getFocusedToolNames("Return an inventory item", "CLIENT")).toEqual([]);
+  });
+
   it("keeps the full toolset for requests that are not a clear single intent", () => {
     expect(getFocusedToolNames("Help me plan a shoot and suggest the right workflow"))
       .toBeNull();
@@ -72,10 +106,13 @@ describe("Copilot tool routing", () => {
     expect(isTerminalToolResult({ requiresConfirmation: true })).toBe(true);
     expect(isTerminalToolResult({ needsInput: true })).toBe(true);
     expect(isTerminalToolResult({ clientFeedbackDraft: { type: "REVIEW" } })).toBe(true);
+    expect(isTerminalToolResult({ workRequestDraft: { type: "WORK" } })).toBe(true);
     expect(isTerminalToolResult({ count: 2 })).toBe(false);
     expect(getTerminalToolMessage({ needsInput: true, message: "Which client?" }))
       .toBe("Which client?");
     expect(getTerminalToolMessage({ clientFeedbackDraft: { type: "REVIEW" }, message: "Review draft ready." }))
       .toBe("Review draft ready.");
+    expect(getTerminalToolMessage({ workRequestDraft: { type: "WORK" }, message: "Request draft ready." }))
+      .toBe("Request draft ready.");
   });
 });

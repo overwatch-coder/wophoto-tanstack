@@ -9,11 +9,25 @@ const mocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   revalidatePath: vi.fn(),
   createInvitationForManager: vi.fn(),
+  createInventoryItem: vi.fn(),
+  updateInventoryItem: vi.fn(),
+  retireInventoryItem: vi.fn(),
+  checkoutInventoryItem: vi.fn(),
+  returnInventoryItem: vi.fn(),
+  resolveMaintenanceIssue: vi.fn(),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/invitations", () => ({ createInvitationForManager: mocks.createInvitationForManager }));
+vi.mock("@/app/actions/inventory", () => ({
+  createInventoryItem: mocks.createInventoryItem,
+  updateInventoryItem: mocks.updateInventoryItem,
+  retireInventoryItem: mocks.retireInventoryItem,
+  checkoutInventoryItem: mocks.checkoutInventoryItem,
+  returnInventoryItem: mocks.returnInventoryItem,
+  resolveMaintenanceIssue: mocks.resolveMaintenanceIssue,
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findFirst: mocks.findClient, findMany: mocks.findWorkers },
@@ -128,5 +142,32 @@ describe("Copilot proposal confirmation route", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.createInvitationForManager).not.toHaveBeenCalled();
+  });
+
+  it("allows a worker to confirm a checkout proposal through the existing inventory action", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "worker-1", role: "WORKER" } });
+    mocks.checkoutInventoryItem.mockResolvedValue({ success: "Asset checked out successfully.", itemId: "item-1", loanId: "loan-1" });
+
+    const response = await POST(request({
+      proposalType: "INVENTORY_ACTION",
+      payload: { action: "CHECKOUT_ITEM", input: { itemId: "item-1" } },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.checkoutInventoryItem).toHaveBeenCalledWith({ itemId: "item-1", expectedReturnAt: null, notes: undefined });
+    expect(await response.json()).toMatchObject({ itemId: "item-1", loanId: "loan-1", message: "Asset checked out successfully." });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/worker/inventory");
+  });
+
+  it("prevents workers from confirming manager-only inventory actions", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "worker-1", role: "WORKER" } });
+
+    const response = await POST(request({
+      proposalType: "INVENTORY_ACTION",
+      payload: { action: "RETIRE_ITEM", input: { id: "item-1", reason: "Damaged" } },
+    }));
+
+    expect(response.status).toBe(403);
+    expect(mocks.retireInventoryItem).not.toHaveBeenCalled();
   });
 });

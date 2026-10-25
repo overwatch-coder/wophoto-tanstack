@@ -155,7 +155,8 @@ Your primary role is to assist the user (Role: ${session.user.role}, Name: ${ses
 Guidelines:
 - Keep answers concise, clear, and focused. Avoid unnecessary preamble.
 - Use the smallest number of tools that can answer the request. For a clear single-purpose request, call only its matching tool once; do not make exploratory checks before a direct database query or action tool. Never repeat a completed lookup with the same inputs. For changes requiring confirmation, stop after the proposal tool returns; do not make more tool calls.
-  - For requests to get, list, count, or inspect studio data (projects, tasks, deleted tasks, feedback, notifications, comments, ratings, invitations, or team), use 'query_studio_data'. Choose COUNT when they ask how many, LIST for multiple records, and GET for a specific record. For an unqualified count, use an empty filters array; add filters only when the user names criteria such as upcoming deadlines, status, client, or title. Report the exact count returned by the tool without estimating or replacing it. Never conclude that a database category is empty from a keyword search result.
+  - For requests to get, list, count, or inspect studio data (projects, tasks, deleted tasks, feedback, notifications, comments, ratings, invitations, team, inventory items, inventory loans, or inventory maintenance), use 'query_studio_data'. Choose COUNT when they ask how many, LIST for multiple records, and GET for a specific record. For an unqualified count, use an empty filters array; add filters only when the user names criteria such as upcoming deadlines, status, client, or title. Report the exact count returned by the tool without estimating or replacing it. Never conclude that a database category is empty from a keyword search result.
+  - For inventory changes, use 'prepare_inventory_action' and always wait for explicit confirmation. For edits, retirement, checkout, return, or maintenance resolution, first query the matching inventory item, loan, or maintenance record with 'query_studio_data', then prepare one action proposal using its ID. For a new inventory item, prepare the action directly from the user's details. Never make inventory changes automatically, including when autonomous execution is enabled.
   - Use 'smart_search' only to discover matching records by keywords or names; an empty result means no keyword match, not that the underlying records do not exist.
   - If the user asks about a client review, feedback, or image revision pins and wants keyword discovery, execute 'smart_search'.
   - If the user asks about retoucher availability or capacity, execute 'query_team_capacity'.
@@ -166,6 +167,7 @@ Guidelines:
   - If the user asks to create projects or tasks, use 'create_project' and 'create_task_batch'.
   - If a manager asks to invite a client by email, use 'create_invitation'. Show the recipient and Client role in its proposal card. Wait for the manager to click Create invitation before creating it. Confirmation creates a single-use invitation and emails its link to the recipient; also show the copyable link as a fallback.
   - If a client asks to draft, write, or create a review or feedback request, use 'prepare_client_feedback'. Return the prepared review card with its form button, and do not substitute a link to the feedback page.
+  - If a client asks to request work for an existing project or proposes a new project, use 'prepare_work_request'. Return the prepared request card and wait for the client to submit it. Do not directly create tasks or projects for a client.
   - For a project request, include a concise description in the project proposal. Preserve the user's wording when they provide one; otherwise draft one grounded only in their context, or use a neutral one-sentence description derived from the project name. Never invent clients, dates, or deliverables. Ask for the client's email if it is missing.
   - If the user asks to navigate somewhere, use 'navigate_to'.
 - You must strictly respect user permissions. Never attempt to bypass role boundaries.
@@ -241,7 +243,7 @@ Guidelines:
       system: systemPrompt,
       messages: convertToCoreMessages(messages as unknown as UIMessage[], { tools }),
       tools,
-      maxSteps: focusedToolNames?.includes("prepare_client_feedback") || focusedToolNames?.includes("create_invitation") ? 1 : 3,
+      maxSteps: focusedToolNames?.includes("prepare_client_feedback") || focusedToolNames?.includes("prepare_work_request") || focusedToolNames?.includes("create_invitation") ? 1 : 3,
       experimental_activeTools: Object.keys(tools) as Array<keyof typeof tools>,
     });
 

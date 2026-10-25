@@ -24,9 +24,13 @@ export function getFocusedToolNames(message: string, role?: string, pendingClari
   const text = message.toLocaleLowerCase();
   const asksToCreate = /\b(create|make|add|start|set up|build|generate|draft|prepare|write)\b/.test(text);
   if (role === "CLIENT" && pendingClarificationToolName === "prepare_client_feedback") return ["prepare_client_feedback"];
+  if (role === "CLIENT" && pendingClarificationToolName === "prepare_work_request") return ["prepare_work_request"];
   if (role === "MANAGER" && pendingClarificationToolName === "create_invitation") return ["create_invitation"];
   if (role === "CLIENT" && asksToCreate && /\b(review|feedback)\b/.test(text)) {
     return ["prepare_client_feedback"];
+  }
+  if (role === "CLIENT" && (asksToCreate || /\b(submit|request)\b/.test(text)) && /\b(work|project|task|request)\b/.test(text)) {
+    return ["prepare_work_request"];
   }
   if (
     role === "MANAGER" &&
@@ -34,6 +38,17 @@ export function getFocusedToolNames(message: string, role?: string, pendingClari
     /\b(create|send|prepare|make|issue|generate|invite)\b/.test(text)
   ) {
     return ["create_invitation"];
+  }
+  const mentionsInventory = /\b(inventory|equipment|asset tag|maintenance log|inventory loan|checkout|check out|checked out)\b/.test(text);
+  if (mentionsInventory) {
+    const asksForInventoryChange = /\b(create|add|register|update|edit|change|retire|checkout|check out|return|resolve|repair)\b/.test(text);
+    if (!asksForInventoryChange) {
+      return ["query_studio_data"];
+    }
+    if (/\b(create|add|register)\b/.test(text)) {
+      return role === "CLIENT" ? [] : ["prepare_inventory_action"];
+    }
+    return role === "CLIENT" ? [] : ["query_studio_data", "prepare_inventory_action"];
   }
   const mentionsProject = /\b(project|campaign)\b/.test(text);
   const mentionsTasks = /\b(task|tasks|shot list|deliverable|deliverables)\b/.test(text);

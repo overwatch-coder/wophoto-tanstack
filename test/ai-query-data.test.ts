@@ -18,6 +18,12 @@ const mocks = vi.hoisted(() => ({
   invitationFindMany: vi.fn(),
   userCount: vi.fn(),
   userFindMany: vi.fn(),
+  inventoryItemCount: vi.fn(),
+  inventoryItemFindMany: vi.fn(),
+  inventoryLoanCount: vi.fn(),
+  inventoryLoanFindMany: vi.fn(),
+  inventoryMaintenanceCount: vi.fn(),
+  inventoryMaintenanceFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -30,6 +36,9 @@ vi.mock("@/lib/prisma", () => ({
     rating: { count: mocks.ratingCount, findMany: mocks.ratingFindMany },
     invitation: { count: mocks.invitationCount, findMany: mocks.invitationFindMany },
     user: { count: mocks.userCount, findMany: mocks.userFindMany },
+    inventoryItem: { count: mocks.inventoryItemCount, findMany: mocks.inventoryItemFindMany },
+    inventoryLoan: { count: mocks.inventoryLoanCount, findMany: mocks.inventoryLoanFindMany },
+    inventoryMaintenanceLog: { count: mocks.inventoryMaintenanceCount, findMany: mocks.inventoryMaintenanceFindMany },
   },
 }));
 
@@ -52,6 +61,12 @@ describe("Studio Copilot database queries", () => {
         ? [{ projectId: "project-1", status: "IN_REVIEW", _count: { _all: 1 } }]
         : [{ projectId: "project-1", _max: { dueAt: new Date("2026-10-30T12:00:00Z") } }]),
     );
+    mocks.inventoryItemCount.mockResolvedValue(0);
+    mocks.inventoryItemFindMany.mockResolvedValue([]);
+    mocks.inventoryLoanCount.mockResolvedValue(0);
+    mocks.inventoryLoanFindMany.mockResolvedValue([]);
+    mocks.inventoryMaintenanceCount.mockResolvedValue(0);
+    mocks.inventoryMaintenanceFindMany.mockResolvedValue([]);
   });
 
   it("returns the exact manager scoped project count with no filters", async () => {
@@ -166,5 +181,40 @@ describe("Studio Copilot database queries", () => {
 
     expect(result).toMatchObject({ error: expect.stringContaining("does not support") });
     expect(mocks.projectCount).not.toHaveBeenCalled();
+  });
+
+  it("lists inventory with status filters and serializes loan dates", async () => {
+    mocks.inventoryItemCount.mockResolvedValue(1);
+    mocks.inventoryItemFindMany.mockResolvedValue([{
+      id: "item-1", name: "Sony FX3", assetTag: "INV-0001", category: "Video",
+      status: "AVAILABLE", condition: "GOOD", purchaseDate: null, createdAt: new Date("2026-10-01T00:00:00Z"),
+      updatedAt: new Date("2026-10-02T00:00:00Z"), loans: [],
+    }]);
+    const input = studioDataQuerySchema.parse({ entity: "INVENTORY", operation: "LIST", filters: [{ field: "status", operator: "EQUALS", value: "AVAILABLE" }] });
+
+    const result = await queryStudioData(worker, input);
+
+    expect(mocks.inventoryItemFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { AND: [{ status: "AVAILABLE" }] }, take: 11, skip: 0,
+    }));
+    expect(result).toMatchObject({ entity: "INVENTORY", returned: 1, records: [{ id: "item-1", name: "Sony FX3" }] });
+  });
+
+  it("restricts worker loan queries to the signed in worker", async () => {
+    const input = studioDataQuerySchema.parse({ entity: "INVENTORY_LOANS", operation: "COUNT" });
+
+    await queryStudioData(worker, input);
+
+    expect(mocks.inventoryLoanCount).toHaveBeenCalledWith({ where: { AND: [{ borrowerId: "worker-1" }] } });
+  });
+
+  it("denies clients inventory queries and workers maintenance queries", async () => {
+    const inventory = studioDataQuerySchema.parse({ entity: "INVENTORY", operation: "COUNT" });
+    const maintenance = studioDataQuerySchema.parse({ entity: "INVENTORY_MAINTENANCE", operation: "COUNT" });
+
+    expect(await queryStudioData(client, inventory)).toMatchObject({ error: "Client accounts cannot query internal inventory." });
+    expect(await queryStudioData(worker, maintenance)).toMatchObject({ error: "Maintenance records can only be queried by a manager." });
+    expect(mocks.inventoryItemCount).not.toHaveBeenCalled();
+    expect(mocks.inventoryMaintenanceCount).not.toHaveBeenCalled();
   });
 });
