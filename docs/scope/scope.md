@@ -24,7 +24,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 11 | AI Studio Copilot & smart navigation | Slice 8 | done |
 | 12 | Inventory management | Slice 9 | done |
 | 13 | Schedule & calendar | Slice 10 | done |
-| 14 | Brand asset library | Slice 11 | in-progress |
+| 14 | Brand asset library | Slice 11 | done |
 | 15 | Client work requests & intake | Slice 12 | done |
 | 16 | Creative brief review & worker sign-off | Slice 13 | planned |
 | 17 | Explore briefs & template library | Slice 14 | planned |
@@ -201,7 +201,7 @@ Spec 0010 · code in `app/actions/schedule.ts`, `lib/schedule.ts`, `components/s
 
 ## Slice 11: Brand asset library
 
-### 14. Brand asset library · in-progress
+### 14. Brand asset library · done
 Store and share approved brand media and reference files with the right project teams.
 **Done when:** authorized users can find, preview, and manage shared brand assets with clear access rules.
 - [x] Design it (spec): `docs/specs/0011-brand-asset-library.md`
@@ -212,7 +212,7 @@ Store and share approved brand media and reference files with the right project 
   - [x] Build asset library components in `components/brand-assets/` including paginated card and table layouts, debounced search, category filters, color swatches, previews, and file download controls (AC-2, AC-3, AC-5, AC-6).
   - [x] Build asset creation and editing dialog in `components/brand-assets/brand-asset-dialog.tsx` supporting drop zone batch uploads, previews, external URLs, and dynamic swatch rows (AC-1, AC-3, AC-4, AC-7).
   - [x] Wire page routes in `app/(workspace)/manager/brand-assets/page.tsx` and `app/(workspace)/worker/brand-assets/page.tsx`, removing placeholders from `[section]/page.tsx` (AC-5, AC-6, AC-8).
-- [ ] Verify it: `/check verify brand asset library` (manager route and table actions verified in an authenticated manager session; real private Blob upload still needs live verification)
+- [x] Verify it: `/check verify brand asset library` (manager route and table actions verified in an authenticated manager session; manager confirmed a real private Blob upload succeeds)
 - [x] Test it: `npm test` (40 files, 268 tests; includes upload authorization, validation, cleanup ordering, and combined filters)
 Spec 0011 · code in `app/actions/brand-assets.ts`, `lib/brand-assets.ts`, `components/brand-assets/`, and `app/(workspace)/`
 
