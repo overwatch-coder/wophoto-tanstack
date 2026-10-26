@@ -26,7 +26,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 13 | Schedule & calendar | Slice 10 | done |
 | 14 | Brand asset library | Slice 11 | done |
 | 15 | Client work requests & intake | Slice 12 | done |
-| 16 | Creative brief review & worker sign-off | Slice 13 | planned |
+| 16 | Creative brief review & worker sign-off | Slice 13 | done |
 | 17 | Explore briefs & template library | Slice 14 | planned |
 
 ## Foundations
@@ -233,12 +233,25 @@ Let clients request work on owned projects or propose a new project, track reque
 - [x] Test it: `/test client work requests & intake` (`npm test`, 37 files and 233 tests passed)
 Spec 0009 · code in `app/(workspace)/client/`, `app/(workspace)/manager/`, `app/actions/work-requests.ts`, `components/work-requests/`, and `lib/ai/`
 
-## Slice 13: Creative brief review & worker sign-off · needs a decision
+## Slice 13: Creative brief review & worker sign-off
 
-### 16. Creative brief review & worker sign-off · planned · needs a decision
+### 16. Creative brief review & worker sign-off · done
 Provide a collaborative review workspace for project and shoot briefs so workers and managers align on deliverable specs, shot lists, and creative guidelines before production starts.
 **Done when:** managers can author or link project briefs, workers can inspect assigned project briefs and submit questions or sign-off acknowledgments, and managers can track team readiness.
-- [ ] Design it (spec): `/architect creative brief review & worker sign-off`
+- [x] Design it (spec): `docs/specs/0012-creative-brief-review-and-worker-sign-off.md`
+- [x] Build it: `/develop creative brief review & worker sign-off`
+  - [x] Add `BriefStatus` and `SignOffStatus` enums, `CreativeBrief`, `BriefSignOff`, and `BriefQuestion` models with relations and indexes, run migration (AC-1, AC-2, AC-3).
+  - [x] Create validation schemas in `lib/validation/briefs.ts` for brief creation, updates, reviewer enrollment, sign-offs, and discussions (AC-1, AC-4, AC-5, AC-7).
+  - [x] Implement data access queries and server actions in `lib/briefs.ts` and `app/actions/briefs.ts` with snapshot enrollment, waive audits, and concurrency guards (AC-1, AC-4, AC-5, AC-6).
+  - [x] Build brief UI components in `components/briefs/` with shot lists, deliverable checklists, crew readiness progress, and discussion threads (AC-1, AC-5, AC-7).
+  - [x] Wire workspace routes in `app/(workspace)/manager/brief-review/`, `app/(workspace)/worker/brief-review/`, and client brief view (AC-1, AC-4, AC-8).
+- [x] Verify it: `/check verify creative brief review & worker sign-off`
+  - [x] Manager: created and published a temporary brief, selected the project by readable name, assigned a reviewer, confirmed readiness and shot progress, then deleted the temporary record.
+  - [x] Client: confirmed published brief visibility and manager-route access denial; internal reviewer/discussion controls were not exposed.
+  - [x] Worker: signed off on the published brief and changed the shot status to Completed; readiness updated to 1/1 and shot progress to 1/1.
+  - [x] Responsive check: manager dialog and worker workspace checked at desktop and mobile widths; no horizontal overflow observed at tested widths.
+- [x] Test it: `/test creative brief review & worker sign-off` (`npm test`, 21 unit tests in `test/briefs.test.ts`, 41 files and 290 tests passed)
+Spec 0012 · `docs/specs/0012-creative-brief-review-and-worker-sign-off.md` · code in `app/actions/briefs.ts`, `lib/briefs.ts`, `components/briefs/`, and `app/(workspace)/`
 
 ## Slice 14: Explore briefs & template library · needs a decision
 

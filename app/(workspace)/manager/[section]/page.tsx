@@ -7,7 +7,6 @@ import { UserRole } from "@/generated/prisma/client"
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
 
 const sectionTitles: Record<string, string> = {
-  "brief-review": "Brief Review",
   "explore-briefs": "Explore Briefs",
 }
 

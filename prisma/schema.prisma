@@ -147,6 +147,10 @@ model User {
   assignedScheduleEvents  ScheduleEvent[]           @relation("ScheduleEventAssignees")
   clientBrandAssets       BrandAsset[]              @relation("ClientBrandAssets")
   createdBrandAssets      BrandAsset[]              @relation("CreatedBrandAssets")
+  createdCreativeBriefs   CreativeBrief[]           @relation("CreatedCreativeBriefs")
+  briefSignOffs           BriefSignOff[]            @relation("UserBriefSignOffs")
+  waivedBriefSignOffs     BriefSignOff[]            @relation("WaivedBriefSignOffs")
+  briefQuestions          BriefQuestion[]           @relation("BriefQuestionAuthors")
 
   @@index([role, status])
 }
@@ -229,6 +233,7 @@ model Project {
   createdFromWorkRequest WorkRequest?     @relation("WorkRequestCreatedProject")
   scheduleEvents         ScheduleEvent[]
   brandAssets            BrandAsset[]
+  creativeBriefs         CreativeBrief[]
 
   @@index([managerId, updatedAt])
   @@index([clientId, updatedAt])
@@ -660,4 +665,95 @@ model BrandAsset {
   @@index([projectId, createdAt])
   @@index([assetType, createdAt])
   @@index([createdById])
+}
+
+enum BriefStatus {
+  DRAFT
+  IN_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  COMPLETED
+}
+
+enum SignOffStatus {
+  PENDING
+  SIGNED
+  WAIVED
+}
+
+model CreativeBrief {
+  id              String          @id @default(cuid())
+  title           String
+  summary         String?         @db.Text
+  status          BriefStatus     @default(DRAFT)
+  isPrimary       Boolean         @default(false)
+  version         Int             @default(1)
+  revisionSummary String?         @db.Text
+  deliverables    String?         @db.Text
+  guidelines      String?         @db.Text
+  shotList        Json?
+  externalUrl     String?
+  fileUrl         String?
+  fileKey         String?
+  fileName        String?
+  fileSize        Int?
+  fileMime        String?
+  tags            String[]        @default([])
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdBy       User            @relation("CreatedCreativeBriefs", fields: [createdById], references: [id], onDelete: Restrict)
+  signOffs        BriefSignOff[]
+  questions       BriefQuestion[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([projectId, isPrimary])
+  @@index([projectId, status])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model BriefSignOff {
+  id          String        @id @default(cuid())
+  briefId     String
+  brief       CreativeBrief @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation("UserBriefSignOffs", fields: [userId], references: [id], onDelete: Cascade)
+  version     Int           @default(1)
+  status      SignOffStatus @default(PENDING)
+  signedAt    DateTime?
+  note        String?       @db.Text
+  waivedById  String?
+  waivedBy    User?         @relation("WaivedBriefSignOffs", fields: [waivedById], references: [id], onDelete: SetNull)
+  waivedAt    DateTime?
+  waiveReason String?       @db.Text
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([briefId, userId, version])
+  @@index([briefId, version, status])
+  @@index([userId, status])
+  @@index([createdAt])
+}
+
+model BriefQuestion {
+  id           String          @id @default(cuid())
+  briefId      String
+  brief        CreativeBrief   @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User            @relation("BriefQuestionAuthors", fields: [authorId], references: [id], onDelete: Cascade)
+  briefVersion Int             @default(1)
+  content      String          @db.Text
+  isResolved   Boolean         @default(false)
+  isBlocker    Boolean         @default(false)
+  parentId     String?
+  parent       BriefQuestion?  @relation("BriefQuestionReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      BriefQuestion[] @relation("BriefQuestionReplies")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([briefId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
 }
