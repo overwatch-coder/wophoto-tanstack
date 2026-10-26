@@ -4,10 +4,10 @@ import { parsePage } from "@/lib/pagination";
 import type { SearchParamsRecord } from "@/lib/pagination";
 import { firstSearchParam, idSchema } from "./common";
 
-const taskStatus = z.enum(TaskStatus).optional().catch(undefined);
-const priority = z.enum(TaskPriority).optional().catch(undefined);
-const specialization = z.enum(Specialization).optional().catch(undefined);
-const feedbackType = z.enum(FeedbackType).optional().catch(undefined);
+const taskStatus = z.nativeEnum(TaskStatus).optional().catch(undefined);
+const priority = z.nativeEnum(TaskPriority).optional().catch(undefined);
+const specialization = z.nativeEnum(Specialization).optional().catch(undefined);
+const feedbackType = z.nativeEnum(FeedbackType).optional().catch(undefined);
 
 export function parsePageQuery(value: string | string[] | undefined) {
   return parsePage(value);

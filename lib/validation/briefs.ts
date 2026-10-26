@@ -268,7 +268,7 @@ export const updateCreativeBriefSchema = z.object({
 
 export const setBriefStatusSchema = z.object({
   id: z.string().trim().min(1, "Brief ID is required."),
-  status: z.enum(BriefStatus),
+  status: z.nativeEnum(BriefStatus),
   reason: z
     .string()
     .trim()

@@ -26,10 +26,10 @@ export interface ToolContext {
 }
 
 // Type-safe tool definition helper bridging Zod schemas with Vercel AI SDK
-function defineStudioTool<TArgs, TResult>(config: {
+function defineStudioTool<TSchema extends z.ZodTypeAny, TResult>(config: {
   description: string;
-  parameters: z.ZodType<TArgs>;
-  execute: (args: TArgs) => Promise<TResult>;
+  parameters: TSchema;
+  execute: (args: z.output<TSchema>) => Promise<TResult>;
 }) {
   return tool({
     description: config.description,

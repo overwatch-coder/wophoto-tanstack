@@ -35,7 +35,7 @@ export const createScheduleEventSchema = z
       .optional()
       .nullable()
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-    eventType: z.enum(ScheduleEventType).default(ScheduleEventType.SHOOT),
+    eventType: z.nativeEnum(ScheduleEventType).default(ScheduleEventType.SHOOT),
     startAt: z.unknown().transform(parseDateInput),
     endAt: z.unknown().transform(parseDateInput),
     allDay: z.boolean().default(false),
@@ -81,7 +81,7 @@ export const updateScheduleEventSchema = z
             : null
           : undefined
       ),
-    eventType: z.enum(ScheduleEventType).optional(),
+  eventType: z.nativeEnum(ScheduleEventType).optional(),
     startAt: z
       .unknown()
       .optional()

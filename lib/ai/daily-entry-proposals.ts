@@ -16,7 +16,7 @@ export const dailyEntryProposalSchema = z.object({
   projectId: idSchema,
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(5000),
-  priority: z.enum(TaskPriority),
+  priority: z.nativeEnum(TaskPriority),
   workDate: calendarDateSchema,
 }).strict();
 

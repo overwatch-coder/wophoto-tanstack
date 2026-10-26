@@ -4,8 +4,8 @@ import { idSchema } from "./common";
 
 export const createInvitationSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, "Email address must be 254 characters or fewer.").email("Enter a valid email address."),
-  role: z.enum([UserRole.WORKER, UserRole.CLIENT, UserRole.SUPERVISOR, UserRole.COLLABORATOR], { error: "Choose Worker, Client, Supervisor, or Collaborator." }),
-  permissions: z.array(z.object({ area: z.enum(StudioArea), accessLevel: z.enum(StudioAccessLevel) }).strict()).max(12).optional(),
+  role: z.enum([UserRole.WORKER, UserRole.CLIENT, UserRole.SUPERVISOR, UserRole.COLLABORATOR], { message: "Choose Worker, Client, Supervisor, or Collaborator." }),
+  permissions: z.array(z.object({ area: z.nativeEnum(StudioArea), accessLevel: z.nativeEnum(StudioAccessLevel) }).strict()).max(12).optional(),
 });
 
 export const createClientInvitationProposalSchema = z.object({

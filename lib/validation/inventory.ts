@@ -63,7 +63,7 @@ export const createInventoryItemSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-  condition: z.enum(InventoryCondition).default(InventoryCondition.GOOD),
+  condition: z.nativeEnum(InventoryCondition).default(InventoryCondition.GOOD),
   location: z.string().trim().max(100).optional().nullable(),
   purchaseDate: optionalDate,
   metadata,
@@ -88,7 +88,7 @@ export const updateInventoryItemSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-  condition: z.enum(InventoryCondition).optional(),
+  condition: z.nativeEnum(InventoryCondition).optional(),
   location: z.string().trim().max(100).optional().nullable(),
   purchaseDate: optionalDate,
   metadata,
@@ -124,7 +124,7 @@ export const checkoutInventoryItemSchema = z.object({
 export const returnInventoryItemSchema = z
   .object({
     loanId: z.string().min(1, "Loan ID is required."),
-    condition: z.enum(InventoryCondition).default(InventoryCondition.GOOD),
+    condition: z.nativeEnum(InventoryCondition).default(InventoryCondition.GOOD),
     notes: z.string().trim().max(1000).optional().nullable(),
     hasIssue: z.boolean().default(false),
     issueDetails: z.string().trim().max(2000).optional().nullable(),
@@ -158,7 +158,7 @@ export const resolveMaintenanceSchema = z.object({
     .min(3, "Resolution notes must be at least 3 characters.")
     .max(2000),
   restoredCondition: z
-    .enum(InventoryCondition)
+    .nativeEnum(InventoryCondition)
     .default(InventoryCondition.GOOD),
   cost: z
     .union([z.number(), z.string()])

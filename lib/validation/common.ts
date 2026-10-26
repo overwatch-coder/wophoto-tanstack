@@ -8,7 +8,7 @@ export class InputValidationError extends Error {
 }
 
 export const idSchema = z
-  .string({ error: "Enter a valid ID." })
+  .string({ message: "Enter a valid ID." })
   .trim()
   .min(1, "This ID is required.")
   .max(191, "This ID is too long.");

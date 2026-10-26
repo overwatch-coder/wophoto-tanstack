@@ -35,7 +35,7 @@ export const createBriefTemplateSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-  category: z.enum(BriefTemplateCategory),
+  category: z.nativeEnum(BriefTemplateCategory),
   tags: z
     .array(
       z
@@ -118,7 +118,7 @@ export const convertBriefToTemplateSchema = z.object({
     .trim()
     .min(1, "Template title is required.")
     .max(150, "Template title must be 150 characters or fewer."),
-  category: z.enum(BriefTemplateCategory),
+  category: z.nativeEnum(BriefTemplateCategory),
   tags: z
     .array(
       z
@@ -177,7 +177,7 @@ export const instantiateBriefFromTemplateSchema = z.object({
 })
 
 export const getBriefTemplatesQuerySchema = z.object({
-  category: z.enum(BriefTemplateCategory).optional(),
+  category: z.nativeEnum(BriefTemplateCategory).optional(),
   search: z.string().trim().optional(),
   tag: z.string().trim().optional(),
   includeArchived: z.coerce.boolean().optional().default(false),
@@ -189,7 +189,7 @@ export const getStudioBriefArchiveQuerySchema = z.object({
   search: z.string().trim().optional(),
   project: z.string().trim().optional(),
   client: z.string().trim().optional(),
-  status: z.enum(BriefStatus).optional(),
+  status: z.nativeEnum(BriefStatus).optional(),
   page: z.coerce.number().int().positive().optional().default(1),
   pageSize: z.coerce.number().int().positive().max(50).optional().default(12),
 })

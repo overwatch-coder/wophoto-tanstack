@@ -10,7 +10,7 @@ const dateSchema = z.string().trim().refine((value) => {
 }, "Enter a valid date.").transform((value) => value ? new Date(`${value}T00:00:00.000Z`) : null);
 
 export const createWorkRequestSchema = z.object({
-  type: z.enum(WorkRequestType),
+  type: z.nativeEnum(WorkRequestType),
   projectId: z.union([z.literal(""), idSchema]).optional().transform((value) => value || null),
   title: z.string().trim().min(2, "Title must be at least 2 characters.").max(160),
   details: z.string().trim().min(10, "Add at least 10 characters of detail.").max(5000),
@@ -41,12 +41,12 @@ export const acceptWorkRequestSchema = z.object({
   requestId: idSchema,
   workerIds: z.array(idSchema).min(1, "Choose at least one worker.").max(50),
   taskTitle: z.string().trim().min(2).max(160),
-  priority: z.enum(TaskPriority).default(TaskPriority.MEDIUM),
+  priority: z.nativeEnum(TaskPriority).default(TaskPriority.MEDIUM),
   dueAt: dateSchema.optional().transform((value) => value ?? null),
 });
 
 export const workRequestQuerySchema = z.object({
-  status: z.union([z.literal("ALL"), z.enum(WorkRequestStatus)]).default("ALL"),
+  status: z.union([z.literal("ALL"), z.nativeEnum(WorkRequestStatus)]).default("ALL"),
   query: z.string().trim().max(120).default(""),
   cursor: z.union([z.literal(""), idSchema]).optional().transform((value) => value || null),
   limit: z.coerce.number().int().min(1).max(20).default(10),

@@ -2,8 +2,8 @@ import { z } from "zod";
 import { Specialization, TaskPriority, TaskStatus } from "@/generated/prisma/client";
 import { idSchema } from "./common";
 
-const prioritySchema = z.enum(TaskPriority);
-const specializationSchema = z.enum(Specialization);
+const prioritySchema = z.nativeEnum(TaskPriority);
+const specializationSchema = z.nativeEnum(Specialization);
 const workerIdsSchema = z.array(idSchema).min(1, "Choose at least one worker.").max(50, "Choose no more than 50 workers.");
 const specializationsSchema = z.array(specializationSchema).max(5, "Choose valid specializations.").transform((items) => [...new Set(items)]);
 
@@ -68,7 +68,7 @@ export const assignmentStatusSchema = z.enum([
   TaskStatus.IN_REVIEW,
 ]);
 
-export const taskStatusSchema = z.enum(TaskStatus);
+export const taskStatusSchema = z.nativeEnum(TaskStatus);
 
 export const reviewTaskSchema = z.object({
   taskId: idSchema,

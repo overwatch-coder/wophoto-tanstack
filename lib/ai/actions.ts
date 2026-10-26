@@ -38,7 +38,7 @@ export const createTaskBatchInputSchema = z
             title: z.string().trim().min(2).max(120),
             dueDate: taskDueDateSchema.optional(),
             assigneeId: z.string().trim().min(1).max(100),
-            priority: z.enum(TaskPriority).default(TaskPriority.MEDIUM),
+            priority: z.nativeEnum(TaskPriority).default(TaskPriority.MEDIUM),
           })
           .strict()
       )
@@ -57,7 +57,7 @@ export const createTaskBatchRequestSchema = z
             title: z.string().trim().min(2).max(120),
             dueDate: taskDueDateSchema.optional(),
             assignee: z.string().trim().min(1).max(254).optional(),
-            priority: z.enum(TaskPriority).optional(),
+            priority: z.nativeEnum(TaskPriority).optional(),
           })
           .strict()
       )
@@ -66,7 +66,7 @@ export const createTaskBatchRequestSchema = z
       .optional(),
     taskCount: z.number().int().min(1).max(20).optional(),
     baseTitle: z.string().trim().min(2).max(120).optional(),
-    priority: z.enum(TaskPriority).default(TaskPriority.MEDIUM),
+    priority: z.nativeEnum(TaskPriority).default(TaskPriority.MEDIUM),
   })
   .strict()
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { FeedbackType } from "@/generated/prisma/client";
 import { idSchema, optionalIdSchema } from "./common";
 
-const feedbackTypeSchema = z.enum(FeedbackType).catch(FeedbackType.REVISION);
+const feedbackTypeSchema = z.nativeEnum(FeedbackType).catch(FeedbackType.REVISION);
 const scoreSchema = z.union([
   z.null(),
   z.undefined(),

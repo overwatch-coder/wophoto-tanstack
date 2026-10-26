@@ -46,7 +46,7 @@ export const createBrandAssetSchema = z
       .optional()
       .nullable()
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-    assetType: z.enum(BrandAssetType).default(BrandAssetType.LOGO),
+    assetType: z.nativeEnum(BrandAssetType).default(BrandAssetType.LOGO),
     fileUrl: z
       .string()
       .trim()
@@ -147,7 +147,7 @@ export const updateBrandAssetSchema = z.object({
           : null
         : undefined
     ),
-  assetType: z.enum(BrandAssetType).optional(),
+  assetType: z.nativeEnum(BrandAssetType).optional(),
   fileUrl: z
     .string()
     .trim()

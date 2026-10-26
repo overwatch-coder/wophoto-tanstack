@@ -29,7 +29,7 @@ const chatMessageSchema = z.object({
   content: z.string().max(1_000_000),
   parts: z.array(z.record(z.string(), z.unknown())).max(80).optional(),
   experimental_attachments: z.array(attachmentItemSchema).max(MAX_ATTACHMENTS_PER_MESSAGE).optional(),
-}).loose();
+}).passthrough();
 
 const chatRequestSchema = z.object({
   id: z.string().max(200).optional(),

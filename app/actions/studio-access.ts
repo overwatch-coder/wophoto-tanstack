@@ -7,8 +7,8 @@ import { requireStudioOwner } from "@/lib/studio-access";
 import { z } from "zod";
 
 const grantsSchema = z.array(z.object({
-  area: z.enum(StudioArea),
-  accessLevel: z.enum(StudioAccessLevel),
+  area: z.nativeEnum(StudioArea),
+  accessLevel: z.nativeEnum(StudioAccessLevel),
 }).strict()).max(12).refine((grants) => new Set(grants.map(({ area }) => area)).size === grants.length, "Each area can appear only once.");
 
 const memberInputSchema = z.object({ memberId: z.string().min(1).max(128) }).strict();
