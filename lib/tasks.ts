@@ -66,18 +66,12 @@ export async function getTasks(input: {
     specializations: { select: { specialization: true } },
   };
 
-  const [rows, boardRows, counts] = await Promise.all([
+  const [rows, counts] = await Promise.all([
     prisma.task.findMany({
       where,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: DEFAULT_PAGE_SIZE,
       skip: (page - 1) * DEFAULT_PAGE_SIZE,
-      select: taskSelect,
-    }),
-    prisma.task.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 150,
       select: taskSelect,
     }),
     user.role === UserRole.MANAGER
@@ -100,11 +94,10 @@ export async function getTasks(input: {
   });
 
   const tasks = rows.map(formatTask);
-  const boardTasks = boardRows.map(formatTask);
 
   return {
     tasks,
-    boardTasks,
+    boardTasks: tasks,
     page,
     total,
     totalPages,

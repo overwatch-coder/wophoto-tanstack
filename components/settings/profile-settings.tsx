@@ -14,7 +14,6 @@ import {
   Smartphone,
   Laptop,
   Volume2,
-  ImagePlus,
   Trash2,
   MapPin,
   Bot,
@@ -37,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { getProfileImageSrc } from "@/lib/profile-image";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { SettingsDensity, UserRole, WorkerAvailability } from "@/generated/prisma/browser";
 import { updateUserPreferencesAction } from "@/app/actions/settings";
 import { useWorkspacePreferences } from "@/components/workspace/workspace-preferences-context";
@@ -1169,26 +1169,31 @@ function PictureUploadForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [prevSuccess, setPrevSuccess] = useState<string | undefined>(undefined);
 
-  if (state.success && state.success !== prevSuccess) {
-    setPrevSuccess(state.success);
-    setPreviewUrl(null);
-  }
+  useEffect(() => {
+    if (previewUrl) return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   useEffect(() => {
     if (state.success) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
       onShowToast(state.success);
     } else if (state.error) {
       onShowToast(state.error);
     }
   }, [state, onShowToast]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileChange = (files: File[]) => {
+    const file = files[0];
     if (file) {
       if (file.size > 1_500_000) {
         onShowToast("Image exceeds 1.5 MB limit.");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+        onShowToast("Choose a JPG, PNG, or WebP image.");
+        if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
       setPreviewUrl(URL.createObjectURL(file));
@@ -1210,19 +1215,10 @@ function PictureUploadForm({
     });
   };
 
-  const displayImage = previewUrl ?? currentImage;
+  const displayImage = pending && previewUrl ? previewUrl : currentImage;
 
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-5 sm:flex-row sm:items-center">
-      <input
-        ref={fileInputRef}
-        type="file"
-        name="photo"
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
       {/* Avatar Preview */}
       <ProfilePhoto
         image={displayImage}
@@ -1232,19 +1228,17 @@ function PictureUploadForm({
       />
 
       {/* Upload Controls */}
-      <div className="space-y-2 min-w-0 flex-1">
+      <div className="min-w-0 flex-1 space-y-2">
+        <FileDropzone
+          name="photo"
+          inputRef={fileInputRef}
+          accept="image/jpeg,image/png,image/webp"
+          disabled={pending || isRemoving}
+          title={pending ? "Uploading profile photo…" : "Drop a profile photo here, or browse"}
+          description="JPG, PNG, or WebP up to 1.5MB. Square crop recommended (at least 400×400px)."
+          onFiles={handleFileChange}
+        />
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            type="button"
-            size="sm"
-            disabled={pending || isRemoving}
-            onClick={() => fileInputRef.current?.click()}
-            className="gap-1.5 text-xs font-medium"
-          >
-            <ImagePlus className="size-3.5" />
-            <span>{pending ? "Uploading..." : "Upload New Photo"}</span>
-          </Button>
-
           {currentImage && (
             <Button
               type="button"
@@ -1259,9 +1253,6 @@ function PictureUploadForm({
             </Button>
           )}
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          JPG, PNG, or WebP up to 1.5MB. Square crop recommended (at least 400×400px).
-        </p>
       </div>
     </form>
   );

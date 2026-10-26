@@ -475,12 +475,26 @@ export function TasksWorkspace({
           value="board"
         >
           <TaskBoard tasks={boardTasks} role={role} options={options} />
+          <Pagination
+            pathname={role === "MANAGER" ? "/manager/tasks" : "/worker/tasks"}
+            searchParams={searchParams}
+            page={data.page}
+            totalPages={data.totalPages}
+            totalItems={data.total}
+          />
         </TabsContent>
         <TabsContent
           className="w-full max-w-full min-w-0 overflow-hidden"
           value="daybook"
         >
           <Daybook tasks={boardTasks} role={role} options={options} />
+          <Pagination
+            pathname={role === "MANAGER" ? "/manager/tasks" : "/worker/tasks"}
+            searchParams={searchParams}
+            page={data.page}
+            totalPages={data.totalPages}
+            totalItems={data.total}
+          />
         </TabsContent>
       </Tabs>
       <ReviewDialog tasks={boardTasks} />

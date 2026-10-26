@@ -145,6 +145,8 @@ model User {
   managedWorkRequests     WorkRequest[]             @relation("WorkRequestManager")
   createdScheduleEvents   ScheduleEvent[]           @relation("CreatedScheduleEvents")
   assignedScheduleEvents  ScheduleEvent[]           @relation("ScheduleEventAssignees")
+  clientBrandAssets       BrandAsset[]              @relation("ClientBrandAssets")
+  createdBrandAssets      BrandAsset[]              @relation("CreatedBrandAssets")
 
   @@index([role, status])
 }
@@ -226,6 +228,7 @@ model Project {
   workRequests           WorkRequest[]    @relation("WorkRequestProject")
   createdFromWorkRequest WorkRequest?     @relation("WorkRequestCreatedProject")
   scheduleEvents         ScheduleEvent[]
+  brandAssets            BrandAsset[]
 
   @@index([managerId, updatedAt])
   @@index([clientId, updatedAt])
@@ -618,5 +621,43 @@ model ScheduleEvent {
   @@index([startAt, endAt])
   @@index([location, startAt, endAt])
   @@index([projectId])
+  @@index([createdById])
+}
+
+enum BrandAssetType {
+  LOGO
+  COLOR_PALETTE
+  TYPOGRAPHY
+  GUIDELINE
+  MEDIA_REFERENCE
+  TEMPLATE
+}
+
+model BrandAsset {
+  id           String         @id @default(cuid())
+  title        String
+  description  String?        @db.Text
+  assetType    BrandAssetType @default(LOGO)
+  fileUrl      String?
+  fileKey      String?
+  fileName     String?
+  fileSize     Int?
+  fileMime     String?
+  externalUrl  String?
+  colorPalette Json?
+  tags         String[]       @default([])
+  clientId     String?
+  client       User?          @relation("ClientBrandAssets", fields: [clientId], references: [id], onDelete: SetNull)
+  projectId    String?
+  project      Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdById  String
+  createdBy    User           @relation("CreatedBrandAssets", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([createdAt])
+  @@index([clientId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([assetType, createdAt])
   @@index([createdById])
 }
