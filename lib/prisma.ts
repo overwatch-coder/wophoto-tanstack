@@ -50,7 +50,13 @@ const hasCurrentSchemaDelegates = Boolean(
     typeof (cachedPrisma as unknown as { scheduleEvent?: { findMany?: unknown } })
       .scheduleEvent?.findMany === "function" &&
     typeof (cachedPrisma as unknown as { brandAsset?: { findMany?: unknown } })
-      .brandAsset?.findMany === "function",
+      .brandAsset?.findMany === "function" &&
+    typeof (cachedPrisma as unknown as { copilotStudioPolicy?: { findUnique?: unknown } })
+      .copilotStudioPolicy?.findUnique === "function" &&
+    typeof (cachedPrisma as unknown as { copilotAccessOverride?: { findMany?: unknown } })
+      .copilotAccessOverride?.findMany === "function" &&
+    typeof (cachedPrisma as unknown as { copilotUsageEvent?: { count?: unknown } })
+      .copilotUsageEvent?.count === "function",
 );
 
 // `prisma generate` can add models while `next dev` is already running. The

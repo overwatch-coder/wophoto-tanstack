@@ -2,11 +2,12 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Layers3, LogOut, Moon, Sun, UserRound } from "lucide-react"
+import { LogOut, Moon, Sun, UserRound } from "lucide-react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { getProfileImageSrc } from "@/lib/profile-image"
+import { WoPhotoLogo, WoPhotoMark } from "@/components/brand/logo"
 
 import { signOutUser } from "@/app/actions/auth"
 import {
@@ -78,12 +79,15 @@ export function AppSidebar({
               render={<Link href={home} onClick={() => setOpenMobile(false)} />}
               className="gap-3 px-1 group-data-[collapsible=icon]:px-0"
             >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground group-data-[collapsible=icon]:size-8">
-                <Layers3 aria-hidden="true" className="size-4" />
-              </span>
-              <span className="truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-                WoPhoto
-              </span>
+              <WoPhotoLogo
+                compact
+                priority
+                className="group-data-[collapsible=icon]:hidden"
+              />
+              <WoPhotoMark
+                priority
+                className="hidden group-data-[collapsible=icon]:block"
+              />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

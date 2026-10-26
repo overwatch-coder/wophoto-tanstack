@@ -28,6 +28,14 @@ export function getFocusedToolNames(message: string, role?: string, pendingClari
   if (role === "CLIENT" && pendingClarificationToolName === "prepare_client_feedback") return ["prepare_client_feedback"];
   if (role === "CLIENT" && pendingClarificationToolName === "prepare_work_request") return ["prepare_work_request"];
   if (role === "MANAGER" && pendingClarificationToolName === "create_invitation") return ["create_invitation"];
+  if (role === "WORKER" && pendingClarificationToolName === "create_daily_entry") return ["create_daily_entry"];
+  if (
+    role === "WORKER" &&
+    /\b(log|record|enter|submit)\b/.test(text) &&
+    /\b(daily work|work log|daily entry)\b/.test(text)
+  ) {
+    return ["create_daily_entry"];
+  }
   if (role === "CLIENT" && asksToCreate && /\b(review|feedback)\b/.test(text)) {
     return ["prepare_client_feedback"];
   }

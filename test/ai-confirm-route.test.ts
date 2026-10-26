@@ -15,9 +15,11 @@ const mocks = vi.hoisted(() => ({
   checkoutInventoryItem: vi.fn(),
   returnInventoryItem: vi.fn(),
   resolveMaintenanceIssue: vi.fn(),
+  isCopilotEnabled: vi.fn(),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/ai/copilot-access", () => ({ isCopilotEnabledForUser: mocks.isCopilotEnabled }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/invitations", () => ({ createInvitationForManager: mocks.createInvitationForManager }));
 vi.mock("@/app/actions/inventory", () => ({
@@ -48,7 +50,10 @@ function request(body: unknown) {
 }
 
 describe("Copilot proposal confirmation route", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isCopilotEnabled.mockResolvedValue(true);
+  });
 
   it("requires authentication", async () => {
     mocks.auth.mockResolvedValue(null);
@@ -59,6 +64,14 @@ describe("Copilot proposal confirmation route", () => {
 
   it("blocks non-manager accounts from applying proposals", async () => {
     mocks.auth.mockResolvedValue({ user: { id: "worker-1", role: "WORKER" } });
+    const response = await POST(request({ proposalType: "CREATE_PROJECT", payload: {} }));
+    expect(response.status).toBe(403);
+    expect(mocks.createProject).not.toHaveBeenCalled();
+  });
+
+  it("rejects confirmations when the manager has disabled Copilot access", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "manager-1", role: "MANAGER" } });
+    mocks.isCopilotEnabled.mockResolvedValue(false);
     const response = await POST(request({ proposalType: "CREATE_PROJECT", payload: {} }));
     expect(response.status).toBe(403);
     expect(mocks.createProject).not.toHaveBeenCalled();

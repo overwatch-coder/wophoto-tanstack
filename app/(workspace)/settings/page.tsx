@@ -5,6 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileSettings } from "@/components/settings/profile-settings";
 import { requireUser } from "@/lib/authz";
 import { getUserPreferences } from "@/lib/user-preferences";
+import { getCopilotStudioSettings } from "@/lib/ai/copilot-access";
+import { UserRole } from "@/generated/prisma/client";
 
 export default function SettingsPage() {
   return (
@@ -20,6 +22,9 @@ async function SettingsContent() {
   await connection();
   const user = await requireUser();
   const preferences = await getUserPreferences(user.id, user.role);
+  const studioCopilotSettings = user.role === UserRole.MANAGER
+    ? await getCopilotStudioSettings(user.id)
+    : undefined;
 
   return (
     <ProfileSettings
@@ -29,6 +34,7 @@ async function SettingsContent() {
       userId={user.id}
       role={user.role}
       preferences={preferences}
+      studioCopilotSettings={studioCopilotSettings}
     />
   );
 }

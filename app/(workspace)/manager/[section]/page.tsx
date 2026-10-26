@@ -6,9 +6,7 @@ import { requireRole } from "@/lib/authz"
 import { UserRole } from "@/generated/prisma/client"
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
 
-const sectionTitles: Record<string, string> = {
-  "explore-briefs": "Explore Briefs",
-}
+const sectionTitles: Record<string, string> = {}
 
 export default function ManagerSectionPage({
   params,

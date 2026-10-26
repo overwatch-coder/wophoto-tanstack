@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { useTheme } from "next-themes";
 import {
   User,
@@ -31,12 +31,15 @@ import {
   type ProfileActionState,
 } from "@/app/actions/profile";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { getProfileImageSrc } from "@/lib/profile-image";
 import { FileDropzone } from "@/components/ui/file-dropzone";
+import { StudioCopilotAccessSettings } from "@/components/settings/studio-copilot-access-settings";
+import type { CopilotStudioSettingsView } from "@/lib/ai/copilot-access";
 import { SettingsDensity, UserRole, WorkerAvailability } from "@/generated/prisma/browser";
 import { updateUserPreferencesAction } from "@/app/actions/settings";
 import { useWorkspacePreferences } from "@/components/workspace/workspace-preferences-context";
@@ -68,6 +71,7 @@ interface ProfileSettingsProps {
   userId: string;
   role?: UserRole;
   preferences: UserPreferencesView;
+  studioCopilotSettings?: CopilotStudioSettingsView;
 }
 
 export function ProfileSettings({
@@ -77,6 +81,7 @@ export function ProfileSettings({
   userId,
   role = UserRole.MANAGER,
   preferences: initialPreferences,
+  studioCopilotSettings,
 }: ProfileSettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -146,7 +151,7 @@ export function ProfileSettings({
       {/* Option A Layout: Left Vertical Navigation Sidebar & Right Content Panel */}
       <div className="flex flex-col gap-8 md:flex-row md:items-start w-full">
         {/* Left Navigation Sidebar */}
-        <aside className="w-full md:w-64 shrink-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+        <aside className="w-full shrink-0 rounded-2xl border border-border bg-card p-3 shadow-sm md:sticky md:top-4 md:max-h-[calc(100dvh-2rem)] md:w-64 md:self-start md:overflow-y-auto">
           <div className="mb-3 px-3 pt-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Settings Menu
@@ -745,12 +750,12 @@ export function ProfileSettings({
                     <Label className="text-xs font-semibold">Intelligence Provider</Label>
                     <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                       {[
-                        { id: "OPENAI", label: "OpenAI", desc: "GPT-6.1 Sol" },
-                        { id: "ANTHROPIC", label: "Anthropic", desc: "Claude Sonnet 5.5" },
-                        { id: "GEMINI", label: "Google Gemini", desc: "Gemini 4 Argon" },
-                        { id: "GROK", label: "xAI Grok", desc: "Grok 4.20" },
-                        { id: "GROQ", label: "Groq", desc: "GPT-OSS 120B" },
-                        { id: "CUSTOM", label: "Self-Hosted", desc: "Ollama / vLLM endpoint" },
+                        { id: "OPENAI", label: "OpenAI" },
+                        { id: "ANTHROPIC", label: "Anthropic" },
+                        { id: "GEMINI", label: "Google Gemini" },
+                        { id: "GROK", label: "xAI Grok" },
+                        { id: "GROQ", label: "Groq" },
+                        { id: "CUSTOM", label: "Self-Hosted" },
                       ].map((prov) => {
                         const isSelected = preferences.aiPreferences?.aiProvider === prov.id;
                         return (
@@ -779,14 +784,14 @@ export function ProfileSettings({
                                 `AI Provider switched to ${prov.label}.`
                               );
                             }}
-                            className={`flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                            className={`flex min-h-16 items-start justify-between gap-3 rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                               isSelected
                                 ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary/20"
                                 : "border-border hover:bg-muted/30 text-muted-foreground"
                             }`}
                           >
-                            <span className="text-xs font-semibold text-foreground">{prov.label}</span>
-                            <span className="text-[10px] text-muted-foreground">{prov.desc}</span>
+                            <span className="pt-0.5 text-xs font-semibold text-foreground">{prov.label}</span>
+                            {isSelected && <Badge variant="secondary" className="bg-primary/10 text-primary">Active</Badge>}
                           </button>
                         );
                       })}
@@ -1116,6 +1121,9 @@ export function ProfileSettings({
                   </div>
                 </div>
               </div>
+              {role === UserRole.MANAGER && studioCopilotSettings && (
+                <StudioCopilotAccessSettings initial={studioCopilotSettings} />
+              )}
             </div>
           )}
 
@@ -1164,8 +1172,8 @@ function PictureUploadForm({
   userId: string;
   onShowToast: (msg: string) => void;
 }) {
-  const [state, formAction, pending] = useActionState(updateProfilePicture, initialFormState);
-  const [isRemoving, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
+  const [isRemoving, startRemoveTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -1173,15 +1181,6 @@ function PictureUploadForm({
   useEffect(() => {
     if (previewUrl) return () => URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
-
-  useEffect(() => {
-    if (state.success) {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      onShowToast(state.success);
-    } else if (state.error) {
-      onShowToast(state.error);
-    }
-  }, [state, onShowToast]);
 
   const handleFileChange = (files: File[]) => {
     const file = files[0];
@@ -1202,15 +1201,49 @@ function PictureUploadForm({
     }
   };
 
-  const handleRemove = () => {
+  const handleUpload = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
     startTransition(async () => {
-      const res = await removeProfilePicture();
-      if (res.success) {
+      try {
+        const result = await updateProfilePicture(initialFormState, formData);
+        if (result.success) {
+          setPreviewUrl(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          onShowToast(result.success);
+        } else if (result.error) {
+          setPreviewUrl(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          onShowToast(result.error);
+        }
+      } catch (error) {
         setPreviewUrl(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
-        onShowToast("Profile photo removed.");
-      } else if (res.error) {
-        onShowToast(res.error);
+        console.error("Profile picture upload request failed", {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        });
+        onShowToast("The upload request could not reach the server. Check your connection and try again.");
+      }
+    });
+  };
+
+  const handleRemove = () => {
+    startRemoveTransition(async () => {
+      try {
+        const res = await removeProfilePicture();
+        if (res.success) {
+          setPreviewUrl(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          onShowToast("Profile photo removed.");
+        } else if (res.error) {
+          onShowToast(res.error);
+        }
+      } catch (error) {
+        console.error("Profile picture removal request failed", {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        });
+        onShowToast("The request could not reach the server. Check your connection and try again.");
       }
     });
   };
@@ -1218,7 +1251,7 @@ function PictureUploadForm({
   const displayImage = pending && previewUrl ? previewUrl : currentImage;
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-5 sm:flex-row sm:items-center">
+    <form ref={formRef} onSubmit={handleUpload} className="flex flex-col gap-5 sm:flex-row sm:items-center">
       {/* Avatar Preview */}
       <ProfilePhoto
         image={displayImage}

@@ -27,7 +27,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 14 | Brand asset library | Slice 11 | done |
 | 15 | Client work requests & intake | Slice 12 | done |
 | 16 | Creative brief review & worker sign-off | Slice 13 | done |
-| 17 | Explore briefs & template library | Slice 14 | planned |
+| 17 | Explore briefs & template library | Slice 14 | done |
 
 ## Foundations
 
@@ -253,12 +253,21 @@ Provide a collaborative review workspace for project and shoot briefs so workers
 - [x] Test it: `/test creative brief review & worker sign-off` (`npm test`, 21 unit tests in `test/briefs.test.ts`, 41 files and 290 tests passed)
 Spec 0012 · `docs/specs/0012-creative-brief-review-and-worker-sign-off.md` · code in `app/actions/briefs.ts`, `lib/briefs.ts`, `components/briefs/`, and `app/(workspace)/`
 
-## Slice 14: Explore briefs & template library · needs a decision
+## Slice 14: Explore briefs & template library
 
-### 17. Explore briefs & template library · planned · needs a decision
+### 17. Explore briefs & template library · done
 Provide a discovery portal and template repository for managers to search past studio briefs, organize standard creative brief templates, and spin up new projects from templates.
 **Done when:** managers can search and filter the studio brief catalog across campaigns and services, create reusable templates, and generate new project briefs from templates.
-- [ ] Design it (spec): `/architect explore briefs & template library`
+- [x] Design it (spec): `docs/specs/0013-explore-briefs-and-template-library/index.md`
+- [x] Build it: `/develop explore briefs & template library`
+  - [x] Add `BriefTemplateCategory` enum, `BriefTemplate` model, and relations on `User` and `CreativeBrief`, run migration (AC-1, AC-8).
+  - [x] Create validation schemas in `lib/validation/brief-templates.ts` for templates, conversion, and instantiation (AC-1, AC-2, AC-3, AC-5).
+  - [x] Implement query functions and server actions in `lib/brief-templates.ts` and `app/actions/brief-templates.ts` with deep cloning and transactions (AC-1, AC-2, AC-3, AC-4, AC-8).
+  - [x] Build UI components in `components/brief-templates/` for template grid, template dialog, instantiation modal, and archive explorer (AC-1, AC-2, AC-3, AC-5).
+  - [x] Wire workspace routes in `app/(workspace)/manager/explore-briefs/`, `app/(workspace)/worker/explore-briefs/`, and worker navigation (AC-5, AC-6, AC-7).
+- [x] Verify it: `/check verify explore briefs & template library` (see `docs/specs/0013-explore-briefs-and-template-library/verify.md`)
+- [x] Test it: `/test explore briefs & template library` (`npm test`, 15 unit tests in `test/brief-templates.test.ts`, 42 files and 307 tests passed)
+Spec 0013 · `docs/specs/0013-explore-briefs-and-template-library/index.md` · code in `app/actions/brief-templates.ts`, `lib/brief-templates.ts`, `components/brief-templates/`, and `app/(workspace)/`
 
 ## Legend
 

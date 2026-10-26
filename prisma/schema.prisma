@@ -151,6 +151,10 @@ model User {
   briefSignOffs           BriefSignOff[]            @relation("UserBriefSignOffs")
   waivedBriefSignOffs     BriefSignOff[]            @relation("WaivedBriefSignOffs")
   briefQuestions          BriefQuestion[]           @relation("BriefQuestionAuthors")
+  createdBriefTemplates   BriefTemplate[]           @relation("CreatedBriefTemplates")
+  managedCopilotPolicy    CopilotStudioPolicy?       @relation("CopilotPolicyManager")
+  copilotAccessOverrides CopilotAccessOverride[]     @relation("CopilotAccessSubject")
+  copilotUsageEvents     CopilotUsageEvent[]          @relation("CopilotUsageSubject")
 
   @@index([role, status])
 }
@@ -433,6 +437,51 @@ model UserPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model CopilotStudioPolicy {
+  managerId          String   @id
+  enabled            Boolean  @default(true)
+  workersEnabled     Boolean  @default(true)
+  clientsEnabled     Boolean  @default(false)
+  provider           String   @default("OPENAI")
+  model              String   @default("gpt-6.1-sol")
+  apiKeyEncrypted    String?  @db.Text
+  customEndpoint     String?
+  dailyRequestLimit  Int      @default(100)
+  updatedAt          DateTime @updatedAt
+
+  manager   User                     @relation("CopilotPolicyManager", fields: [managerId], references: [id], onDelete: Cascade)
+  overrides CopilotAccessOverride[]
+  usage     CopilotUsageEvent[]
+}
+
+model CopilotAccessOverride {
+  managerId String
+  userId    String
+  enabled   Boolean
+
+  policy CopilotStudioPolicy @relation(fields: [managerId], references: [managerId], onDelete: Cascade)
+  user   User                @relation("CopilotAccessSubject", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([managerId, userId])
+  @@index([userId])
+}
+
+model CopilotUsageEvent {
+  id        String   @id @default(cuid())
+  managerId String
+  userId    String
+  role      UserRole
+  provider  String
+  model     String
+  createdAt DateTime @default(now())
+
+  policy CopilotStudioPolicy @relation(fields: [managerId], references: [managerId], onDelete: Cascade)
+  user   User                @relation("CopilotUsageSubject", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([managerId, createdAt])
+  @@index([managerId, userId, createdAt])
+}
+
 enum InventoryStatus {
   AVAILABLE
   IN_USE
@@ -699,6 +748,9 @@ model CreativeBrief {
   fileSize        Int?
   fileMime        String?
   tags            String[]        @default([])
+  templateId      String?
+  sourceTemplate  BriefTemplate?  @relation("TemplateToBrief", fields: [templateId], references: [id], onDelete: SetNull)
+  mintedTemplates BriefTemplate[] @relation("BriefToTemplate")
   projectId       String
   project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdById     String
@@ -711,6 +763,7 @@ model CreativeBrief {
   @@index([projectId, isPrimary])
   @@index([projectId, status])
   @@index([createdById])
+  @@index([templateId])
   @@index([createdAt])
 }
 
@@ -756,4 +809,44 @@ model BriefQuestion {
   @@index([briefId, createdAt])
   @@index([parentId])
   @@index([authorId])
+}
+
+enum BriefTemplateCategory {
+  COMMERCIAL
+  EDITORIAL
+  ECOMMERCE
+  LOOKBOOK
+  PORTRAIT
+  VIDEO_PRODUCTION
+  SOCIAL_MEDIA
+  OTHER
+}
+
+model BriefTemplate {
+  id             String                 @id @default(cuid())
+  title          String
+  summary        String?                @db.Text
+  category       BriefTemplateCategory  @default(COMMERCIAL)
+  tags           String[]               @default([])
+  deliverables   String?                @db.Text
+  guidelines     String?                @db.Text
+  externalLinks  Json?
+  shotList       Json?
+  coverImageUrl  String?
+  attachmentUrl  String?
+  attachmentName String?
+  usageCount     Int                    @default(0)
+  isArchived     Boolean                @default(false)
+  createdById    String
+  createdBy      User                   @relation("CreatedBriefTemplates", fields: [createdById], references: [id], onDelete: Restrict)
+  sourceBriefId  String?
+  sourceBrief    CreativeBrief?         @relation("BriefToTemplate", fields: [sourceBriefId], references: [id], onDelete: SetNull)
+  derivedBriefs  CreativeBrief[]        @relation("TemplateToBrief")
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([category, isArchived])
+  @@index([isArchived, createdAt])
+  @@index([createdById])
+  @@index([sourceBriefId])
 }

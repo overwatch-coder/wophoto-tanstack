@@ -1,21 +1,22 @@
-"use client";
+"use client"
 
-import { useFormStatus } from "react-dom";
+import { useFormStatus } from "react-dom"
+import Link from "next/link"
 import {
-  Camera,
   CheckCircle2,
   AlertTriangle,
   ShieldAlert,
   HelpCircle,
   Loader2,
-} from "lucide-react";
-import { signInWithGoogle } from "@/app/actions/auth";
-import { Button } from "@/components/ui/button";
+} from "lucide-react"
+import { signInWithGoogle } from "@/app/actions/auth"
+import { Button } from "@/components/ui/button"
+import { WoPhotoLogo } from "@/components/brand/logo"
 
 type LoginFormProps = {
-  error?: string;
-  invitationStatus?: string;
-};
+  error?: string
+  invitationStatus?: string
+}
 
 export function LoginForm({ error, invitationStatus }: LoginFormProps) {
   const errorMessage =
@@ -27,10 +28,10 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
           ? "Your WoPhoto account is suspended. Contact your manager to restore access."
           : error
             ? "Google sign-in could not be completed. Choose the invited Google account and try again. If this continues, contact your manager."
-            : undefined;
+            : undefined
 
   return (
-    <div className="flex w-full overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:min-h-[640px]">
+    <div className="flex w-full overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:min-h-160">
       {/* Left Side: Editorial Photography Canvas */}
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-zinc-950 p-10 text-white lg:flex">
         {/* Subtle Background Photography */}
@@ -42,16 +43,10 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
           }}
         />
         {/* Gradient Scrim */}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-zinc-950/30" />
+        <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-zinc-950/60 to-zinc-950/30" />
 
-        {/* Top Brand & Metadata */}
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-orange-600 text-white shadow-md shadow-orange-600/30">
-              <Camera className="size-4" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">WoPhoto</span>
-          </div>
+        {/* Camera metadata stays on the photography panel; branding sits with sign-in. */}
+        <div className="relative z-10 flex justify-end">
           <div className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[11px] text-zinc-300 backdrop-blur-xs">
             50mm ƒ/1.4 · 1/250s · ISO 100
           </div>
@@ -59,18 +54,20 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
 
         {/* Center Visual Element */}
         <div className="relative z-10 my-auto max-w-md py-8">
-          <h2 className="text-3xl font-semibold tracking-tight text-white leading-tight">
+          <h2 className="text-3xl leading-tight font-semibold tracking-tight text-white">
             Precision workflow for high-volume studio productions.
           </h2>
-          <p className="mt-3 text-sm text-zinc-300 leading-relaxed">
-            From creative briefs and shoot schedules to multi-role daily task logs and direct client approvals.
+          <p className="mt-3 text-sm leading-relaxed text-zinc-300">
+            From creative briefs and shoot schedules to multi-role daily task
+            logs and direct client approvals.
           </p>
         </div>
 
         {/* Bottom Quote */}
         <div className="relative z-10 border-t border-white/10 pt-6">
-          <blockquote className="text-xs italic text-zinc-300 leading-relaxed">
-            &ldquo;WoPhoto replaced messy email chains and ad-hoc spreadsheets with one crystal-clear production pipeline.&rdquo;
+          <blockquote className="text-xs leading-relaxed text-zinc-300 italic">
+            &ldquo;WoPhoto replaced messy email chains and ad-hoc spreadsheets
+            with one crystal-clear production pipeline.&rdquo;
           </blockquote>
           <p className="mt-2 text-[11px] font-medium text-zinc-400">
             Marcus Chen — Head of Photography, Studio Lumière
@@ -80,25 +77,24 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
 
       {/* Right Side: Clean Sign-In Form */}
       <div className="flex flex-1 flex-col justify-between p-6 sm:p-10 lg:p-12">
-        {/* Top Brand (Visible on mobile/tablet) */}
-        <div className="flex items-center justify-between lg:hidden">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-orange-600 text-white">
-              <Camera className="size-4" />
-            </div>
-            <span className="text-base font-bold tracking-tight">WoPhoto</span>
-          </div>
+        {/* Keep the full logo with the sign-in action at every breakpoint. */}
+        <div className="flex items-center justify-between gap-4">
+          <WoPhotoLogo
+            priority
+            imageClassName="h-9 w-32 sm:h-10 sm:w-36"
+          />
           <span className="text-xs text-muted-foreground">Studio Access</span>
         </div>
 
         {/* Center Form Content */}
-        <div className="my-auto mx-auto w-full max-w-md py-6">
+        <div className="mx-auto my-auto w-full max-w-md py-6">
           <div className="mb-8">
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Sign in to Studio
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Welcome back. Access your active shoots, team tasks, and asset deliveries.
+              Welcome back. Access your active shoots, team tasks, and asset
+              deliveries.
             </p>
           </div>
 
@@ -106,11 +102,12 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
           {invitationStatus === "accepted" && (
             <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-900 dark:text-emerald-200">
               <div className="flex items-start gap-3">
-                <CheckCircle2 className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <div>
                   <p className="text-sm font-semibold">Invitation Accepted</p>
-                  <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
-                    Your invitation has been registered. Continue with your invited Google account to access your studio workspace.
+                  <p className="mt-1 text-xs leading-relaxed text-emerald-800 dark:text-emerald-300">
+                    Your invitation has been registered. Continue with your
+                    invited Google account to access your studio workspace.
                   </p>
                 </div>
               </div>
@@ -120,11 +117,14 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
           {invitationStatus === "invalid" && (
             <div className="mb-6 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" />
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
                 <div>
-                  <p className="text-sm font-semibold">Invalid or Expired Invitation</p>
+                  <p className="text-sm font-semibold">
+                    Invalid or Expired Invitation
+                  </p>
                   <p className="mt-1 text-xs leading-relaxed opacity-90">
-                    That invitation could not be accepted. It may have expired or already been used. Ask your manager for a new invitation.
+                    That invitation could not be accepted. It may have expired
+                    or already been used. Ask your manager for a new invitation.
                   </p>
                 </div>
               </div>
@@ -134,10 +134,10 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
           {error === "AccountSuspended" ? (
             <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
               <div className="flex items-start gap-3">
-                <ShieldAlert className="size-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
                 <div>
                   <p className="text-sm font-semibold">Account Suspended</p>
-                  <p className="mt-1 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                  <p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
                     {errorMessage}
                   </p>
                 </div>
@@ -146,7 +146,7 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
           ) : errorMessage ? (
             <div className="mb-6 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" />
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
                 <div>
                   <p className="text-sm font-semibold">Sign-In Notice</p>
                   <p className="mt-1 text-xs leading-relaxed opacity-90">
@@ -172,39 +172,46 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 text-xs text-muted-foreground leading-relaxed">
-              <div className="flex items-center gap-1.5 font-medium text-foreground mb-1">
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 text-xs leading-relaxed text-muted-foreground">
+              <div className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
                 <HelpCircle className="size-3.5 text-orange-600 dark:text-orange-400" />
                 <span>Invitation Required</span>
               </div>
-              WoPhoto currently supports Google sign-in for invited members. Email and password sign-in is not available yet.
+              WoPhoto currently supports Google sign-in for invited members.
+              Email and password sign-in is not available yet.
             </div>
           </form>
         </div>
 
         {/* Bottom Security & Help Footer */}
-        <div className="border-t border-border/50 pt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4 text-xs text-muted-foreground">
           <span>© 2026 WoPhoto Studio</span>
           <div className="flex items-center gap-4">
-            <span className="hover:text-foreground transition-colors cursor-default">Privacy</span>
-            <span className="hover:text-foreground transition-colors cursor-default">Terms</span>
-            <span className="hover:text-foreground transition-colors cursor-default">Support</span>
+            <Link href="/privacy" className="transition-colors hover:text-foreground focus-visible:underline">
+              Privacy
+            </Link>
+            <Link href="/terms" className="transition-colors hover:text-foreground focus-visible:underline">
+              Terms
+            </Link>
+            <span className="cursor-default transition-colors hover:text-foreground">
+              Support
+            </span>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function GoogleSubmitButton() {
-  const { pending } = useFormStatus();
+  const { pending } = useFormStatus()
 
   return (
     <Button
       type="submit"
       variant="outline"
       disabled={pending}
-      className="h-11 w-full gap-3 bg-card text-foreground hover:bg-muted font-medium text-sm transition-all duration-150 shadow-xs border-border"
+      className="h-11 w-full gap-3 border-border bg-card text-sm font-medium text-foreground shadow-xs transition-all duration-150 hover:bg-muted"
     >
       {pending ? (
         <>
@@ -218,7 +225,7 @@ function GoogleSubmitButton() {
         </>
       )}
     </Button>
-  );
+  )
 }
 
 function GoogleMark() {
@@ -241,5 +248,5 @@ function GoogleMark() {
         d="M12 4.36c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.09 14.97 0 12 0a11 11 0 0 0-9.85 7.05l3.69 2.84C6.71 7.29 9.14 4.36 12 4.36Z"
       />
     </svg>
-  );
+  )
 }

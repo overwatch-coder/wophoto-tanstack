@@ -5,13 +5,14 @@ import { createGoogleGeminiChatResponse } from "@/lib/ai/google-chat";
 import { createGroqChatResponse } from "@/lib/ai/groq-chat";
 import { createOpenAIResponsesChatResponse } from "@/lib/ai/openai-responses-chat";
 import { createStudioTools } from "@/lib/ai/tools";
-import { convertToCoreMessages, streamText, type UIMessage } from "ai";
+import { convertToCoreMessages, createDataStreamResponse, formatDataStreamPart, streamText, type UIMessage } from "ai";
 import { decryptAIKey } from "@/lib/ai/credentials";
 import { AIProvider } from "@/lib/settings-preferences";
 import { getEffectiveCopilotName } from "@/lib/ai/copilot-name";
 import { getImageCapabilityError } from "@/lib/ai/model-capabilities";
 import { getFocusedToolNames, getPendingClarificationToolName, restrictTools } from "@/lib/ai/tool-routing";
 import { MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/ai/attachment-types";
+import { consumeCopilotDailyRequest, getCopilotRuntimeConfig, getCopilotStudioId, isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
 import { z } from "zod";
 
 export const maxDuration = 30;
@@ -74,6 +75,10 @@ export async function POST(req: Request) {
     if (!session?.user?.id) {
       return new Response("Unauthorized", { status: 401 });
     }
+    const studioId = await getCopilotStudioId(session.user.id, session.user.role);
+    if (!studioId || !(await isCopilotEnabledForUser(session.user.id, session.user.role))) {
+      return chatError("Copilot is currently disabled for your account by your studio manager.", 403);
+    }
 
     const MAX_CHAT_BODY_SIZE = 30 * 1024 * 1024; // Base64 encoding expands a 20MB attachment batch.
     const contentLength = Number(req.headers.get("content-length") || 0);
@@ -110,12 +115,15 @@ export async function POST(req: Request) {
       },
     });
 
-    const providerResult = providerSchema.safeParse(preference?.aiProvider || "OPENAI");
+    const studioConfig = await getCopilotRuntimeConfig(studioId);
+    const useSharedConnection = Boolean(studioConfig?.apiKey);
+
+    const providerResult = providerSchema.safeParse(useSharedConnection ? studioConfig?.provider : preference?.aiProvider || "OPENAI");
     if (!providerResult.success) {
       return chatError("The selected AI provider is invalid. Choose a provider again in Settings.", 400);
     }
     const provider = providerResult.data as AIProvider;
-    const model = preference?.aiModel || "gpt-6.1-sol";
+    const model = useSharedConnection ? studioConfig?.model || "gpt-6.1-sol" : preference?.aiModel || "gpt-6.1-sol";
     const hasImageAttachment = messages.some((message) =>
       message.experimental_attachments?.some((attachment) => attachment.url.startsWith("data:image/")),
     );
@@ -123,10 +131,16 @@ export async function POST(req: Request) {
       const capabilityError = getImageCapabilityError(provider, model);
       if (capabilityError) return chatError(capabilityError, 400);
     }
-    const customApiKey = preference?.aiApiKeyProvider === provider
+    const customApiKey = useSharedConnection
+      ? studioConfig?.apiKey
+      : preference?.aiApiKeyProvider === provider
       ? decryptAIKey(preference.aiApiKeyEncrypted)
       : undefined;
-    const customEndpoint = preference?.aiCustomEndpoint || undefined;
+    const customEndpoint = useSharedConnection ? studioConfig?.customEndpoint : preference?.aiCustomEndpoint || undefined;
+    if (useSharedConnection && studioConfig) {
+      const usage = await consumeCopilotDailyRequest(studioId, session.user.id, session.user.role, provider, model);
+      if (!usage.allowed) return chatError(`You have reached the studio daily Copilot limit (${usage.limit} requests). Try again tomorrow or ask your manager to adjust the limit.`, 429);
+    }
     const autonomousExecution = preference?.aiAutonomousExecution ?? false;
     const copilotName = await getEffectiveCopilotName(
       session.user.id,
@@ -157,6 +171,7 @@ Guidelines:
 - Use the smallest number of tools that can answer the request. For a clear single-purpose request, call only its matching tool once; do not make exploratory checks before a direct database query or action tool. Never repeat a completed lookup with the same inputs. For changes requiring confirmation, stop after the proposal tool returns; do not make more tool calls.
   - For requests to get, list, count, or inspect studio data (projects, tasks, deleted tasks, feedback, work requests, notifications, comments, ratings, invitations, team, inventory items, inventory loans, or inventory maintenance), use 'query_studio_data'. Choose COUNT when they ask how many, LIST for multiple records, and GET for a specific record. For an unqualified count, use an empty filters array; add filters only when the user names criteria such as upcoming deadlines, status, client, or title. Report the exact count returned by the tool without estimating or replacing it. Never conclude that a database category is empty from a keyword search result.
   - For inventory changes, use 'prepare_inventory_action' and always wait for explicit confirmation. For edits, retirement, checkout, return, or maintenance resolution, first query the matching inventory item, loan, or maintenance record with 'query_studio_data', then prepare one action proposal using its ID. For a new inventory item, prepare the action directly from the user's details. Never make inventory changes automatically, including when autonomous execution is enabled.
+  - When a worker asks to log, record, or submit completed daily work, use 'create_daily_entry'. Return its review proposal and wait for the worker to confirm before saving the daily entry.
   - Use 'smart_search' only to discover matching records by keywords or names; an empty result means no keyword match, not that the underlying records do not exist.
   - If the user asks about a client review, feedback, or image revision pins and wants keyword discovery, execute 'smart_search'.
   - If the user asks about retoucher availability or capacity, execute 'query_team_capacity'.
@@ -239,16 +254,25 @@ Guidelines:
       customEndpoint,
     });
 
-    const result = streamText({
-      model: languageModel,
-      system: systemPrompt,
-      messages: convertToCoreMessages(messages as unknown as UIMessage[], { tools }),
-      tools,
-      maxSteps: focusedToolNames?.includes("prepare_client_feedback") || focusedToolNames?.includes("prepare_work_request") || focusedToolNames?.includes("create_invitation") ? 1 : 3,
-      experimental_activeTools: Object.keys(tools) as Array<keyof typeof tools>,
-    });
+    return createDataStreamResponse({
+      onError: getSafeAIErrorMessage,
+      execute: async (stream) => {
+        const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
+        reportActivity("Understanding your request…");
 
-    return result.toDataStreamResponse({ getErrorMessage: getSafeAIErrorMessage });
+        const result = streamText({
+          model: languageModel,
+          system: systemPrompt,
+          messages: convertToCoreMessages(messages as unknown as UIMessage[], { tools }),
+          tools,
+          maxSteps: focusedToolNames?.includes("prepare_client_feedback") || focusedToolNames?.includes("prepare_work_request") || focusedToolNames?.includes("create_invitation") ? 1 : 3,
+          experimental_activeTools: Object.keys(tools) as Array<keyof typeof tools>,
+          onStepFinish: () => reportActivity("Reviewing the information gathered…"),
+        });
+
+        result.mergeIntoDataStream(stream);
+      },
+    });
   } catch (error) {
     console.error("AI Chat Route Error:", error);
     if (error instanceof Error && /does not have access to model/i.test(error.message)) {

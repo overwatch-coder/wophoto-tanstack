@@ -12,7 +12,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
       <div className="w-full max-w-6xl">
         <Suspense
           fallback={
-            <div className="min-h-[640px] w-full rounded-2xl border border-border bg-card animate-pulse" />
+            <div className="min-h-160 w-full rounded-2xl border border-border bg-card animate-pulse" />
           }
         >
           <LoginContent searchParams={searchParams} />

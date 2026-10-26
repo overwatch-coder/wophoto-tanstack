@@ -79,7 +79,10 @@ export function createOpenAIResponsesChatResponse(args: {
     headers: { "Cache-Control": "no-cache" },
     onError: () => "The Copilot could not complete that request. Check the provider setup and try again.",
     execute: async (stream) => {
+      const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
+      reportActivity("Understanding your request…");
       for (let step = 0; step < 5; step += 1) {
+        if (step > 0) reportActivity("Reviewing the information gathered…");
         let response;
         try {
           response = await client.responses.create({
@@ -112,6 +115,7 @@ export function createOpenAIResponsesChatResponse(args: {
         const functionCalls = outputItems.filter((item) => item.type === "function_call");
 
         if (!functionCalls.length) {
+          reportActivity("Preparing your response…");
           const finalText = outputItems
             .filter((item) => item.type === "message")
             .flatMap((item) => item.content)

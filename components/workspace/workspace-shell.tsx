@@ -37,6 +37,7 @@ type WorkspaceShellProps = {
   density: SettingsDensity
   soundAlerts: boolean
   copilotName: string
+  copilotEnabled: boolean
 }
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
@@ -63,6 +64,7 @@ function WorkspaceShellContent({
   initialUnreadActionCount,
   initialUnreadUpdateCount,
   copilotName,
+  copilotEnabled,
 }: WorkspaceShellProps) {
   const { density, soundAlerts } = useWorkspacePreferences()
   const pathname = usePathname()
@@ -91,7 +93,7 @@ function WorkspaceShellContent({
         role={role}
         userId={userId}
       />
-      <SidebarInset className="min-h-svh w-full max-w-full min-w-0 overflow-x-hidden rounded-none">
+      <SidebarInset className="min-h-svh w-full max-w-full min-w-0 overflow-x-clip rounded-none">
         <header className="flex min-h-16 shrink-0 items-center gap-3 border-b bg-background px-3 sm:px-5">
           <SidebarTrigger
             aria-label="Toggle navigation sidebar"
@@ -117,11 +119,11 @@ function WorkspaceShellContent({
         </header>
         <div
           id="workspace-content"
-          className="w-full max-w-full min-w-0 flex-1 overflow-x-hidden px-3 py-6 sm:px-6 sm:py-8"
+          className="w-full max-w-full min-w-0 flex-1 overflow-x-clip px-3 py-6 sm:px-6 sm:py-8"
         >
           {children}
         </div>
-        <StudioCopilot copilotName={copilotName} />
+        {copilotEnabled && <StudioCopilot copilotName={copilotName} />}
       </SidebarInset>
     </SidebarProvider>
   )

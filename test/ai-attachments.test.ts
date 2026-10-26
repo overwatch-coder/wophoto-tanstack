@@ -7,9 +7,11 @@ import {
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
+  isCopilotEnabled: vi.fn(() => true),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/ai/copilot-access", () => ({ isCopilotEnabledForUser: mocks.isCopilotEnabled }));
 
 import { POST } from "@/app/api/chat/attachments/route";
 

@@ -102,9 +102,26 @@ const markdownComponents = {
 };
 
 function getToolInvocations(message: UIMessage) {
-  return message.parts?.flatMap((part) =>
+  const partInvocations = message.parts?.flatMap((part) =>
     part.type === "tool-invocation" ? [part.toolInvocation] : [],
   ) ?? [];
+  if (partInvocations.length > 0) return partInvocations;
+
+  // AI SDK v4 still populates the deprecated toolInvocations field for some
+  // stream paths, so keep traces visible across both message representations.
+  return message.toolInvocations ?? [];
+}
+
+function getCopilotActivity(message: UIMessage): string | null {
+  const annotations = message.annotations ?? [];
+  for (let index = annotations.length - 1; index >= 0; index -= 1) {
+    const annotation = annotations[index];
+    if (!annotation || typeof annotation !== "object" || Array.isArray(annotation)) continue;
+    if (annotation.type === "copilot-activity" && typeof annotation.label === "string") {
+      return annotation.label;
+    }
+  }
+  return null;
 }
 
 function getToolProgressLabel(toolName: string, rawArgs: unknown): string {
@@ -401,6 +418,10 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
     ],
   });
   const isLoading = status === "submitted" || status === "streaming";
+  const latestMessage = messages[messages.length - 1];
+  const activeAssistantMessageId = latestMessage?.role === "assistant" ? latestMessage.id : null;
+  const hasAssistantProgress = activeAssistantMessageId !== null &&
+    (getCopilotActivity(latestMessage) !== null || getToolInvocations(latestMessage).length > 0);
 
   useEffect(() => {
     setShortcutModifier(getShortcutModifier());
@@ -679,7 +700,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
           invitePath: result.invitePath,
         },
       }));
-      if (proposalType === "CREATE_PROJECT" || proposalType === "CREATE_TASK_BATCH" || proposalType === "INVENTORY_ACTION") {
+      if (proposalType === "CREATE_PROJECT" || proposalType === "CREATE_TASK_BATCH" || proposalType === "CREATE_DAILY_ENTRY" || proposalType === "INVENTORY_ACTION") {
         router.refresh();
       }
       if (proposalType === "CREATE_INVITATION") router.refresh();
@@ -840,6 +861,16 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                               </Trace>
                             )}
 
+                            {isLoading && m.id === activeAssistantMessageId && getToolInvocations(m).every((toolCall) => toolCall.state === "result") && getCopilotActivity(m) && (
+                              <Trace className="mb-2">
+                                <TraceLine status="running">
+                                  <TraceIcon><Bot className="size-3.5 text-primary" /></TraceIcon>
+                                  <TraceTitle><span className="text-xs">{getCopilotActivity(m)}</span></TraceTitle>
+                                  <TraceDescription>In progress</TraceDescription>
+                                </TraceLine>
+                              </Trace>
+                            )}
+
                             {/* Message Text and Attachments */}
                             {(getMessageText(m) || (m.experimental_attachments && m.experimental_attachments.length > 0)) && (
                               <div
@@ -956,6 +987,9 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                   const invitationPreview = res.invitationPreview && typeof res.invitationPreview === "object"
                                     ? res.invitationPreview as { email?: unknown; role?: unknown }
                                     : null;
+                                  const dailyEntryPreview = res.dailyEntryPreview && typeof res.dailyEntryPreview === "object"
+                                    ? res.dailyEntryPreview as { projectName?: unknown; title?: unknown; description?: unknown; workDate?: unknown }
+                                    : null;
                                   const isApplying = status?.state === "applying";
                                   const isConfirmed = status?.state === "success";
 
@@ -981,6 +1015,14 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                               <div><dt className="text-muted-foreground">Role</dt><dd className="font-medium text-foreground">{invitationPreview.role === "CLIENT" ? "Client" : ""}</dd></div>
                                             </dl>
                                           )}
+                                          {proposalType === "CREATE_DAILY_ENTRY" && dailyEntryPreview && (
+                                            <dl className="mt-2 grid gap-1 rounded-lg bg-muted/50 px-3 py-2 text-[11px] sm:grid-cols-2">
+                                              <div><dt className="text-muted-foreground">Project</dt><dd className="font-medium text-foreground">{String(dailyEntryPreview.projectName ?? "")}</dd></div>
+                                              <div><dt className="text-muted-foreground">Work date</dt><dd className="font-medium text-foreground">{String(dailyEntryPreview.workDate ?? "")}</dd></div>
+                                              <div className="sm:col-span-2"><dt className="text-muted-foreground">Work logged</dt><dd className="font-medium text-foreground">{String(dailyEntryPreview.title ?? "")}</dd></div>
+                                              {typeof dailyEntryPreview.description === "string" && dailyEntryPreview.description && <div className="sm:col-span-2"><dt className="text-muted-foreground">Details</dt><dd className="whitespace-pre-wrap font-medium text-foreground">{dailyEntryPreview.description}</dd></div>}
+                                            </dl>
+                                          )}
                                         </div>
 
                                         <Button
@@ -999,7 +1041,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                           ) : (
                                             <>
                                               <Play className="h-3 w-3 fill-current" />
-                                              <span>{proposalType === "CREATE_INVITATION" ? "Create invitation" : "Confirm & Apply"}</span>
+                                              <span>{proposalType === "CREATE_INVITATION" ? "Create invitation" : proposalType === "CREATE_DAILY_ENTRY" ? "Save daily work" : "Confirm & Apply"}</span>
                                             </>
                                           )}
                                         </Button>
@@ -1034,10 +1076,10 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                       </MessageScrollerItem>
                     ))}
 
-                    {isLoading && (
+                    {isLoading && !hasAssistantProgress && (
                       <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground animate-pulse">
                         <Bot className="h-4 w-4 animate-spin text-primary" />
-                        <span>Copilot is reasoning and running studio tools...</span>
+                        <span>Understanding your request…</span>
                       </div>
                     )}
 
@@ -1259,6 +1301,16 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                           </Trace>
                         )}
 
+                        {isLoading && m.id === activeAssistantMessageId && getToolInvocations(m).every((toolCall) => toolCall.state === "result") && getCopilotActivity(m) && (
+                          <Trace className="mb-1.5">
+                            <TraceLine status="running">
+                              <TraceIcon><Bot className="size-3 text-primary" /></TraceIcon>
+                              <TraceTitle><span className="text-[11px]">{getCopilotActivity(m)}</span></TraceTitle>
+                              <TraceDescription>In progress</TraceDescription>
+                            </TraceLine>
+                          </Trace>
+                        )}
+
                         {/* Text and Attachments */}
                         {(getMessageText(m) || (m.experimental_attachments && m.experimental_attachments.length > 0)) && (
                           <div
@@ -1375,6 +1427,9 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                               const invitationPreview = res.invitationPreview && typeof res.invitationPreview === "object"
                                 ? res.invitationPreview as { email?: unknown; role?: unknown }
                                 : null;
+                              const dailyEntryPreview = res.dailyEntryPreview && typeof res.dailyEntryPreview === "object"
+                                ? res.dailyEntryPreview as { projectName?: unknown; title?: unknown; description?: unknown; workDate?: unknown }
+                                : null;
                               const isApplying = status?.state === "applying";
                               const isConfirmed = status?.state === "success";
 
@@ -1397,6 +1452,14 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                       <dl className="mt-2 grid gap-1 rounded-lg bg-muted/50 px-2.5 py-2 text-[10px] sm:grid-cols-2">
                                         <div><dt className="text-muted-foreground">Recipient</dt><dd className="break-all font-medium text-foreground">{String(invitationPreview.email ?? "")}</dd></div>
                                         <div><dt className="text-muted-foreground">Role</dt><dd className="font-medium text-foreground">{invitationPreview.role === "CLIENT" ? "Client" : ""}</dd></div>
+                                      </dl>
+                                    )}
+                                    {proposalType === "CREATE_DAILY_ENTRY" && dailyEntryPreview && (
+                                      <dl className="mt-2 grid gap-1 rounded-lg bg-muted/50 px-3 py-2 text-[11px] sm:grid-cols-2">
+                                        <div><dt className="text-muted-foreground">Project</dt><dd className="font-medium text-foreground">{String(dailyEntryPreview.projectName ?? "")}</dd></div>
+                                        <div><dt className="text-muted-foreground">Work date</dt><dd className="font-medium text-foreground">{String(dailyEntryPreview.workDate ?? "")}</dd></div>
+                                        <div className="sm:col-span-2"><dt className="text-muted-foreground">Work logged</dt><dd className="font-medium text-foreground">{String(dailyEntryPreview.title ?? "")}</dd></div>
+                                        {typeof dailyEntryPreview.description === "string" && dailyEntryPreview.description && <div className="sm:col-span-2"><dt className="text-muted-foreground">Details</dt><dd className="whitespace-pre-wrap font-medium text-foreground">{dailyEntryPreview.description}</dd></div>}
                                       </dl>
                                     )}
                                   </div>
@@ -1424,7 +1487,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                     ) : (
                                       <>
                                         <Play className="h-3 w-3 fill-current" />
-                                        <span>{proposalType === "CREATE_INVITATION" ? "Create invitation" : "Confirm & Apply"}</span>
+                                        <span>{proposalType === "CREATE_INVITATION" ? "Create invitation" : proposalType === "CREATE_DAILY_ENTRY" ? "Save daily work" : "Confirm & Apply"}</span>
                                       </>
                                     )}
                                   </Button>
@@ -1452,10 +1515,10 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                   </MessageScrollerItem>
                 ))}
 
-                {isLoading && (
+                {isLoading && !hasAssistantProgress && (
                   <div className="flex items-center gap-2 p-2 text-xs text-muted-foreground animate-pulse">
                     <Bot className="h-3.5 w-3.5 animate-spin text-primary" />
-                    <span>Copilot running tools...</span>
+                    <span>Understanding your request…</span>
                   </div>
                 )}
 

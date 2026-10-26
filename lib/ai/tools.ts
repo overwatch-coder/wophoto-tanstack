@@ -14,6 +14,7 @@ import { queryStudioData, studioDataQuerySchema } from "@/lib/ai/query-data";
 import { createClientInvitationProposalSchema } from "@/lib/validation/invitations";
 import { WorkRequestType } from "@/generated/prisma/client";
 import { inventoryActionPayloadSchema, prepareInventoryAction } from "@/lib/ai/inventory-proposals";
+import { prepareDailyEntryProposal } from "@/lib/ai/daily-entry-proposals";
 
 export interface ToolContext {
   userId: string;
@@ -44,6 +45,23 @@ export function createStudioTools(ctx: ToolContext) {
   });
 
   return {
+    ...(role === UserRole.WORKER ? {
+      create_daily_entry: defineStudioTool({
+        description: "Prepare a worker's daily work log for confirmation. Use only when a worker explicitly asks to log, record, or submit completed work. Preserve their description without inventing details. Identify the project by its readable name, and ask which assigned project if the name is missing or ambiguous. Use today's date when they say today. This always creates a review-and-confirm proposal; never save a daily entry directly from this tool.",
+        parameters: z.object({
+          projectName: z.string().trim().min(1).max(120).optional().describe("Readable project name the worker mentioned"),
+          title: z.string().trim().min(1).max(160).describe("Short title for the work completed, using only the worker's details"),
+          description: z.string().trim().max(5000).optional().describe("The worker's description of the completed work"),
+          workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Work date as YYYY-MM-DD; use today's date if the worker says today"),
+        }).strict(),
+        execute: async ({ projectName, title, description, workDate }) => prepareDailyEntryProposal(userId, {
+          projectName,
+          title,
+          description,
+          workDate: workDate ?? new Date().toISOString().slice(0, 10),
+        }),
+      }),
+    } : {}),
     // 1. SMART SEARCH TOOL (Read-only, Role-enforced)
     smart_search: defineStudioTool({
       description:

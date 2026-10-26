@@ -4,8 +4,10 @@ import { createProjectForManager, createProjectInputSchema, createTaskBatchForMa
 import { createInvitationForManager } from "@/lib/invitations";
 import { createClientInvitationProposalSchema } from "@/lib/validation/invitations";
 import { UserRole } from "@/generated/prisma/client";
+import { isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
 import { z } from "zod";
 import { inventoryActionPayloadSchema } from "@/lib/ai/inventory-proposals";
+import { createDailyEntryForWorker, dailyEntryProposalSchema } from "@/lib/ai/daily-entry-proposals";
 import {
   checkoutInventoryItem,
   createInventoryItem,
@@ -20,11 +22,15 @@ const confirmationSchema = z.discriminatedUnion("proposalType", [
   z.object({ proposalType: z.literal("CREATE_TASK_BATCH"), payload: createTaskBatchInputSchema }).strict(),
   z.object({ proposalType: z.literal("CREATE_INVITATION"), payload: createClientInvitationProposalSchema }).strict(),
   z.object({ proposalType: z.literal("INVENTORY_ACTION"), payload: inventoryActionPayloadSchema }).strict(),
+  z.object({ proposalType: z.literal("CREATE_DAILY_ENTRY"), payload: dailyEntryProposalSchema }).strict(),
 ]);
 
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return Response.json({ error: "Sign in to continue." }, { status: 401 });
+  if (!(await isCopilotEnabledForUser(session.user.id, session.user.role))) {
+    return Response.json({ error: "Copilot is currently disabled for your account by your studio manager." }, { status: 403 });
+  }
   if (session.user.role !== UserRole.MANAGER && session.user.role !== UserRole.WORKER) {
     return Response.json({ error: "Only managers can apply these studio changes." }, { status: 403 });
   }
@@ -39,14 +45,17 @@ export async function POST(request: Request) {
   }
 
   if (session.user.role === UserRole.WORKER &&
-    (!input || typeof input !== "object" || (input as { proposalType?: unknown }).proposalType !== "INVENTORY_ACTION")) {
-    return Response.json({ error: "Only managers can apply these studio changes." }, { status: 403 });
+    (!input || typeof input !== "object" || !["INVENTORY_ACTION", "CREATE_DAILY_ENTRY"].includes(String((input as { proposalType?: unknown }).proposalType)))) {
+    return Response.json({ error: "Workers can only confirm their own daily work entries and permitted inventory actions." }, { status: 403 });
   }
 
   const parsed = confirmationSchema.safeParse(input);
   if (!parsed.success) return Response.json({ error: "This proposal is invalid or has expired. Ask Copilot to prepare it again." }, { status: 400 });
 
-  if (parsed.data.proposalType !== "INVENTORY_ACTION" && session.user.role !== UserRole.MANAGER) {
+  if (parsed.data.proposalType === "CREATE_DAILY_ENTRY" && session.user.role !== UserRole.WORKER) {
+    return Response.json({ error: "Only workers can log daily work entries." }, { status: 403 });
+  }
+  if (parsed.data.proposalType !== "INVENTORY_ACTION" && parsed.data.proposalType !== "CREATE_DAILY_ENTRY" && session.user.role !== UserRole.MANAGER) {
     return Response.json({ error: "Only managers can apply these studio changes." }, { status: 403 });
   }
   if (parsed.data.proposalType === "INVENTORY_ACTION") {
@@ -63,6 +72,8 @@ export async function POST(request: Request) {
       result = await createProjectForManager(session.user.id, parsed.data.payload);
     } else if (parsed.data.proposalType === "CREATE_TASK_BATCH") {
       result = await createTaskBatchForManager(session.user.id, parsed.data.payload);
+    } else if (parsed.data.proposalType === "CREATE_DAILY_ENTRY") {
+      result = await createDailyEntryForWorker(session.user.id, parsed.data.payload);
     } else if (parsed.data.proposalType === "CREATE_INVITATION") {
       result = await createInvitationForManager(session.user.id, parsed.data.payload);
     } else {
@@ -89,6 +100,9 @@ export async function POST(request: Request) {
     } else if (parsed.data.proposalType === "CREATE_TASK_BATCH") {
       revalidatePath("/manager/tasks");
       revalidatePath("/manager/projects");
+    } else if (parsed.data.proposalType === "CREATE_DAILY_ENTRY") {
+      revalidatePath("/worker/tasks");
+      revalidatePath("/manager/tasks");
     }
     return Response.json(result);
   } catch (error) {

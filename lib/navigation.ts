@@ -48,6 +48,7 @@ export const workspaceNavigation: Record<WorkspaceRole, WorkspaceNavigationItem[
     { title: "My Tasks", href: "/worker/tasks", icon: ListTodo, group: "work" },
     { title: "Schedule", href: "/worker/schedule", icon: CalendarDays, group: "work" },
     { title: "Brief Review", href: "/worker/brief-review", icon: ClipboardCheck, group: "work" },
+    { title: "Explore Briefs", href: "/worker/explore-briefs", icon: FolderSearch, group: "work" },
     { title: "Reviews", href: "/worker/reviews", icon: Star, group: "work" },
     { title: "Brand Assets", href: "/worker/brand-assets", icon: Image, group: "resources" },
     { title: "Inventory", href: "/worker/inventory", icon: Boxes, group: "resources" },

@@ -64,7 +64,10 @@ export function createGroqChatResponse(args: {
     headers: { "Cache-Control": "no-cache" },
     onError: () => "The Copilot could not complete that request. Check the provider setup and try again.",
     execute: async (stream) => {
+      const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
+      reportActivity("Understanding your request…");
       for (let step = 0; step < 5; step += 1) {
+        if (step > 0) reportActivity("Reviewing the information gathered…");
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -92,6 +95,7 @@ export function createGroqChatResponse(args: {
 
         const toolCalls = assistantMessage.tool_calls ?? [];
         if (toolCalls.length === 0) {
+          reportActivity("Preparing your response…");
           const finalText = typeof assistantMessage.content === "string"
             ? assistantMessage.content
             : assistantMessage.content?.map((part) => part.text ?? "").join("") ?? "";

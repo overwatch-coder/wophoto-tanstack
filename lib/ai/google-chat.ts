@@ -97,7 +97,10 @@ export function createGoogleGeminiChatResponse(args: {
     headers: { "Cache-Control": "no-cache" },
     onError: () => "The Copilot could not complete that request. Check the provider setup and try again.",
     execute: async (stream) => {
+      const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
+      reportActivity("Understanding your request…");
       for (let step = 0; step < 5; step += 1) {
+        if (step > 0) reportActivity("Reviewing the information gathered…");
         const response = await google.models.generateContent({
           model,
           contents,
@@ -114,6 +117,7 @@ export function createGoogleGeminiChatResponse(args: {
         const functionCalls = responseParts.flatMap((part) => part.functionCall ? [part.functionCall] : []);
 
         if (!functionCalls.length) {
+          reportActivity("Preparing your response…");
           const finalText = responseParts
             .flatMap((part: Part) => !part.thought && typeof part.text === "string" ? [part.text] : [])
             .join("");

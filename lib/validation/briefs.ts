@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { BriefStatus } from "@/generated/prisma/browser";
+import { z } from "zod"
+import { BriefStatus } from "@/generated/prisma/browser"
 
-const HTTP_URL_REGEX = /^https?:\/\/.+/i;
+const HTTP_URL_REGEX = /^https?:\/\/.+/i
 
 export const SHOT_FRAMING_OPTIONS = [
   "WIDE",
@@ -10,17 +10,17 @@ export const SHOT_FRAMING_OPTIONS = [
   "EXTREME_CLOSE_UP",
   "TOP_DOWN",
   "DETAIL",
-] as const;
+] as const
 
 export const SHOT_STATUS_OPTIONS = [
   "PLANNED",
   "IN_PROGRESS",
   "COMPLETED",
   "SKIPPED",
-] as const;
+] as const
 
-export type ShotFraming = (typeof SHOT_FRAMING_OPTIONS)[number];
-export type ShotStatus = (typeof SHOT_STATUS_OPTIONS)[number];
+export type ShotFraming = (typeof SHOT_FRAMING_OPTIONS)[number]
+export type ShotStatus = (typeof SHOT_STATUS_OPTIONS)[number]
 
 export const shotItemSchema = z.object({
   id: z.string().trim().min(1, "Shot ID is required."),
@@ -36,16 +36,13 @@ export const shotItemSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-  props: z
-    .array(z.string().trim().min(1))
-    .optional()
-    .default([]),
+  props: z.array(z.string().trim().min(1)).optional().default([]),
   framing: z.enum(SHOT_FRAMING_OPTIONS).optional().default("MEDIUM"),
   status: z.enum(SHOT_STATUS_OPTIONS).default("PLANNED"),
   order: z.number().int().nonnegative().default(0),
-});
+})
 
-export type ShotItem = z.infer<typeof shotItemSchema>;
+export type ShotItem = z.infer<typeof shotItemSchema>
 
 export const createCreativeBriefSchema = z.object({
   projectId: z.string().trim().min(1, "Project selection is required."),
@@ -123,7 +120,7 @@ export const createCreativeBriefSchema = z.object({
     .transform((tags) =>
       tags.map((t) => t.trim().toLowerCase()).filter((t) => t.length > 0)
     ),
-});
+})
 
 export const updateCreativeBriefSchema = z.object({
   id: z.string().trim().min(1, "Brief ID is required."),
@@ -140,7 +137,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
   deliverables: z
     .string()
@@ -148,7 +149,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
   guidelines: z
     .string()
@@ -156,7 +161,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
   shotList: z
     .array(shotItemSchema)
@@ -171,7 +180,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     )
     .refine(
       (val) => val === undefined || val === null || HTTP_URL_REGEX.test(val),
@@ -183,7 +196,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
   fileKey: z
     .string()
@@ -191,7 +208,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
   fileName: z
     .string()
@@ -200,7 +221,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
   fileSize: z.number().int().nonnegative().optional().nullable(),
   fileMime: z
@@ -210,7 +235,11 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
   isPrimary: z.boolean().optional(),
   tags: z
@@ -229,13 +258,17 @@ export const updateCreativeBriefSchema = z.object({
     .optional()
     .nullable()
     .transform((val) =>
-      val !== undefined ? (val && val.trim() !== "" ? val.trim() : null) : undefined
+      val !== undefined
+        ? val && val.trim() !== ""
+          ? val.trim()
+          : null
+        : undefined
     ),
-});
+})
 
 export const setBriefStatusSchema = z.object({
   id: z.string().trim().min(1, "Brief ID is required."),
-  status: z.nativeEnum(BriefStatus),
+  status: z.enum(BriefStatus),
   reason: z
     .string()
     .trim()
@@ -243,7 +276,7 @@ export const setBriefStatusSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-});
+})
 
 export const submitBriefSignOffSchema = z.object({
   briefId: z.string().trim().min(1, "Brief ID is required."),
@@ -255,7 +288,7 @@ export const submitBriefSignOffSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-});
+})
 
 export const waiveBriefSignOffSchema = z.object({
   briefId: z.string().trim().min(1, "Brief ID is required."),
@@ -265,23 +298,23 @@ export const waiveBriefSignOffSchema = z.object({
     .trim()
     .min(1, "Waive reason is required.")
     .max(500, "Waive reason must be 500 characters or fewer."),
-});
+})
 
 export const addBriefReviewerSchema = z.object({
   briefId: z.string().trim().min(1, "Brief ID is required."),
   userId: z.string().trim().min(1, "User ID is required."),
-});
+})
 
 export const removeBriefReviewerSchema = z.object({
   briefId: z.string().trim().min(1, "Brief ID is required."),
   userId: z.string().trim().min(1, "User ID is required."),
-});
+})
 
 export const updateShotItemStatusSchema = z.object({
   briefId: z.string().trim().min(1, "Brief ID is required."),
   shotId: z.string().trim().min(1, "Shot ID is required."),
   status: z.enum(SHOT_STATUS_OPTIONS),
-});
+})
 
 export const postBriefQuestionSchema = z.object({
   briefId: z.string().trim().min(1, "Brief ID is required."),
@@ -297,12 +330,12 @@ export const postBriefQuestionSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-});
+})
 
 export const resolveBriefQuestionSchema = z.object({
   questionId: z.string().trim().min(1, "Question ID is required."),
   isResolved: z.boolean().default(true),
-});
+})
 
 export const getProjectBriefsQuerySchema = z.object({
   projectName: z
@@ -318,22 +351,23 @@ export const getProjectBriefsQuerySchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-  search: z
-    .string()
-    .trim()
-    .max(100)
-    .optional()
-    .default(""),
-});
+  search: z.string().trim().max(100).optional().default(""),
+})
 
-export type CreateCreativeBriefInput = z.infer<typeof createCreativeBriefSchema>;
-export type UpdateCreativeBriefInput = z.infer<typeof updateCreativeBriefSchema>;
-export type SetBriefStatusInput = z.infer<typeof setBriefStatusSchema>;
-export type SubmitBriefSignOffInput = z.infer<typeof submitBriefSignOffSchema>;
-export type WaiveBriefSignOffInput = z.infer<typeof waiveBriefSignOffSchema>;
-export type AddBriefReviewerInput = z.infer<typeof addBriefReviewerSchema>;
-export type RemoveBriefReviewerInput = z.infer<typeof removeBriefReviewerSchema>;
-export type UpdateShotItemStatusInput = z.infer<typeof updateShotItemStatusSchema>;
-export type PostBriefQuestionInput = z.infer<typeof postBriefQuestionSchema>;
-export type ResolveBriefQuestionInput = z.infer<typeof resolveBriefQuestionSchema>;
-export type GetProjectBriefsQueryInput = z.infer<typeof getProjectBriefsQuerySchema>;
+export type CreateCreativeBriefInput = z.infer<typeof createCreativeBriefSchema>
+export type UpdateCreativeBriefInput = z.infer<typeof updateCreativeBriefSchema>
+export type SetBriefStatusInput = z.infer<typeof setBriefStatusSchema>
+export type SubmitBriefSignOffInput = z.infer<typeof submitBriefSignOffSchema>
+export type WaiveBriefSignOffInput = z.infer<typeof waiveBriefSignOffSchema>
+export type AddBriefReviewerInput = z.infer<typeof addBriefReviewerSchema>
+export type RemoveBriefReviewerInput = z.infer<typeof removeBriefReviewerSchema>
+export type UpdateShotItemStatusInput = z.infer<
+  typeof updateShotItemStatusSchema
+>
+export type PostBriefQuestionInput = z.infer<typeof postBriefQuestionSchema>
+export type ResolveBriefQuestionInput = z.infer<
+  typeof resolveBriefQuestionSchema
+>
+export type GetProjectBriefsQueryInput = z.infer<
+  typeof getProjectBriefsQuerySchema
+>

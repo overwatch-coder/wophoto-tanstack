@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
   groqResponse: vi.fn(),
   resolveLanguageModel: vi.fn(),
   decryptAIKey: vi.fn(() => "test-api-key"),
+  isCopilotEnabled: vi.fn(() => true),
+  studioId: vi.fn(() => "manager-1"),
+  studioConfig: vi.fn(() => null),
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
@@ -17,6 +20,11 @@ vi.mock("@/lib/ai/openai-responses-chat", () => ({ createOpenAIResponsesChatResp
 vi.mock("@/lib/ai/tools", () => ({ createStudioTools: vi.fn(() => ({})) }));
 vi.mock("@/lib/ai/credentials", () => ({ decryptAIKey: mocks.decryptAIKey }));
 vi.mock("@/lib/ai/copilot-name", () => ({ getEffectiveCopilotName: vi.fn(() => "Test Copilot") }));
+vi.mock("@/lib/ai/copilot-access", () => ({
+  isCopilotEnabledForUser: mocks.isCopilotEnabled,
+  getCopilotStudioId: mocks.studioId,
+  getCopilotRuntimeConfig: mocks.studioConfig,
+}));
 vi.mock("ai", () => ({ convertToCoreMessages: vi.fn(() => []), streamText: vi.fn() }));
 
 import { POST } from "@/app/api/chat/route";

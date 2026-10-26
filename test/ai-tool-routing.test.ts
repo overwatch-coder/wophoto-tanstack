@@ -3,6 +3,17 @@ import { getFocusedToolNames, getPendingClarificationToolName, restrictTools } f
 import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
 
 describe("Copilot tool routing", () => {
+  it("routes worker daily work logging to its confirmation tool", () => {
+    expect(getFocusedToolNames("Please log my daily work: I logged 20 photos today for Jossy Wedding", "WORKER"))
+      .toEqual(["create_daily_entry"]);
+    const messages = [
+      { role: "assistant", parts: [{ type: "tool-invocation", toolInvocation: { toolName: "create_daily_entry", state: "result", result: { needsInput: true, message: "Which project?" } } }] },
+      { role: "user", content: "Jossy Wedding" },
+    ];
+    expect(getPendingClarificationToolName(messages)).toBe("create_daily_entry");
+    expect(getFocusedToolNames("Jossy Wedding", "WORKER", "create_daily_entry")).toEqual(["create_daily_entry"]);
+  });
+
   it("routes a direct project creation request to the project tool only", () => {
     expect(getFocusedToolNames("Create a new project named My PhD journey"))
       .toEqual(["create_project"]);

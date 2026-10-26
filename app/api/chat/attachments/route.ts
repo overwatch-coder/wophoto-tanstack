@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import { isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
 import {
   processUploadedFile,
   MAX_ATTACHMENT_SIZE_BYTES,
@@ -15,6 +16,9 @@ export async function POST(req: Request) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!(await isCopilotEnabledForUser(session.user.id, session.user.role))) {
+      return NextResponse.json({ error: "Copilot is currently disabled for your account by your studio manager." }, { status: 403 });
     }
 
     const contentType = req.headers.get("content-type") || "";

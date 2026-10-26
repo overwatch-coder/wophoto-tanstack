@@ -9,6 +9,7 @@ import { getNotifications, getUnreadNotificationCounts } from "@/lib/notificatio
 import { getUserPreferences } from "@/lib/user-preferences";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { WorkspaceShellLoading } from "@/components/workspace/workspace-shell-loading";
+import { isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,11 +27,12 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
   const user = await requireUser();
   if (!isWorkspaceRole(user.role)) redirect("/forbidden");
 
-  const [cookieStore, initialNotifications, initialUnreadCounts, preferences] = await Promise.all([
+  const [cookieStore, initialNotifications, initialUnreadCounts, preferences, copilotEnabled] = await Promise.all([
     cookies(),
     getNotifications(user.id),
     getUnreadNotificationCounts(user.id),
     getUserPreferences(user.id, user.role),
+    isCopilotEnabledForUser(user.id, user.role),
   ]);
   const defaultSidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
@@ -49,6 +51,7 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
       density={preferences.density}
       soundAlerts={preferences.soundAlerts}
       copilotName={preferences.aiPreferences.aiCopilotName}
+      copilotEnabled={copilotEnabled}
     >
       {children}
     </WorkspaceShell>
