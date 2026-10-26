@@ -4,6 +4,8 @@ import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { decryptAIKey, isEncryptedAIKey } from "@/lib/ai/credentials";
 import { prisma } from "@/lib/prisma";
 import type { AIProvider } from "@/lib/settings-preferences";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
+import { StudioAccessLevel, StudioArea } from "@/generated/prisma/client";
 
 export type CopilotMember = {
   userId: string;
@@ -24,31 +26,40 @@ export type CopilotStudioSettingsView = {
   dailyRequestLimit: number;
   members: CopilotMember[];
   usageTodayTotal: number;
-  usageByUser: Array<{ userId: string; name: string; role: "MANAGER" | "WORKER" | "CLIENT"; count: number }>;
+  usageByUser: Array<{ userId: string; name: string; role: UserRole; count: number }>;
 };
 
 export async function getCopilotStudioId(userId: string, role: UserRole): Promise<string | null> {
   if (role === UserRole.MANAGER) return userId;
 
+  if (role === UserRole.SUPERVISOR || role === UserRole.COLLABORATOR) {
+    const context = await getStudioAccessContext(userId, role);
+    return context?.ownerUserId ?? null;
+  }
+
   const invitation = await prisma.invitation.findFirst({
     where: { acceptedUserId: userId, status: { in: ["ACCEPTED", "USED"] } },
-    select: { invitedById: true },
+    select: { studio: { select: { ownerUserId: true } } },
   });
-  if (invitation) return invitation.invitedById;
+  if (invitation?.studio?.ownerUserId) return invitation.studio.ownerUserId;
 
   if (role === UserRole.CLIENT) {
     const project = await prisma.project.findFirst({
       where: { clientId: userId },
       orderBy: { updatedAt: "desc" },
-      select: { managerId: true },
+      select: { studio: { select: { ownerUserId: true } } },
     });
-    return project?.managerId ?? null;
+    return project?.studio?.ownerUserId ?? null;
   }
 
   return null;
 }
 
 export async function isCopilotEnabledForUser(userId: string, role: UserRole): Promise<boolean> {
+  if (role === UserRole.SUPERVISOR || role === UserRole.COLLABORATOR) {
+    const context = await getStudioAccessContext(userId, role);
+    if (!context || !hasStudioAccess(context, StudioArea.COPILOT, StudioAccessLevel.VIEW)) return false;
+  }
   const managerId = await getCopilotStudioId(userId, role);
   if (!managerId) return false;
 
@@ -180,7 +191,7 @@ export async function consumeCopilotDailyRequest(
   return prisma.$transaction(async (tx) => {
     const policy = await tx.copilotStudioPolicy.findUnique({
       where: { managerId },
-      select: { dailyRequestLimit: true },
+      select: { dailyRequestLimit: true, studioId: true },
     });
     if (!policy) return { allowed: true };
     const startOfDay = new Date();
@@ -189,7 +200,7 @@ export async function consumeCopilotDailyRequest(
     if (policy.dailyRequestLimit > 0 && todayCount >= policy.dailyRequestLimit) {
       return { allowed: false, limit: policy.dailyRequestLimit };
     }
-    await tx.copilotUsageEvent.create({ data: { managerId, userId, role, provider, model } });
+    await tx.copilotUsageEvent.create({ data: { managerId, studioId: policy.studioId, userId, role, provider, model } });
     return { allowed: true };
   }, { isolationLevel: "Serializable" });
 }

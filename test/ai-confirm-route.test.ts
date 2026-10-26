@@ -34,6 +34,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findFirst: mocks.findClient, findMany: mocks.findWorkers },
     project: { create: mocks.createProject, findFirst: mocks.findProject },
+    studio: { findUnique: vi.fn().mockResolvedValue({ id: "studio-1", ownerUserId: "manager-1" }) },
     task: { create: mocks.createTask },
     $transaction: vi.fn(async (operations: Promise<unknown>[]) => Promise.all(operations)),
   },
@@ -111,6 +112,7 @@ describe("Copilot proposal confirmation route", () => {
         description: "Editorial photography production for the autumn collection.",
         managerId: "manager-1",
         clientId: "client-1",
+        studioId: "studio-1",
       },
       select: { id: true, name: true },
     });

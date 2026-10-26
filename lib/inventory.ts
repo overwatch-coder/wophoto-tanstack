@@ -8,6 +8,8 @@ import {
   UserRole,
 } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { requireStudioArea } from "@/lib/studio-access";
+import { StudioArea } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function generateNextAssetTag(): Promise<string> {
@@ -38,7 +40,9 @@ export interface InventoryCatalogFilters {
 }
 
 export async function getInventoryCatalog(filters: InventoryCatalogFilters = {}) {
-  const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.INVENTORY);
+  const user = current.role === UserRole.WORKER ? current : { ...current, id: studio!.context.ownerUserId };
 
   const search = filters.search?.trim().slice(0, 100);
   const category = filters.category?.trim() || undefined;
@@ -63,16 +67,19 @@ export async function getInventoryCatalog(filters: InventoryCatalogFilters = {})
     : {};
 
   const where: Prisma.InventoryItemWhereInput = {
+    ...(user.role === UserRole.WORKER ? {} : { studioId: studio!.context.studioId }),
     ...searchWhere,
     ...(category && category !== "ALL" ? { category } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
   };
   const activeCheckoutWhere: Prisma.InventoryItemWhereInput = {
+    ...(user.role === UserRole.WORKER ? {} : { studioId: studio!.context.studioId }),
     ...searchWhere,
     ...(category && category !== "ALL" ? { category } : {}),
     status: InventoryStatus.IN_USE,
   };
   const activityWhere: Prisma.InventoryActivityLogWhereInput = {
+    ...(user.role === UserRole.WORKER ? {} : { item: { studioId: studio!.context.studioId } }),
     ...(user.role === UserRole.WORKER ? { actorId: user.id } : {}),
     ...(search
       ? {
@@ -237,10 +244,11 @@ export async function getInventoryCatalog(filters: InventoryCatalogFilters = {})
 }
 
 export async function getInventoryItem(id: string) {
-  await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.INVENTORY);
 
-  const item = await prisma.inventoryItem.findUnique({
-    where: { id },
+  const item = await prisma.inventoryItem.findFirst({
+    where: { id, ...(current.role === UserRole.WORKER ? {} : { studioId: studio!.context.studioId }) },
     include: {
       loans: {
         orderBy: { checkedOutAt: "desc" },
@@ -299,13 +307,16 @@ export async function getInventoryItem(id: string) {
 }
 
 export async function getUserActiveLoans(userId: string) {
-  await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.INVENTORY);
+  const borrowerId = current.role === UserRole.WORKER ? current.id : userId;
 
   const now = new Date();
   const loans = await prisma.inventoryLoan.findMany({
     where: {
-      borrowerId: userId,
+      borrowerId,
       status: LoanStatus.ACTIVE,
+      ...(studio ? { item: { studioId: studio.context.studioId } } : {}),
     },
     orderBy: { checkedOutAt: "desc" },
     include: {
@@ -322,11 +333,11 @@ export async function getUserActiveLoans(userId: string) {
 }
 
 export async function getMaintenanceQueue(status?: MaintenanceStatus) {
-  await requireRole(UserRole.MANAGER);
+  const { context } = await requireStudioArea(StudioArea.INVENTORY);
 
   const where: Prisma.InventoryMaintenanceLogWhereInput = status
-    ? { status }
-    : { status: { in: [MaintenanceStatus.OPEN, MaintenanceStatus.IN_PROGRESS] } };
+    ? { status, item: { studioId: context.studioId } }
+    : { status: { in: [MaintenanceStatus.OPEN, MaintenanceStatus.IN_PROGRESS] }, item: { studioId: context.studioId } };
 
   return prisma.inventoryMaintenanceLog.findMany({
     where,

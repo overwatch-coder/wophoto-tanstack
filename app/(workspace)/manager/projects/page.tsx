@@ -8,7 +8,8 @@ import {
 } from "@/generated/prisma/client"
 import { ProjectManagement } from "@/components/projects/project-management"
 import { prisma } from "@/lib/prisma"
-import { requireRole } from "@/lib/authz"
+import { StudioArea } from "@/generated/prisma/client"
+import { requireStudioArea } from "@/lib/studio-access"
 import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination"
 import { parseProjectQuery } from "@/lib/validation/queries"
 import { cleanClientName } from "@/lib/format"
@@ -35,7 +36,8 @@ async function ManagerProjectsContent({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const manager = await requireRole(UserRole.MANAGER)
+  const { user, context } = await requireStudioArea(StudioArea.PROJECTS)
+  const manager = { ...user, id: context.ownerUserId }
   const params = await searchParams
   const filters = parseProjectQuery(params)
   const q = filters.query

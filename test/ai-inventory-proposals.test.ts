@@ -7,8 +7,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/studio-access", () => ({
+  getStudioAccessContext: async (userId: string) => ({ studioId: `studio-${userId}`, ownerUserId: userId, isOwner: true, memberId: null, role: "MANAGER", grants: {} }),
+  hasStudioAccess: () => true,
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    studio: { findUnique: vi.fn().mockResolvedValue({ id: "studio-manager-1", ownerUserId: "manager-1" }) },
     inventoryItem: { findUnique: mocks.itemFindUnique },
     inventoryLoan: { findUnique: mocks.loanFindUnique },
     inventoryMaintenanceLog: { findUnique: mocks.maintenanceFindUnique },

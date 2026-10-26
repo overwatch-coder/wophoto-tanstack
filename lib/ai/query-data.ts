@@ -1,8 +1,9 @@
 import "server-only";
 
 import { z } from "zod";
-import { Prisma, UserRole } from "@/generated/prisma/client";
+import { Prisma, StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 
 const queryValueSchema = z.union([
   z.string().trim().min(1).max(200),
@@ -45,7 +46,9 @@ export const studioDataQuerySchema = z.object({
 
 export type StudioDataQuery = z.infer<typeof studioDataQuerySchema>;
 
-type QueryContext = { userId: string; role: UserRole };
+type QueryContext = { userId: string; role: UserRole; studioId?: string };
+const MANAGER_SIDE_ROLES: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR];
+const isManagerSide = (ctx: QueryContext) => MANAGER_SIDE_ROLES.includes(ctx.role);
 type QueryOperator = z.infer<typeof queryFilterSchema>["operator"];
 type QueryFilter = z.infer<typeof queryFilterSchema>;
 
@@ -124,7 +127,7 @@ function booleanCondition(filter: QueryFilter, field: string) {
 }
 
 function getProjectScope(ctx: QueryContext): Prisma.ProjectWhereInput {
-  if (ctx.role === UserRole.MANAGER) return { managerId: ctx.userId };
+  if (isManagerSide(ctx)) return { studioId: ctx.studioId ?? "__missing_studio__" };
   if (ctx.role === UserRole.CLIENT) return { clientId: ctx.userId };
   return {
     tasks: { some: { deletedAt: null, assignees: { some: { userId: ctx.userId } } } },
@@ -135,20 +138,20 @@ function getTaskScope(ctx: QueryContext, includeDeleted: boolean): Prisma.TaskWh
   const clauses: Prisma.TaskWhereInput[] = [
     includeDeleted ? { deletedAt: { not: null } } : { deletedAt: null },
   ];
-  if (ctx.role === UserRole.MANAGER) clauses.push({ project: { managerId: ctx.userId } });
+  if (isManagerSide(ctx)) clauses.push({ project: { studioId: ctx.studioId ?? "__missing_studio__" } });
   else if (ctx.role === UserRole.WORKER) clauses.push({ assignees: { some: { userId: ctx.userId } } });
   else clauses.push({ id: "__client_tasks_are_not_available__" });
   return { AND: clauses };
 }
 
 function getFeedbackScope(ctx: QueryContext): Prisma.ClientFeedbackWhereInput {
-  if (ctx.role === UserRole.MANAGER) return { project: { managerId: ctx.userId } };
+  if (isManagerSide(ctx)) return { project: { studioId: ctx.studioId ?? "__missing_studio__" } };
   if (ctx.role === UserRole.WORKER) return { assignedWorkerId: ctx.userId };
   return { clientId: ctx.userId };
 }
 
 function getCommentScope(ctx: QueryContext): Prisma.CommentWhereInput {
-  if (ctx.role === UserRole.MANAGER) return { project: { managerId: ctx.userId } };
+  if (isManagerSide(ctx)) return { project: { studioId: ctx.studioId ?? "__missing_studio__" } };
   if (ctx.role === UserRole.CLIENT) {
     return { project: { clientId: ctx.userId }, visibility: "CLIENT_VISIBLE" };
   }
@@ -158,18 +161,18 @@ function getCommentScope(ctx: QueryContext): Prisma.CommentWhereInput {
 }
 
 function getRatingScope(ctx: QueryContext): Prisma.RatingWhereInput {
-  if (ctx.role === UserRole.MANAGER) return { project: { managerId: ctx.userId } };
+  if (isManagerSide(ctx)) return { project: { studioId: ctx.studioId ?? "__missing_studio__" } };
   if (ctx.role === UserRole.CLIENT) return { clientId: ctx.userId };
   return { task: { is: { assignees: { some: { userId: ctx.userId } } } } };
 }
 
 function getInvitationScope(ctx: QueryContext): Prisma.InvitationWhereInput {
-  if (ctx.role === UserRole.MANAGER) return { invitedById: ctx.userId };
+  if (isManagerSide(ctx)) return { studioId: ctx.studioId ?? "__missing_studio__" };
   return { acceptedUserId: ctx.userId };
 }
 
 function getWorkRequestScope(ctx: QueryContext): Prisma.WorkRequestWhereInput {
-  if (ctx.role === UserRole.MANAGER) return { managerId: ctx.userId };
+  if (isManagerSide(ctx)) return { studioId: ctx.studioId ?? "__missing_studio__" };
   if (ctx.role === UserRole.CLIENT) return { clientId: ctx.userId };
   throw new Error("Worker accounts cannot query client work requests.");
 }
@@ -178,6 +181,7 @@ function projectTaskScope(ctx: QueryContext): Prisma.TaskWhereInput {
   return {
     deletedAt: null,
     ...(ctx.role === UserRole.WORKER ? { assignees: { some: { userId: ctx.userId } } } : {}),
+    ...(isManagerSide(ctx) ? { project: { studioId: ctx.studioId ?? "__missing_studio__" } } : {}),
   };
 }
 
@@ -361,7 +365,7 @@ function getEntityWhere(ctx: QueryContext, input: StudioDataQuery) {
   if (input.entity === "PROJECTS") clauses.push(getProjectScope(ctx));
   else if (input.entity === "TASKS") clauses.push(getTaskScope(ctx, false));
   else if (input.entity === "DELETED_TASKS") {
-    if (ctx.role !== UserRole.MANAGER) throw new Error("Deleted tasks can only be queried by a manager.");
+    if (!isManagerSide(ctx)) throw new Error("Deleted tasks can only be queried by a manager.");
     clauses.push(getTaskScope(ctx, true));
   } else if (input.entity === "FEEDBACK") clauses.push(getFeedbackScope(ctx));
   else if (input.entity === "NOTIFICATIONS") clauses.push({ userId: ctx.userId, inAppVisible: true });
@@ -370,8 +374,8 @@ function getEntityWhere(ctx: QueryContext, input: StudioDataQuery) {
   else if (input.entity === "INVITATIONS") clauses.push(getInvitationScope(ctx));
   else if (input.entity === "WORK_REQUESTS") clauses.push(getWorkRequestScope(ctx));
   else if (input.entity === "TEAM") {
-    if (ctx.role === UserRole.MANAGER) {
-      clauses.push({ role: UserRole.WORKER, acceptedInvitation: { is: { invitedById: ctx.userId } } });
+    if (isManagerSide(ctx)) {
+      clauses.push({ role: UserRole.WORKER, acceptedInvitation: { is: { studioId: ctx.studioId ?? "__missing_studio__" } } });
     } else if (ctx.role === UserRole.WORKER) {
       clauses.push({ id: ctx.userId, role: UserRole.WORKER });
     } else {
@@ -379,11 +383,14 @@ function getEntityWhere(ctx: QueryContext, input: StudioDataQuery) {
     }
   } else if (input.entity === "INVENTORY") {
     if (ctx.role === UserRole.CLIENT) throw new Error("Client accounts cannot query internal inventory.");
+    if (isManagerSide(ctx)) clauses.push({ studioId: ctx.studioId ?? "__missing_studio__" });
   } else if (input.entity === "INVENTORY_LOANS") {
     if (ctx.role === UserRole.CLIENT) throw new Error("Client accounts cannot query internal inventory.");
     if (ctx.role === UserRole.WORKER) clauses.push({ borrowerId: ctx.userId });
+    else if (isManagerSide(ctx)) clauses.push({ item: { studioId: ctx.studioId ?? "__missing_studio__" } });
   } else if (input.entity === "INVENTORY_MAINTENANCE") {
-    if (ctx.role !== UserRole.MANAGER) throw new Error("Maintenance records can only be queried by a manager.");
+    if (!isManagerSide(ctx)) throw new Error("Maintenance records can only be queried by a manager.");
+    clauses.push({ item: { studioId: ctx.studioId ?? "__missing_studio__" } });
   }
 
   if (input.operation === "GET" && input.recordId) clauses.push({ id: input.recordId });
@@ -483,9 +490,9 @@ async function listEntity(entity: StudioDataQuery["entity"], where: Record<strin
         where: where as Prisma.ClientFeedbackWhereInput,
         select: {
           id: true, type: true, status: true, score: true, title: true, details: true,
-          responseNote: role === UserRole.CLIENT || role === UserRole.MANAGER,
-          delegationNote: role === UserRole.WORKER || role === UserRole.MANAGER,
-          workerNote: role === UserRole.WORKER || role === UserRole.MANAGER,
+          responseNote: role === UserRole.CLIENT || MANAGER_SIDE_ROLES.includes(role),
+          delegationNote: role === UserRole.WORKER || MANAGER_SIDE_ROLES.includes(role),
+          workerNote: role === UserRole.WORKER || MANAGER_SIDE_ROLES.includes(role),
           createdAt: true, updatedAt: true,
           project: { select: { name: true } }, task: { select: { title: true } },
         },
@@ -535,7 +542,7 @@ async function listEntity(entity: StudioDataQuery["entity"], where: Record<strin
           project: { select: { id: true, name: true } },
           createdProject: { select: { id: true, name: true } },
           createdTask: { select: { id: true, title: true, status: true, dueAt: true } },
-          ...(role === UserRole.MANAGER ? { client: { select: { name: true, email: true } } } : {}),
+          ...(MANAGER_SIDE_ROLES.includes(role) ? { client: { select: { name: true, email: true } } } : {}),
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }], take, skip,
       });
@@ -660,10 +667,37 @@ function serializeRows(entity: StudioDataQuery["entity"], rows: unknown[]) {
 
 export async function queryStudioData(ctx: QueryContext, input: StudioDataQuery) {
   try {
+    let scopedContext = ctx;
+    if (ctx.role === UserRole.MANAGER || ctx.role === UserRole.SUPERVISOR || ctx.role === UserRole.COLLABORATOR) {
+      const areaByEntity: Partial<Record<StudioDataQuery["entity"], StudioArea>> = {
+        PROJECTS: StudioArea.PROJECTS,
+        TASKS: StudioArea.TASKS,
+        DELETED_TASKS: StudioArea.DELETED_TASKS,
+        FEEDBACK: StudioArea.REVIEWS,
+        COMMENTS: StudioArea.REVIEWS,
+        RATINGS: StudioArea.REVIEWS,
+        WORK_REQUESTS: StudioArea.WORK_REQUESTS,
+        INVENTORY: StudioArea.INVENTORY,
+        INVENTORY_LOANS: StudioArea.INVENTORY,
+        INVENTORY_MAINTENANCE: StudioArea.INVENTORY,
+        NOTIFICATIONS: StudioArea.DASHBOARD,
+        INVITATIONS: StudioArea.TEAM,
+        TEAM: StudioArea.TEAM,
+      };
+      const context = await getStudioAccessContext(ctx.userId, ctx.role);
+      if (!context || !hasStudioAccess(context, StudioArea.COPILOT, StudioAccessLevel.VIEW)) {
+        return denied("Copilot access is not enabled for this account.");
+      }
+      const area = areaByEntity[input.entity];
+      if (area && !hasStudioAccess(context, area, StudioAccessLevel.VIEW)) {
+        return denied(`You do not have view access to ${area.toLowerCase().replaceAll("_", " ")}.`);
+      }
+      scopedContext = { ...ctx, studioId: context.studioId };
+    }
     if (input.entity === "TASKS" && ctx.role === UserRole.CLIENT) {
       return denied("Client accounts cannot query internal task records.");
     }
-    const where = getEntityWhere(ctx, input);
+    const where = getEntityWhere(scopedContext, input);
     if (input.operation === "COUNT") {
       const count = await countEntity(input.entity, where);
       return {
@@ -684,7 +718,7 @@ export async function queryStudioData(ctx: QueryContext, input: StudioDataQuery)
 
     if (input.entity === "PROJECTS") {
       const projectRows = rows as ProjectRow[];
-      records = projectRecordRows(projectRows, await projectSummaries(projectRows, { userId: ctx.userId, role: ctx.role }));
+      records = projectRecordRows(projectRows, await projectSummaries(projectRows, scopedContext));
     } else {
       records = serializeRows(input.entity, rows);
     }

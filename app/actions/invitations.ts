@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
-import { InvitationStatus, UserRole } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { InvitationStatus, StudioArea, UserRole, UserStatus } from "@/generated/prisma/client";
+import { requireStudioManagerArea } from "@/lib/studio-access";
 import { decryptInvitationToken, encryptInvitationToken } from "@/lib/invitation-token";
 import { createInvitationForManager } from "@/lib/invitations";
 import { createInvitationSchema, invitationIdSchema, invitationTokenSchema } from "@/lib/validation/invitations";
@@ -24,27 +24,37 @@ export async function createInvitation(
   _previousState: InvitationFormState,
   formData: FormData,
 ): Promise<InvitationFormState> {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { context } = await requireStudioManagerArea(StudioArea.TEAM);
   let email: string;
   let role: UserRole;
+  let permissions: Array<{ area: import("@/generated/prisma/client").StudioArea; accessLevel: import("@/generated/prisma/client").StudioAccessLevel }>;
   try {
-    ({ email, role } = parseInput(createInvitationSchema, {
+    ({ email, role, permissions = [] } = parseInput(createInvitationSchema, {
       email: formData.get("email"),
       role: formData.get("role"),
+      permissions: formData.get("permissions") ? JSON.parse(String(formData.get("permissions"))) : [],
     }));
   } catch (error) {
     return { error: error instanceof InputValidationError ? error.message : "Enter an email address and choose a role." };
   }
-  return createInvitationForManager(manager.id, { email, role });
+  if ((role === UserRole.SUPERVISOR || role === UserRole.COLLABORATOR) && !context.isOwner) {
+    return { error: "Only the studio owner can invite supervisors or collaborators." };
+  }
+  if ((role === UserRole.WORKER || role === UserRole.CLIENT) && permissions.length) {
+    return { error: "Area grants apply only to collaborator invitations." };
+  }
+  return createInvitationForManager(context.ownerUserId, { email, role, permissions });
 }
 
 export async function getInvitationLink(id: string): Promise<InvitationFormState> {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { manager, context } = await requireStudioManagerArea(StudioArea.TEAM);
   const parsedId = invitationIdSchema.safeParse(id);
   if (!parsedId.success) return { error: parsedId.error.issues[0]?.message ?? "This invitation is unavailable." };
   const invitation = await prisma.invitation.findFirst({
     where: {
       id: parsedId.data, invitedById: manager.id, usedAt: null,
+      studioId: context.studioId,
+      ...(!context.isOwner ? { role: { in: [UserRole.WORKER, UserRole.CLIENT] } } : {}),
       status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
       expiresAt: { gt: new Date() },
     },
@@ -64,13 +74,15 @@ export async function getInvitationLink(id: string): Promise<InvitationFormState
 }
 
 export async function replaceInvitationLink(id: string): Promise<InvitationFormState> {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { manager, context } = await requireStudioManagerArea(StudioArea.TEAM);
   const parsedId = invitationIdSchema.safeParse(id);
   if (!parsedId.success) return { error: parsedId.error.issues[0]?.message ?? "This invitation is unavailable." };
   const token = randomBytes(32).toString("base64url");
   const updated = await prisma.invitation.updateMany({
     where: {
       id: parsedId.data, invitedById: manager.id, usedAt: null,
+      studioId: context.studioId,
+      ...(!context.isOwner ? { role: { in: [UserRole.WORKER, UserRole.CLIENT] } } : {}),
       status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
       expiresAt: { gt: new Date() },
     },
@@ -85,13 +97,15 @@ export async function replaceInvitationLink(id: string): Promise<InvitationFormS
 }
 
 export async function revokeInvitation(id: string): Promise<{ success?: boolean; error?: string }> {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { manager, context } = await requireStudioManagerArea(StudioArea.TEAM);
   const parsedId = invitationIdSchema.safeParse(id);
   if (!parsedId.success) return { error: parsedId.error.issues[0]?.message ?? "This invitation could not be revoked." };
   const updated = await prisma.invitation.updateMany({
     where: {
       id: parsedId.data,
       invitedById: manager.id,
+      studioId: context.studioId,
+      ...(!context.isOwner ? { role: { in: [UserRole.WORKER, UserRole.CLIENT] } } : {}),
       usedAt: null,
       status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
     },
@@ -104,6 +118,54 @@ export async function revokeInvitation(id: string): Promise<{ success?: boolean;
     return { error: "This invitation could not be revoked." };
   }
   revalidatePath("/manager/invitations");
+  return { success: true };
+}
+
+/** Revoke an accepted Worker or Client account while retaining its history. */
+export async function revokeStudioInvitationAccess(id: string): Promise<{ success?: boolean; error?: string }> {
+  const { actor, context } = await requireStudioManagerArea(StudioArea.TEAM);
+  const parsedId = invitationIdSchema.safeParse(id);
+  if (!parsedId.success) return { error: "Choose an active studio account." };
+
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      id: parsedId.data,
+      studioId: context.studioId,
+      status: InvitationStatus.USED,
+      usedAt: { not: null },
+      acceptedUserId: { not: null },
+      ...(!context.isOwner ? { role: { in: [UserRole.WORKER, UserRole.CLIENT] } } : {}),
+    },
+    select: { id: true, role: true, acceptedUserId: true, joinedMember: { select: { id: true, revokedAt: true } } },
+  });
+  if (!invitation?.acceptedUserId) return { error: "That studio account is already removed or unavailable." };
+  if ((invitation.role === UserRole.SUPERVISOR || invitation.role === UserRole.COLLABORATOR) && !context.isOwner) {
+    return { error: "Only the studio owner can remove a Supervisor or Collaborator." };
+  }
+  const acceptedUserId = invitation.acceptedUserId;
+
+  await prisma.$transaction(async (tx) => {
+    const revoked = await tx.invitation.updateMany({
+      where: { id: invitation.id, studioId: context.studioId, status: InvitationStatus.USED, acceptedUserId },
+      data: { status: InvitationStatus.REVOKED, tokenEncrypted: null },
+    });
+    if (revoked.count !== 1) throw new Error("That studio account is already removed or unavailable.");
+    if (invitation.joinedMember && !invitation.joinedMember.revokedAt) {
+      await tx.studioMember.update({
+        where: { id: invitation.joinedMember.id },
+        data: { revokedAt: new Date(), revokedById: actor.id },
+      });
+    } else if (invitation.role === UserRole.WORKER || invitation.role === UserRole.CLIENT) {
+      await tx.user.update({ where: { id: acceptedUserId }, data: { status: UserStatus.SUSPENDED } });
+    }
+    await tx.session.deleteMany({ where: { userId: acceptedUserId } });
+  });
+
+  revalidatePath("/manager/invitations");
+  revalidatePath("/manager");
+  revalidatePath("/worker");
+  revalidatePath("/client");
+  revalidatePath("/", "layout");
   return { success: true };
 }
 

@@ -13,6 +13,8 @@ import { sendNotificationEmail } from "@/lib/email";
 import { notificationActionLink } from "@/lib/notification-links";
 import { DEFAULT_EMAIL_NOTIFICATION_TYPES } from "@/lib/settings-preferences";
 import { getUserPreferences } from "@/lib/user-preferences";
+import { StudioAccessLevel, StudioArea } from "@/generated/prisma/client";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 
 // In-memory registry of active SSE stream controllers per user
 type SSEController = ReadableStreamDefaultController<Uint8Array>;
@@ -258,6 +260,24 @@ export async function createNotification(input: CreateNotificationInput) {
   }
 
   return notification;
+}
+
+export async function createStudioAreaNotification(
+  studioId: string,
+  area: StudioArea,
+  input: Omit<CreateNotificationInput, "userId">,
+) {
+  const studio = await prisma.studio.findUnique({
+    where: { id: studioId },
+    select: { ownerUserId: true, members: { where: { revokedAt: null }, select: { userId: true, user: { select: { role: true } } } } },
+  });
+  if (!studio) return;
+  const userIds = [studio.ownerUserId];
+  for (const member of studio.members) {
+    const context = await getStudioAccessContext(member.userId, member.user.role);
+    if (context && hasStudioAccess(context, area, StudioAccessLevel.VIEW)) userIds.push(member.userId);
+  }
+  await Promise.all([...new Set(userIds)].map((userId) => createNotification({ ...input, userId })));
 }
 
 export async function getNotificationPage(

@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { UserRole } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { StudioArea } from "@/generated/prisma/client";
+import { requireStudioManagerArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import {
   detectScheduleConflicts,
@@ -64,7 +64,7 @@ export async function checkScheduleConflicts(
   data: unknown
 ): Promise<{ error?: string; conflicts: ScheduleConflictWarning[] }> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea(StudioArea.SCHEDULE);
 
     const parsed = checkScheduleConflictsSchema.safeParse(data);
     if (!parsed.success) {
@@ -81,6 +81,7 @@ export async function checkScheduleConflicts(
       endAt,
       location,
       assigneeIds,
+      studioId: context.studioId,
       excludeEventId,
     });
 
@@ -98,7 +99,7 @@ export async function createScheduleEvent(
   data: unknown
 ): Promise<ScheduleActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER);
+    const { actor, context } = await requireStudioManagerArea(StudioArea.SCHEDULE);
 
     const parsed = createScheduleEventSchema.safeParse(data);
     if (!parsed.success) {
@@ -121,8 +122,8 @@ export async function createScheduleEvent(
 
     // Validate project existence if provided
     if (projectId) {
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, studioId: context.studioId },
         select: { id: true },
       });
       if (!project) {
@@ -148,7 +149,8 @@ export async function createScheduleEvent(
         allDay,
         location,
         projectId: projectId || null,
-        createdById: user.id,
+        studioId: context.studioId,
+      createdById: actor.id,
         assignees: assigneeIds && assigneeIds.length > 0
           ? { connect: assigneeIds.map((id) => ({ id })) }
           : undefined,
@@ -174,7 +176,7 @@ export async function updateScheduleEvent(
   data: unknown
 ): Promise<ScheduleActionState> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea(StudioArea.SCHEDULE);
 
     const parsed = updateScheduleEventSchema.safeParse(data);
     if (!parsed.success) {
@@ -194,8 +196,8 @@ export async function updateScheduleEvent(
       assigneeIds,
     } = parsed.data;
 
-    const existing = await prisma.scheduleEvent.findUnique({
-      where: { id },
+    const existing = await prisma.scheduleEvent.findFirst({
+      where: { id, studioId: context.studioId },
       include: { assignees: { select: { id: true } } },
     });
 
@@ -225,8 +227,8 @@ export async function updateScheduleEvent(
 
     // Validate project existence if changed
     if (projectId) {
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, studioId: context.studioId },
         select: { id: true },
       });
       if (!project) {
@@ -241,6 +243,7 @@ export async function updateScheduleEvent(
       location: effectiveLocation,
       assigneeIds: effectiveAssignees,
       excludeEventId: id,
+      studioId: context.studioId,
     });
 
     const updated = await prisma.scheduleEvent.update({
@@ -283,7 +286,7 @@ export async function deleteScheduleEvent(
   data: unknown
 ): Promise<ScheduleActionState> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea(StudioArea.SCHEDULE);
 
     const parsed = deleteScheduleEventSchema.safeParse(data);
     if (!parsed.success) {
@@ -292,8 +295,8 @@ export async function deleteScheduleEvent(
 
     const { id } = parsed.data;
 
-    const existing = await prisma.scheduleEvent.findUnique({
-      where: { id },
+    const existing = await prisma.scheduleEvent.findFirst({
+      where: { id, studioId: context.studioId },
       select: { id: true, title: true },
     });
 

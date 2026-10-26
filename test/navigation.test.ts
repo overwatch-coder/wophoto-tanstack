@@ -6,15 +6,29 @@ import {
   isWorkspaceRole,
   matchesWorkspacePath,
   workspaceNavigation,
+  getWorkspaceNavigationGroups,
 } from "@/lib/navigation"
 
 describe("role aware workspace navigation", () => {
-  it("accepts only the three supported roles (AC-1, AC-12)", () => {
+  it("accepts the supported owner, studio member, worker, and client roles", () => {
     expect(isWorkspaceRole("MANAGER")).toBe(true)
+    expect(isWorkspaceRole("SUPERVISOR")).toBe(true)
+    expect(isWorkspaceRole("COLLABORATOR")).toBe(true)
     expect(isWorkspaceRole("WORKER")).toBe(true)
     expect(isWorkspaceRole("CLIENT")).toBe(true)
     expect(isWorkspaceRole("ADMIN")).toBe(false)
     expect(isWorkspaceRole("")).toBe(false)
+  })
+
+  it("filters manager side navigation by area view access", () => {
+    const hrefs = getWorkspaceNavigationGroups("COLLABORATOR", ["DASHBOARD", "TASKS", "TEAM"])
+      .flat()
+      .map(({ href }) => href)
+    expect(hrefs).toContain("/manager")
+    expect(hrefs).toContain("/manager/tasks")
+    expect(hrefs).toContain("/manager/invitations")
+    expect(hrefs).not.toContain("/manager/projects")
+    expect(hrefs).not.toContain("/manager/deleted-tasks")
   })
 
   it("lists each role's routes in a useful order (AC-1, AC-2, AC-3)", () => {

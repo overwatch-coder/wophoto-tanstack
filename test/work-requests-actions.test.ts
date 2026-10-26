@@ -18,7 +18,22 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/authz", () => ({ requireRole: mocks.requireRole }));
-vi.mock("@/lib/notifications", () => ({ createNotification: mocks.notify }));
+vi.mock("@/lib/studio-access", () => {
+  const actor = async () => mocks.requireRole("MANAGER");
+  const context = (user: { id: string; role: string }) => ({
+    studioId: `studio-${user.id}`, ownerUserId: user.id, isOwner: user.role === "MANAGER",
+    memberId: null, role: user.role, grants: {},
+  });
+  return {
+    requireStudioArea: async () => { const user = await actor(); return { user, context: context(user) }; },
+    requireStudioManagerArea: async () => { const user = await actor(); return { manager: { ...user, actorId: user.id }, actor: user, context: context(user) }; },
+    requireStudioOwner: async () => { const user = await actor(); return { user, context: context(user) }; },
+    getStudioAccessContext: async (userId: string, role: string) => ({ studioId: `studio-${userId}`, ownerUserId: role === "MANAGER" ? userId : "manager-1", isOwner: role === "MANAGER", memberId: role === "MANAGER" ? null : "member-1", role, grants: {} }),
+    hasStudioAccess: () => true,
+  };
+});
+
+vi.mock("@/lib/notifications", () => ({ createNotification: mocks.notify, createStudioAreaNotification: async (_studioId: string, _area: string, input: Record<string, unknown>) => mocks.notify({ ...input, userId: "manager-1" }) }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   project: { findFirst: mocks.projectFindFirst, create: mocks.projectCreate },
   invitation: { findFirst: mocks.invitationFindFirst },
@@ -46,7 +61,7 @@ describe("work request actions", () => {
 
   it("creates a work request only after resolving its project through client ownership", async () => {
     mocks.requireRole.mockResolvedValue({ id: "client-1", role: UserRole.CLIENT, name: "Client" });
-    mocks.projectFindFirst.mockResolvedValue({ id: "project-1", managerId: "manager-1" });
+    mocks.projectFindFirst.mockResolvedValue({ id: "project-1", managerId: "manager-1", studioId: "studio-manager-1" });
     mocks.workRequestCreate.mockResolvedValue({ id: "request-1", type: WorkRequestType.WORK, title: "Retouch portraits", managerId: "manager-1", projectId: "project-1" });
 
     const result = await createWorkRequest({}, form({ type: "WORK", projectId: "project-1", title: "Retouch portraits", details: "Please retouch the new portrait images." }));
@@ -67,7 +82,7 @@ describe("work request actions", () => {
 
   it("routes new project requests to the manager who invited the client", async () => {
     mocks.requireRole.mockResolvedValue({ id: "client-1", role: UserRole.CLIENT });
-    mocks.invitationFindFirst.mockResolvedValue({ invitedById: "manager-1" });
+    mocks.invitationFindFirst.mockResolvedValue({ invitedById: "manager-1", studioId: "studio-manager-1" });
     mocks.workRequestCreate.mockResolvedValue({ id: "request-2", type: WorkRequestType.PROJECT, title: "Spring campaign", managerId: "manager-1", projectId: null });
     const result = await createWorkRequest({}, form({ type: "PROJECT", projectId: "", title: "Spring campaign", details: "We need a new spring campaign photo project." }));
     expect(result.requestId).toBe("request-2");

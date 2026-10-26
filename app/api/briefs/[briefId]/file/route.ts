@@ -1,8 +1,9 @@
 import { get } from "@vercel/blob";
 import { auth } from "@/auth";
-import { BriefStatus, UserRole } from "@/generated/prisma/client";
+import { BriefStatus, StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { workerCanAccessBrief } from "@/lib/briefs";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 
 export async function GET(
   _request: Request,
@@ -19,14 +20,16 @@ export async function GET(
       fileName: true,
       fileMime: true,
       status: true,
-      project: { select: { clientId: true, managerId: true } },
+      project: { select: { clientId: true, managerId: true, studioId: true } },
     },
   });
   if (!brief?.fileUrl || !brief.fileKey?.startsWith("briefs/")) {
     return new Response("Not found", { status: 404 });
   }
   const role = session.user.role;
-  const allowed = (role === UserRole.MANAGER && brief.project.managerId === session.user.id) ||
+  const context = await getStudioAccessContext(session.user.id, role);
+  const allowed = (context && context.studioId === brief.project.studioId && hasStudioAccess(context, StudioArea.BRIEFS)) ||
+    (role === UserRole.MANAGER && brief.project.managerId === session.user.id) ||
     (role === UserRole.CLIENT && brief.project.clientId === session.user.id && brief.status !== BriefStatus.DRAFT) ||
     (role === UserRole.WORKER && await workerCanAccessBrief(briefId, session.user.id));
   if (!allowed) return new Response("Not found", { status: 404 });

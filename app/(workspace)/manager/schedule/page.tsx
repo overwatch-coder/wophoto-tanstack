@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { UserRole, UserStatus } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { StudioArea } from "@/generated/prisma/client";
+import { requireStudioArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import { getScheduleEvents } from "@/lib/schedule";
 import { getInitialScheduleWindow } from "@/lib/schedule-window";
@@ -25,7 +26,8 @@ export default function ManagerSchedulePage() {
 }
 
 async function ManagerScheduleContent() {
-  const user = await requireRole(UserRole.MANAGER);
+  const { context } = await requireStudioArea(StudioArea.SCHEDULE);
+  const managerId = context.ownerUserId;
 
   const { startDate, endDate } = getInitialScheduleWindow(new Date());
 
@@ -35,7 +37,7 @@ async function ManagerScheduleContent() {
       endDate: endDate.toISOString(),
     }),
     prisma.project.findMany({
-      where: { managerId: user.id },
+      where: { studioId: context.studioId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

@@ -1,21 +1,30 @@
 import { get } from "@vercel/blob";
 import { auth } from "@/auth";
-import { UserRole } from "@/generated/prisma/client";
+import { StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ assetId: string }> },
 ) {
   const session = await auth();
-  if (!session?.user?.id || (session.user.role !== UserRole.MANAGER && session.user.role !== UserRole.WORKER)) {
+  const allowedRoles: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER];
+  if (!session?.user?.id || !allowedRoles.includes(session.user.role)) {
     return new Response("Not found", { status: 404 });
   }
   const { assetId } = await params;
-  const asset = await prisma.brandAsset.findUnique({
-    where: { id: assetId },
-    select: { fileUrl: true, fileKey: true, fileMime: true, fileName: true },
+  const context = await getStudioAccessContext(session.user.id, session.user.role);
+  const invitation = !context && session.user.role === UserRole.WORKER
+    ? await prisma.invitation.findFirst({ where: { acceptedUserId: session.user.id, status: "USED" }, orderBy: { usedAt: "desc" }, select: { studioId: true } })
+    : null;
+  const studioId = context?.studioId ?? invitation?.studioId;
+  if (!studioId) return new Response("Not found", { status: 404 });
+  const asset = await prisma.brandAsset.findFirst({
+    where: { id: assetId, studioId },
+    select: { fileUrl: true, fileKey: true, fileMime: true, fileName: true, studioId: true },
   });
+  if (context && !hasStudioAccess(context, StudioArea.BRAND_ASSETS)) return new Response("Not found", { status: 404 });
   if (!asset?.fileUrl || !asset.fileKey?.startsWith("brand-assets/")) {
     return new Response("Not found", { status: 404 });
   }

@@ -28,6 +28,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 15 | Client work requests & intake | Slice 12 | done |
 | 16 | Creative brief review & worker sign-off | Slice 13 | done |
 | 17 | Explore briefs & template library | Slice 14 | done |
+| 18 | Studio access scopes | Slice 15 | in-progress |
 
 ## Foundations
 
@@ -268,6 +269,19 @@ Provide a discovery portal and template repository for managers to search past s
 - [x] Verify it: `/check verify explore briefs & template library` (see `docs/specs/0013-explore-briefs-and-template-library/verify.md`)
 - [x] Test it: `/test explore briefs & template library` (`npm test`, 15 unit tests in `test/brief-templates.test.ts`, 42 files and 307 tests passed)
 Spec 0013 · `docs/specs/0013-explore-briefs-and-template-library/index.md` · code in `app/actions/brief-templates.ts`, `lib/brief-templates.ts`, `components/brief-templates/`, and `app/(workspace)/`
+
+### 18. Studio access scopes · in-progress
+Give the studio owner safe delegation through Supervisor and Collaborator roles with explicit access by work area.
+**Done when:** owners can invite, scope, update, and revoke studio members; all manager pages and operations enforce the same server side permissions; existing data remains correctly isolated by studio.
+- [x] Design it (spec): `docs/specs/0014-studio-access-scopes.md`
+- [x] Build it: `/develop studio access scopes`
+  - [x] Add Studio membership and permission data, migrate existing studio records, and scope manager data (AC-1, AC-10).
+  - [x] Add owner controlled invitations, role changes, grants, revocation, and session removal (AC-2, AC-4, AC-8, AC-9).
+  - [x] Enforce role and area permissions across manager pages, actions, APIs, files, and Copilot (AC-3, AC-5, AC-6, AC-7).
+  - [x] Update manager navigation, invitations and access UI, dashboard summaries, and area based notifications (AC-11, AC-12, AC-13).
+- [ ] Verify it: `/check verify studio access scopes`
+- [x] Test it: `/test studio access scopes` (`npm test`, 47 files and 346 tests passed)
+Spec 0014 · `docs/specs/0014-studio-access-scopes.md` · code in `prisma/schema.prisma`, `lib/authz.ts`, `lib/`, `app/actions/`, `app/api/`, and `components/invitations/`
 
 ## Legend
 

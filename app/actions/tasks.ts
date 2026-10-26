@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { NotificationCategory, Prisma, NotificationType, TaskStatus, TaskType, UserRole, UserStatus, WorkRequestStatus } from "@/generated/prisma/client";
+import { NotificationCategory, Prisma, NotificationType, StudioArea, TaskStatus, TaskType, UserRole, UserStatus, WorkRequestStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { requireStudioManagerArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, createStudioAreaNotification } from "@/lib/notifications";
 import { notificationActionLink } from "@/lib/notification-links";
 import { parseInput } from "@/lib/validation/common";
 import {
@@ -54,7 +55,7 @@ const invalidateTasks = () => paths.forEach((path) => revalidatePath(path));
 
 export async function createAssignedTask(_state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
     const input = parseInput(createAssignedTaskSchema, {
       projectId: formString(data, "projectId"),
       ...taskFormFields(data),
@@ -65,7 +66,7 @@ export async function createAssignedTask(_state: TaskActionState, data: FormData
     const workerIds = await checkWorkers(requestedWorkerIds);
     const project = await prisma.project.findFirst({ where: { id: projectId, managerId: manager.id }, select: { id: true } });
     if (!project) throw new Error("That project is not available to you.");
-    const task = await prisma.task.create({ data: { ...fields, projectId, createdById: manager.id, type: TaskType.ASSIGNED, assignees: { create: workerIds.map((userId) => ({ userId })) }, specializations: { create: specializations.map((specialization) => ({ specialization })) } }, select: { id: true } });
+    const task = await prisma.task.create({ data: { ...fields, projectId, createdById: manager.actorId, type: TaskType.ASSIGNED, assignees: { create: workerIds.map((userId) => ({ userId })) }, specializations: { create: specializations.map((specialization) => ({ specialization })) } }, select: { id: true } });
 
     // Notify assigned workers
     try {
@@ -73,7 +74,7 @@ export async function createAssignedTask(_state: TaskActionState, data: FormData
         workerIds.map((userId) =>
           createNotification({
             userId,
-            actorId: manager.id,
+            actorId: manager.actorId,
             type: NotificationType.TASK_ASSIGNED,
             title: "New Task Assigned",
             message: `You were assigned to "${fields.title}"`,
@@ -95,7 +96,7 @@ export async function createAssignedTask(_state: TaskActionState, data: FormData
 
 export async function updateAssignedTask(taskId: string, _state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
     const input = parseInput(updateAssignedTaskSchema, {
       taskId,
       ...taskFormFields(data),
@@ -182,11 +183,10 @@ export async function updateAssignmentStatus(taskId: string, next: TaskStatus): 
       try {
         const fullTask = await prisma.task.findUnique({
           where: { id: taskId },
-          select: { title: true, projectId: true, project: { select: { managerId: true, name: true } } },
+          select: { title: true, projectId: true, project: { select: { managerId: true, studioId: true, name: true } } },
         });
         if (fullTask?.project?.managerId) {
-          await createNotification({
-            userId: fullTask.project.managerId,
+          await createStudioAreaNotification(fullTask.project.studioId, StudioArea.TASKS, {
             actorId: worker.id,
             type: NotificationType.TASK_REVIEW_READY,
             title: "Deliverable Ready for Review",
@@ -210,7 +210,8 @@ export async function updateAssignmentStatus(taskId: string, next: TaskStatus): 
 
 export async function updateTaskStatus(taskId: string, next: TaskStatus): Promise<TaskActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+    const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+    const user = current.role === UserRole.WORKER ? current : (await requireStudioManagerArea(StudioArea.TASKS)).manager;
     taskId = parseInput(taskIdSchema, taskId);
     next = parseInput(taskStatusSchema, next);
 
@@ -268,7 +269,7 @@ export async function updateTaskStatus(taskId: string, next: TaskStatus): Promis
 
 export async function reviewTask(taskId: string, _state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
     const input = parseInput(reviewTaskSchema, {
       taskId,
       decision: formString(data, "decision"),
@@ -301,7 +302,7 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
         if (completedRequest) {
           await createNotification({
             userId: completedRequest.clientId,
-            actorId: manager.id,
+            actorId: manager.actorId,
             type: NotificationType.SYSTEM_ALERT,
             category: NotificationCategory.UPDATE,
             title: "Requested Work Completed",
@@ -320,7 +321,7 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
             fullTask.assignees.map((a) =>
               createNotification({
                 userId: a.userId,
-                actorId: manager.id,
+                actorId: manager.actorId,
                 type: NotificationType.TASK_APPROVED,
                 title: "Task Approved & Completed",
                 message: `Manager approved "${fullTask.title}"`,
@@ -347,7 +348,7 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
             userIds.map((userId) =>
               createNotification({
                 userId,
-                actorId: manager.id,
+                actorId: manager.actorId,
                 type: NotificationType.TASK_RETURNED,
                 title: "Task Returned for Revisions",
                 message: `Manager returned "${fullTask.title}": "${managerNote.slice(0, 120)}"`,
@@ -372,7 +373,7 @@ export async function reviewTask(taskId: string, _state: TaskActionState, data: 
 
 export async function softDeleteTask(taskId: string): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
     taskId = parseInput(taskIdSchema, taskId);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
@@ -387,7 +388,7 @@ export async function softDeleteTask(taskId: string): Promise<TaskActionState> {
 
 export async function restoreTask(taskId: string): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
     taskId = parseInput(taskIdSchema, taskId);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
@@ -407,7 +408,7 @@ export async function restoreTask(taskId: string): Promise<TaskActionState> {
 
 export async function restoreMultipleTasks(taskIds: string[]): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
     taskIds = parseInput(restoreTaskIdsSchema, taskIds);
     const uniqueIds = [...new Set(taskIds)];
     const result = await prisma.task.updateMany({
@@ -427,7 +428,7 @@ export async function restoreMultipleTasks(taskIds: string[]): Promise<TaskActio
 
 export async function permanentlyDeleteTask(taskId: string): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
     taskId = parseInput(taskIdSchema, taskId);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, taskId);
@@ -447,7 +448,7 @@ export async function permanentlyDeleteTask(taskId: string): Promise<TaskActionS
 
 export async function emptyTrash(): Promise<TaskActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.DELETED_TASKS);
     const result = await prisma.task.deleteMany({
       where: {
         deletedAt: { not: null },

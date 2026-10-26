@@ -1,7 +1,8 @@
 import { Suspense } from "react"
 import { connection } from "next/server"
 import { UserRole } from "@/generated/prisma/client"
-import { requireRole } from "@/lib/authz"
+import { StudioArea } from "@/generated/prisma/client"
+import { requireStudioArea } from "@/lib/studio-access"
 import { getManagerFeedbackData } from "@/lib/feedback"
 import { FeedbackWorkspace } from "@/components/feedback/feedback-workspace"
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
@@ -32,7 +33,7 @@ async function ManagerReviewsContent({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await connection()
-  await requireRole(UserRole.MANAGER)
+  await requireStudioArea(StudioArea.REVIEWS)
   const params = await searchParams
   const data = await getManagerFeedbackData(params)
   const feedbackId = typeof params.feedbackId === "string" ? params.feedbackId : undefined

@@ -17,7 +17,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type WorkspaceRole = "MANAGER" | "WORKER" | "CLIENT";
+export type WorkspaceArea = "DASHBOARD" | "PROJECTS" | "TASKS" | "SCHEDULE" | "BRIEFS" | "REVIEWS" | "WORK_REQUESTS" | "BRAND_ASSETS" | "INVENTORY" | "DELETED_TASKS" | "TEAM" | "COPILOT";
+
+export type WorkspaceRole = "MANAGER" | "SUPERVISOR" | "COLLABORATOR" | "WORKER" | "CLIENT";
 
 export type WorkspaceNavigationItem = {
   title: string;
@@ -26,7 +28,7 @@ export type WorkspaceNavigationItem = {
   group: "primary" | "work" | "resources" | "operations" | "archive" | "communication" | "admin" | "account";
 };
 
-export const workspaceNavigation: Record<WorkspaceRole, WorkspaceNavigationItem[]> = {
+export const workspaceNavigation: Record<Exclude<WorkspaceRole, "SUPERVISOR" | "COLLABORATOR">, WorkspaceNavigationItem[]> = {
   MANAGER: [
     { title: "Dashboard", href: "/manager", icon: LayoutDashboard, group: "primary" },
     { title: "Projects", href: "/manager/projects", icon: FolderKanban, group: "work" },
@@ -64,9 +66,22 @@ export const workspaceNavigation: Record<WorkspaceRole, WorkspaceNavigationItem[
   ],
 };
 
-export function getWorkspaceNavigationGroups(role: WorkspaceRole) {
+const MANAGER_AREA_BY_HREF: Record<string, WorkspaceArea> = {
+  "/manager": "DASHBOARD", "/manager/projects": "PROJECTS", "/manager/tasks": "TASKS",
+  "/manager/schedule": "SCHEDULE", "/manager/brief-review": "BRIEFS", "/manager/explore-briefs": "BRIEFS",
+  "/manager/reviews": "REVIEWS", "/manager/work-requests": "WORK_REQUESTS", "/manager/brand-assets": "BRAND_ASSETS",
+  "/manager/inventory": "INVENTORY", "/manager/deleted-tasks": "DELETED_TASKS", "/manager/invitations": "TEAM",
+};
+
+export function getWorkspaceNavigationGroups(role: WorkspaceRole, allowedAreas?: readonly string[] | null) {
+  const items = role === "SUPERVISOR" || role === "COLLABORATOR" ? workspaceNavigation.MANAGER : workspaceNavigation[role];
+  const visibleItems = items.filter((item) => {
+    if (!allowedAreas || role !== "SUPERVISOR" && role !== "COLLABORATOR") return true;
+    const area = MANAGER_AREA_BY_HREF[item.href];
+    return !area || allowedAreas.includes(area);
+  });
   const groups: WorkspaceNavigationItem[][] = [];
-  for (const item of workspaceNavigation[role]) {
+  for (const item of visibleItems) {
     const previous = groups.at(-1);
     if (previous?.[0]?.group === item.group) previous.push(item);
     else groups.push([item]);
@@ -75,12 +90,14 @@ export function getWorkspaceNavigationGroups(role: WorkspaceRole) {
 }
 
 export function isWorkspaceRole(role: string): role is WorkspaceRole {
-  return role === "MANAGER" || role === "WORKER" || role === "CLIENT";
+  return role === "MANAGER" || role === "SUPERVISOR" || role === "COLLABORATOR" || role === "WORKER" || role === "CLIENT";
 }
 
 export function getWorkspaceHome(role: WorkspaceRole) {
   switch (role) {
     case "MANAGER":
+    case "SUPERVISOR":
+    case "COLLABORATOR":
       return "/manager";
     case "WORKER":
       return "/worker";
@@ -98,7 +115,8 @@ export function matchesWorkspacePath(pathname: string, href: string) {
 }
 
 export function getWorkspacePageTitle(role: WorkspaceRole, pathname: string) {
-  const item = workspaceNavigation[role].find(
+  const items = role === "SUPERVISOR" || role === "COLLABORATOR" ? workspaceNavigation.MANAGER : workspaceNavigation[role];
+  const item = items.find(
     (navigationItem) => matchesWorkspacePath(pathname, navigationItem.href)
   );
 

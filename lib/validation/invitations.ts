@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { UserRole } from "@/generated/prisma/client";
+import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { idSchema } from "./common";
 
 export const createInvitationSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, "Email address must be 254 characters or fewer.").email("Enter a valid email address."),
-  role: z.enum([UserRole.WORKER, UserRole.CLIENT], { error: "Choose Worker or Client. Manager access is provisioned separately." }),
+  role: z.enum([UserRole.WORKER, UserRole.CLIENT, UserRole.SUPERVISOR, UserRole.COLLABORATOR], { error: "Choose Worker, Client, Supervisor, or Collaborator." }),
+  permissions: z.array(z.object({ area: z.enum(StudioArea), accessLevel: z.enum(StudioAccessLevel) }).strict()).max(12).optional(),
 });
 
 export const createClientInvitationProposalSchema = z.object({

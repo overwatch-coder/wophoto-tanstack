@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { UserRole, UserStatus, BriefTemplateCategory, BriefStatus } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { StudioArea } from "@/generated/prisma/client";
+import { requireStudioArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import {
   getBriefTemplates,
@@ -41,7 +42,7 @@ async function ManagerExploreBriefsContent({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await connection();
-  const user = await requireRole(UserRole.MANAGER);
+  const { user, context } = await requireStudioArea(StudioArea.BRIEFS);
   const params = await searchParams;
 
   const search = typeof params.search === "string" ? params.search : "";
@@ -89,7 +90,7 @@ async function ManagerExploreBriefsContent({
       pageSize: 12,
     }),
     prisma.project.findMany({
-      where: { managerId: user.id },
+      where: { studioId: context.studioId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

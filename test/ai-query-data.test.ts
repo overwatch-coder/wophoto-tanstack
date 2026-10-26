@@ -44,6 +44,10 @@ vi.mock("@/lib/prisma", () => ({
     inventoryMaintenanceLog: { count: mocks.inventoryMaintenanceCount, findMany: mocks.inventoryMaintenanceFindMany },
   },
 }));
+vi.mock("@/lib/studio-access", () => ({
+  getStudioAccessContext: async (userId: string) => ({ studioId: `studio-${userId}`, ownerUserId: userId, isOwner: true, memberId: null, role: "MANAGER", grants: {} }),
+  hasStudioAccess: () => true,
+}));
 
 import { UserRole } from "@/generated/prisma/client";
 import { queryStudioData, studioDataQuerySchema } from "@/lib/ai/query-data";
@@ -81,7 +85,7 @@ describe("Studio Copilot database queries", () => {
 
     expect(result).toMatchObject({ entity: "PROJECTS", operation: "COUNT", count: 1 });
     expect(mocks.projectCount).toHaveBeenCalledWith({
-      where: { AND: [{ managerId: "manager-1" }] },
+      where: { AND: [{ studioId: "studio-manager-1" }] },
     });
   });
 
@@ -146,7 +150,7 @@ describe("Studio Copilot database queries", () => {
     await queryStudioData(manager, input);
 
     expect(mocks.workRequestFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { AND: [{ managerId: "manager-1" }] },
+      where: { AND: [{ studioId: "studio-manager-1" }] },
       take: 2,
       skip: 0,
     }));
@@ -177,7 +181,7 @@ describe("Studio Copilot database queries", () => {
     await queryStudioData(manager, input);
 
     expect(mocks.taskCount).toHaveBeenCalledWith({
-      where: { AND: [{ AND: [{ deletedAt: { not: null } }, { project: { managerId: "manager-1" } }] }] },
+      where: { AND: [{ AND: [{ deletedAt: { not: null } }, { project: { studioId: "studio-manager-1" } }] }] },
     });
   });
 

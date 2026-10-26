@@ -8,6 +8,8 @@ import {
   UserStatus,
 } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { requireStudioArea } from "@/lib/studio-access";
+import { StudioArea } from "@/generated/prisma/client";
 import { DEFAULT_PAGE_SIZE, OPTION_PAGE_SIZE, getPageCount, type SearchParamsRecord } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { idSchema } from "@/lib/validation/common";
@@ -361,11 +363,11 @@ export async function getClientFeedbackData(
 export async function getManagerFeedbackData(
   searchParams: FeedbackLoaderParams = {},
 ): Promise<FeedbackWorkspaceData> {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { user: manager, context } = await requireStudioArea(StudioArea.REVIEWS);
   const filters = parseFeedbackFilters(searchParams);
   const targetId = getFeedbackTargetId(searchParams);
   const baseWhere: Prisma.ClientFeedbackWhereInput = {
-    project: { managerId: manager.id },
+    project: { studioId: context.studioId },
   };
   const where = targetId
     ? { AND: [baseWhere, { id: targetId }] }
@@ -373,7 +375,7 @@ export async function getManagerFeedbackData(
 
   // Keep form and filter options bounded. Feedback records are paginated below.
   const projects = await prisma.project.findMany({
-    where: { managerId: manager.id },
+    where: { studioId: context.studioId },
     select: {
       id: true,
       name: true,
@@ -409,7 +411,7 @@ export async function getManagerFeedbackData(
     where: {
       role: UserRole.WORKER,
       status: UserStatus.ACTIVE,
-      acceptedInvitation: { is: { invitedById: manager.id } },
+      acceptedInvitation: { is: { studioId: context.studioId } },
     },
     orderBy: [{ name: "asc" }, { email: "asc" }],
     select: {

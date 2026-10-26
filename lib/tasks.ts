@@ -2,6 +2,8 @@ import "server-only";
 
 import { Prisma, Specialization, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { requireStudioArea } from "@/lib/studio-access";
+import { StudioArea } from "@/generated/prisma/client";
 import { cleanClientName } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination";
@@ -14,7 +16,9 @@ export async function getTasks(input: {
   q?: string;
   specialization?: string;
 } = {}) {
-  const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.TASKS);
+  const user = current.role === UserRole.WORKER ? current : { ...current, id: studio!.context.ownerUserId };
   const taskId = input.taskId?.trim().slice(0, 191) || undefined;
   const status = Object.values(TaskStatus).includes(input.status as TaskStatus) ? input.status as TaskStatus : undefined;
   const priority = Object.values(TaskPriority).includes(input.priority as TaskPriority) ? input.priority as TaskPriority : undefined;
@@ -23,8 +27,8 @@ export async function getTasks(input: {
     ? (input.specialization as Specialization)
     : undefined;
 
-  const scope = user.role === UserRole.MANAGER
-    ? { project: { managerId: user.id } }
+  const scope = user.role !== UserRole.WORKER
+    ? { project: { studioId: studio!.context.studioId } }
     : { assignees: { some: { userId: user.id } } };
   const assignmentFilter = user.role === UserRole.WORKER ? { assignees: { some: { userId: user.id, ...(!taskId && status ? { status } : {}) } } } : {};
 
@@ -50,7 +54,7 @@ export async function getTasks(input: {
     ...searchFilter,
     ...specFilter,
     ...(taskId ? { id: taskId } : {}),
-    ...(!taskId && user.role === UserRole.MANAGER && status ? { status } : {}),
+    ...(!taskId && user.role !== UserRole.WORKER && status ? { status } : {}),
     ...(!taskId && priority ? { priority } : {}),
   };
 
@@ -74,7 +78,7 @@ export async function getTasks(input: {
       skip: (page - 1) * DEFAULT_PAGE_SIZE,
       select: taskSelect,
     }),
-    user.role === UserRole.MANAGER
+    user.role !== UserRole.WORKER
       ? prisma.task.groupBy({ by: ["status"], where: { ...scope, deletedAt: null }, _count: { _all: true } })
       : prisma.taskAssignee.groupBy({ by: ["status"], where: { userId: user.id, task: { deletedAt: null } }, _count: { _all: true } }),
   ]);
@@ -87,7 +91,7 @@ export async function getTasks(input: {
     },
     assignees: task.assignees.map((assignment) => ({
       ...assignment,
-      managerNote: user.role === UserRole.MANAGER || assignment.userId === user.id ? assignment.managerNote : null,
+      managerNote: user.role !== UserRole.WORKER || assignment.userId === user.id ? assignment.managerNote : null,
       isCurrentUser: assignment.userId === user.id,
     })),
     myStatus: task.assignees.find((assignment) => assignment.userId === user.id)?.status ?? null,
@@ -108,15 +112,17 @@ export async function getTasks(input: {
 export type TasksPageData = Awaited<ReturnType<typeof getTasks>>;
 
 export async function getTaskFormOptions() {
-  const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
-  if (user.role === UserRole.MANAGER) {
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.TASKS);
+  const user = current.role === UserRole.WORKER ? current : { ...current, id: studio!.context.ownerUserId };
+  if (user.role !== UserRole.WORKER) {
     const [projects, workers] = await Promise.all([
       prisma.project.findMany({
-        where: { managerId: user.id },
+        where: { studioId: studio!.context.studioId },
         orderBy: { name: "asc" }, take: 100,
         select: { id: true, name: true, clientId: true, client: { select: { id: true, name: true } } },
       }),
-      prisma.user.findMany({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: user.id } } }, orderBy: [{ name: "asc" }, { email: "asc" }], take: 100, select: { id: true, name: true, email: true, image: true, preferences: { select: { workerAvailability: true } } } }),
+      prisma.user.findMany({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { studioId: studio!.context.studioId } } }, orderBy: [{ name: "asc" }, { email: "asc" }], take: 100, select: { id: true, name: true, email: true, image: true, preferences: { select: { workerAvailability: true } } } }),
     ]);
 
     const clientsMap = new Map<string, string>();
@@ -166,7 +172,8 @@ export async function getDeletedTasks(input: {
   projectId?: string;
   priority?: string;
 } = {}) {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { context } = await requireStudioArea(StudioArea.DELETED_TASKS);
+  const managerId = context.ownerUserId;
   const search = input.search?.trim().slice(0, 120) ?? "";
   const projectId = input.projectId && input.projectId !== "ALL" ? input.projectId : undefined;
   const priority = Object.values(TaskPriority).includes(input.priority as TaskPriority)
@@ -175,7 +182,7 @@ export async function getDeletedTasks(input: {
   const where: Prisma.TaskWhereInput = {
     deletedAt: { not: null },
     project: {
-      managerId: manager.id,
+      studioId: context.studioId,
       ...(projectId ? { id: projectId } : {}),
     },
     ...(priority ? { priority } : {}),
@@ -191,7 +198,7 @@ export async function getDeletedTasks(input: {
   };
   const trashWhere: Prisma.TaskWhereInput = {
     deletedAt: { not: null },
-    project: { managerId: manager.id },
+    project: { studioId: context.studioId },
   };
   const [total, trashCount] = await Promise.all([
     prisma.task.count({ where }),
@@ -256,7 +263,7 @@ export async function getDeletedTasks(input: {
       },
     }),
     prisma.project.findMany({
-      where: { managerId: manager.id, tasks: { some: { deletedAt: { not: null } } } },
+      where: { studioId: context.studioId, tasks: { some: { deletedAt: { not: null } } } },
       select: { id: true, name: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
       take: 100,
@@ -284,7 +291,7 @@ export async function getDeletedTasks(input: {
       projectName: task.project?.name ?? "Unknown Project",
       deletedAt: task.deletedAt ? task.deletedAt.toISOString() : new Date().toISOString(),
       daysRemaining,
-      deletedById: deletedBy?.id ?? manager.id,
+      deletedById: deletedBy?.id ?? managerId,
       deletedByName: deletedBy?.name ?? "Manager",
       deletedByEmail: deletedBy?.email ?? "",
       deletedByImage: deletedBy?.image ?? null,

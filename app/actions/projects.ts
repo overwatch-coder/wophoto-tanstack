@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { InvitationStatus, UserRole, UserStatus } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { requireStudioManagerArea } from "@/lib/studio-access";
+import { StudioArea } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { InputValidationError, parseInput } from "@/lib/validation/common";
 import { createProjectSchema } from "@/lib/validation/projects";
@@ -14,7 +15,7 @@ export async function createProject(
   _previousState: ProjectActionState,
   formData: FormData
 ): Promise<ProjectActionState> {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { manager, context } = await requireStudioManagerArea(StudioArea.PROJECTS);
 
   try {
     const { name, description, clientId } = parseInput(createProjectSchema, {
@@ -46,6 +47,7 @@ export async function createProject(
         description: description || null,
         managerId: manager.id,
         clientId: client.id,
+        studioId: context.studioId,
       },
     });
 

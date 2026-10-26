@@ -8,7 +8,7 @@ import {
   BriefStatus,
   Prisma,
 } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { requireStudioManagerArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import {
   createBriefTemplateSchema,
@@ -78,7 +78,7 @@ export async function createBriefTemplate(
   rawInput: unknown
 ): Promise<BriefTemplateActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER);
+    const { manager: user, context } = await requireStudioManagerArea("BRIEFS");
 
     const parsed = createBriefTemplateSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -111,7 +111,8 @@ export async function createBriefTemplate(
         coverImageUrl: data.coverImageUrl,
         attachmentUrl: data.attachmentUrl,
         attachmentName: data.attachmentName,
-        createdById: user.id,
+        createdById: user.actorId,
+        studioId: context.studioId,
       },
     });
 
@@ -131,7 +132,7 @@ export async function updateBriefTemplate(
   rawInput: unknown
 ): Promise<BriefTemplateActionState> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea("BRIEFS");
 
     const parsed = updateBriefTemplateSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -142,8 +143,8 @@ export async function updateBriefTemplate(
 
     const data: UpdateBriefTemplateInput = parsed.data;
 
-    const existing = await prisma.briefTemplate.findUnique({
-      where: { id: data.id },
+    const existing = await prisma.briefTemplate.findFirst({
+      where: { id: data.id, studioId: context.studioId },
     });
 
     if (!existing) {
@@ -197,15 +198,15 @@ export async function archiveBriefTemplate(
   rawInput: unknown
 ): Promise<BriefTemplateActionState> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea("BRIEFS");
 
     const parsed = archiveBriefTemplateSchema.safeParse(rawInput);
     if (!parsed.success) {
       return { error: "Invalid template identifier." };
     }
 
-    const existing = await prisma.briefTemplate.findUnique({
-      where: { id: parsed.data.id },
+    const existing = await prisma.briefTemplate.findFirst({
+      where: { id: parsed.data.id, studioId: context.studioId },
     });
 
     if (!existing) {
@@ -233,15 +234,15 @@ export async function unarchiveBriefTemplate(
   rawInput: unknown
 ): Promise<BriefTemplateActionState> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea("BRIEFS");
 
     const parsed = archiveBriefTemplateSchema.safeParse(rawInput);
     if (!parsed.success) {
       return { error: "Invalid template identifier." };
     }
 
-    const existing = await prisma.briefTemplate.findUnique({
-      where: { id: parsed.data.id },
+    const existing = await prisma.briefTemplate.findFirst({
+      where: { id: parsed.data.id, studioId: context.studioId },
     });
 
     if (!existing) {
@@ -269,7 +270,7 @@ export async function convertBriefToTemplate(
   rawInput: unknown
 ): Promise<BriefTemplateActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER);
+    const { manager: user, context } = await requireStudioManagerArea("BRIEFS");
 
     const parsed = convertBriefToTemplateSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -331,7 +332,8 @@ export async function convertBriefToTemplate(
         attachmentUrl: brief.fileUrl,
         attachmentName: brief.fileName,
         sourceBriefId: brief.id,
-        createdById: user.id,
+        createdById: user.actorId,
+        studioId: context.studioId,
       },
     });
 
@@ -351,7 +353,7 @@ export async function instantiateBriefFromTemplate(
   rawInput: unknown
 ): Promise<BriefTemplateActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER);
+    const { manager: user, context } = await requireStudioManagerArea("BRIEFS");
 
     const parsed = instantiateBriefFromTemplateSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -399,6 +401,7 @@ export async function instantiateBriefFromTemplate(
             description: target.description ?? null,
             managerId: user.id,
             clientId: target.clientId,
+            studioId: context.studioId,
           },
         });
 

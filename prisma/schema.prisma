@@ -9,8 +9,30 @@ datasource db {
 
 enum UserRole {
   MANAGER
+  SUPERVISOR
+  COLLABORATOR
   WORKER
   CLIENT
+}
+
+enum StudioArea {
+  DASHBOARD
+  PROJECTS
+  TASKS
+  SCHEDULE
+  BRIEFS
+  REVIEWS
+  WORK_REQUESTS
+  BRAND_ASSETS
+  INVENTORY
+  DELETED_TASKS
+  TEAM
+  COPILOT
+}
+
+enum StudioAccessLevel {
+  VIEW
+  MANAGE
 }
 
 enum UserStatus {
@@ -155,8 +177,79 @@ model User {
   managedCopilotPolicy    CopilotStudioPolicy?       @relation("CopilotPolicyManager")
   copilotAccessOverrides CopilotAccessOverride[]     @relation("CopilotAccessSubject")
   copilotUsageEvents     CopilotUsageEvent[]          @relation("CopilotUsageSubject")
+  ownedStudio            Studio?                      @relation("StudioOwner")
+  studioMembership       StudioMember?
+  studioMembershipsAdded StudioMember[]               @relation("StudioMemberAddedBy")
+  studioMembershipsRevoked StudioMember[]             @relation("StudioMemberRevokedBy")
 
   @@index([role, status])
+}
+
+model Studio {
+  id          String   @id @default(cuid())
+  name        String
+  ownerUserId String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner            User                    @relation("StudioOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  members          StudioMember[]
+  invitations      Invitation[]
+  projects         Project[]
+  workRequests     WorkRequest[]
+  copilotPolicy    CopilotStudioPolicy?
+  copilotOverrides CopilotAccessOverride[]
+  copilotUsage     CopilotUsageEvent[]
+  inventoryItems   InventoryItem[]
+  scheduleEvents   ScheduleEvent[]
+  brandAssets      BrandAsset[]
+  briefTemplates   BriefTemplate[]
+
+  @@index([ownerUserId])
+}
+
+model StudioMember {
+  id           String    @id @default(cuid())
+  studioId     String
+  userId       String    @unique
+  invitationId String    @unique
+  addedById    String
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+  revokedById  String?
+
+  studio      Studio                    @relation(fields: [studioId], references: [id], onDelete: Restrict)
+  user        User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  invitation  Invitation                @relation("MemberInvitation", fields: [invitationId], references: [id], onDelete: Restrict)
+  addedBy     User                      @relation("StudioMemberAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
+  revokedBy   User?                     @relation("StudioMemberRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  permissions StudioMemberPermission[]
+
+  @@index([studioId, revokedAt, createdAt])
+}
+
+model StudioMemberPermission {
+  studioMemberId String
+  area           StudioArea
+  accessLevel    StudioAccessLevel
+  updatedAt      DateTime           @updatedAt
+
+  studioMember StudioMember @relation(fields: [studioMemberId], references: [id], onDelete: Cascade)
+
+  @@id([studioMemberId, area])
+  @@index([area, accessLevel])
+}
+
+model InvitationPermission {
+  invitationId String
+  area         StudioArea
+  accessLevel  StudioAccessLevel
+  createdAt    DateTime          @default(now())
+
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@id([invitationId, area])
+  @@index([area, accessLevel])
 }
 
 model Account {
@@ -209,12 +302,17 @@ model Invitation {
   createdAt      DateTime         @default(now())
   invitedById    String
   acceptedUserId String?          @unique
+  studioId       String
 
   invitedBy    User  @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
   acceptedUser User? @relation("InvitationRecipient", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+  studio       Studio                   @relation(fields: [studioId], references: [id], onDelete: Restrict)
+  permissions  InvitationPermission[]
+  joinedMember StudioMember?            @relation("MemberInvitation")
 
   @@index([email, status, expiresAt])
   @@index([invitedById, createdAt])
+  @@index([studioId, createdAt])
 }
 
 model Project {
@@ -225,9 +323,11 @@ model Project {
   updatedAt   DateTime @updatedAt
   managerId   String
   clientId    String
+  studioId    String
 
   manager                User             @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
   client                 User             @relation("ProjectClient", fields: [clientId], references: [id], onDelete: Restrict)
+  studio                 Studio           @relation(fields: [studioId], references: [id], onDelete: Restrict)
   tasks                  Task[]
   comments               Comment[]
   ratings                Rating[]
@@ -240,6 +340,7 @@ model Project {
   creativeBriefs         CreativeBrief[]
 
   @@index([managerId, updatedAt])
+  @@index([studioId, updatedAt])
   @@index([clientId, updatedAt])
 }
 
@@ -439,6 +540,7 @@ model UserPreference {
 
 model CopilotStudioPolicy {
   managerId          String   @id
+  studioId           String   @unique
   enabled            Boolean  @default(true)
   workersEnabled     Boolean  @default(true)
   clientsEnabled     Boolean  @default(false)
@@ -450,25 +552,30 @@ model CopilotStudioPolicy {
   updatedAt          DateTime @updatedAt
 
   manager   User                     @relation("CopilotPolicyManager", fields: [managerId], references: [id], onDelete: Cascade)
+  studio    Studio                   @relation(fields: [studioId], references: [id], onDelete: Cascade)
   overrides CopilotAccessOverride[]
   usage     CopilotUsageEvent[]
 }
 
 model CopilotAccessOverride {
   managerId String
+  studioId  String
   userId    String
   enabled   Boolean
 
   policy CopilotStudioPolicy @relation(fields: [managerId], references: [managerId], onDelete: Cascade)
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
   user   User                @relation("CopilotAccessSubject", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([managerId, userId])
   @@index([userId])
+  @@index([studioId, userId])
 }
 
 model CopilotUsageEvent {
   id        String   @id @default(cuid())
   managerId String
+  studioId  String
   userId    String
   role      UserRole
   provider  String
@@ -476,10 +583,12 @@ model CopilotUsageEvent {
   createdAt DateTime @default(now())
 
   policy CopilotStudioPolicy @relation(fields: [managerId], references: [managerId], onDelete: Cascade)
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
   user   User                @relation("CopilotUsageSubject", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([managerId, createdAt])
   @@index([managerId, userId, createdAt])
+  @@index([studioId, createdAt])
 }
 
 enum InventoryStatus {
@@ -510,11 +619,12 @@ enum MaintenanceStatus {
 
 model InventoryItem {
   id           String             @id @default(cuid())
-  assetTag     String             @unique
+  assetTag     String
+  studioId     String
   name         String
   category     String             @default("General")
   model        String?
-  serialNumber String?            @unique
+  serialNumber String?
   status       InventoryStatus    @default(AVAILABLE)
   condition    InventoryCondition @default(GOOD)
   location     String?
@@ -524,12 +634,16 @@ model InventoryItem {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
+  studio          Studio           @relation(fields: [studioId], references: [id], onDelete: Restrict)
   loans           InventoryLoan[]
   maintenanceLogs InventoryMaintenanceLog[]
   activityLogs    InventoryActivityLog[]
 
   @@index([status, category])
-  @@index([assetTag])
+  @@unique([studioId, assetTag])
+  @@unique([studioId, serialNumber])
+  @@index([studioId, status, category])
+  @@index([studioId, assetTag])
   @@index([name])
 }
 
@@ -629,6 +743,7 @@ model WorkRequest {
   reviewedAt       DateTime?
   clientId         String
   managerId        String
+  studioId         String
   projectId        String?
   createdProjectId String?           @unique
   createdTaskId    String?           @unique
@@ -637,12 +752,14 @@ model WorkRequest {
 
   client         User     @relation("WorkRequestClient", fields: [clientId], references: [id], onDelete: Restrict)
   manager        User     @relation("WorkRequestManager", fields: [managerId], references: [id], onDelete: Restrict)
+  studio         Studio   @relation(fields: [studioId], references: [id], onDelete: Restrict)
   project        Project? @relation("WorkRequestProject", fields: [projectId], references: [id], onDelete: Cascade)
   createdProject Project? @relation("WorkRequestCreatedProject", fields: [createdProjectId], references: [id], onDelete: SetNull)
   createdTask    Task?    @relation("WorkRequestTask", fields: [createdTaskId], references: [id], onDelete: Restrict)
 
   @@index([clientId, createdAt, id])
   @@index([managerId, status, createdAt, id])
+  @@index([studioId, status, createdAt, id])
   @@index([projectId, status])
 }
 
@@ -665,7 +782,9 @@ model ScheduleEvent {
   allDay      Boolean           @default(false)
   location    String?
   projectId   String?
+  studioId    String
   project     Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  studio      Studio            @relation(fields: [studioId], references: [id], onDelete: Restrict)
   createdById String
   createdBy   User              @relation("CreatedScheduleEvents", fields: [createdById], references: [id], onDelete: Restrict)
   assignees   User[]            @relation("ScheduleEventAssignees")
@@ -676,6 +795,7 @@ model ScheduleEvent {
   @@index([location, startAt, endAt])
   @@index([projectId])
   @@index([createdById])
+  @@index([studioId, startAt, endAt])
 }
 
 enum BrandAssetType {
@@ -703,7 +823,9 @@ model BrandAsset {
   clientId     String?
   client       User?          @relation("ClientBrandAssets", fields: [clientId], references: [id], onDelete: SetNull)
   projectId    String?
+  studioId     String
   project      Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  studio       Studio         @relation(fields: [studioId], references: [id], onDelete: Restrict)
   createdById  String
   createdBy    User           @relation("CreatedBrandAssets", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt    DateTime       @default(now())
@@ -714,6 +836,7 @@ model BrandAsset {
   @@index([projectId, createdAt])
   @@index([assetType, createdAt])
   @@index([createdById])
+  @@index([studioId, createdAt])
 }
 
 enum BriefStatus {
@@ -838,7 +961,9 @@ model BriefTemplate {
   usageCount     Int                    @default(0)
   isArchived     Boolean                @default(false)
   createdById    String
+  studioId       String
   createdBy      User                   @relation("CreatedBriefTemplates", fields: [createdById], references: [id], onDelete: Restrict)
+  studio         Studio                 @relation(fields: [studioId], references: [id], onDelete: Restrict)
   sourceBriefId  String?
   sourceBrief    CreativeBrief?         @relation("BriefToTemplate", fields: [sourceBriefId], references: [id], onDelete: SetNull)
   derivedBriefs  CreativeBrief[]        @relation("TemplateToBrief")
@@ -849,4 +974,5 @@ model BriefTemplate {
   @@index([isArchived, createdAt])
   @@index([createdById])
   @@index([sourceBriefId])
+  @@index([studioId, isArchived, createdAt])
 }

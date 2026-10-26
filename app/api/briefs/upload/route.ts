@@ -1,7 +1,8 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { UserRole } from "@/generated/prisma/client";
+import { StudioArea, StudioAccessLevel } from "@/generated/prisma/client";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 
 const maxFileSize = 25 * 1024 * 1024;
 const allowedContentTypes = [
@@ -21,8 +22,10 @@ const allowedContentTypes = [
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== UserRole.MANAGER) {
-    return NextResponse.json({ error: "Only managers can upload brief attachments." }, { status: 403 });
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  const context = await getStudioAccessContext(session.user.id, session.user.role);
+  if (!context || !hasStudioAccess(context, StudioArea.BRIEFS, StudioAccessLevel.MANAGE)) {
+    return NextResponse.json({ error: "Brief management access is required." }, { status: 403 });
   }
 
   try {

@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfileImageSrc } from "@/lib/profile-image"
-import { InvitationTableActions } from "@/components/invitations/invitation-link-actions"
+import { InvitationTableActions, RevokeStudioAccountButton } from "@/components/invitations/invitation-link-actions"
 import { CreateInvitationDialog } from "@/components/invitations/create-invitation-dialog"
 import { Pagination } from "@/components/ui/pagination"
 import { useDebounce } from "@uidotdev/usehooks"
@@ -62,6 +62,8 @@ export function InvitationsView({
   searchParams,
   searchQuery,
   selectedFilter,
+  canManage,
+  canRevokeManagementMembers,
 }: {
   invitations: InvitationRecord[]
   stats: InvitationStats
@@ -71,6 +73,8 @@ export function InvitationsView({
   searchParams: SearchParamsRecord
   searchQuery: string
   selectedFilter: string
+  canManage: boolean
+  canRevokeManagementMembers: boolean
 }) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState(searchQuery)
@@ -127,7 +131,7 @@ export function InvitationsView({
             and clients.
           </p>
         </div>
-        <CreateInvitationDialog />
+        {canManage ? <CreateInvitationDialog /> : null}
       </div>
 
       {/* KPI Cards Row */}
@@ -176,7 +180,7 @@ export function InvitationsView({
             className="h-10 rounded-lg pl-9 text-sm"
           />
         </div>
-        <div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+        <div className="flex w-full min-w-0 items-center gap-2 overflow-x-auto overscroll-x-contain scrollbar-none sm:w-auto sm:max-w-full">
           {[
             { id: "ALL", label: "All" },
             { id: "PENDING", label: `Pending (${stats.pendingCount})` },
@@ -189,7 +193,7 @@ export function InvitationsView({
               type="button"
               aria-pressed={selectedFilter === pill.id}
               onClick={() => updateFilter(pill.id)}
-              className={`min-h-9 rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:whitespace-nowrap ${
+              className={`min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
                 selectedFilter === pill.id
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
@@ -218,7 +222,7 @@ export function InvitationsView({
               <TableHead className="min-w-44 text-[11px] tracking-wide uppercase">
                 Link expiry / accepted
               </TableHead>
-              <TableHead className="w-16 px-3 text-right text-[11px] tracking-wide uppercase sm:px-4">
+              <TableHead className="w-32 px-3 text-right text-[11px] tracking-wide uppercase sm:px-4">
                 Actions
               </TableHead>
             </TableRow>
@@ -244,10 +248,10 @@ export function InvitationsView({
                 const isExpired =
                   isUnused && new Date(invitation.expiresAt) <= now
                 const isPending = isUnused && !isExpired
-                const isAccepted = Boolean(
+                const isRevoked = invitation.status === InvitationStatus.REVOKED
+                const isAccepted = !isRevoked && Boolean(
                   invitation.usedAt || invitation.acceptedAt
                 )
-                const isRevoked = invitation.status === InvitationStatus.REVOKED
 
                 const displayName =
                   invitation.acceptedUser?.name || invitation.email
@@ -359,13 +363,19 @@ export function InvitationsView({
 
                     {/* Actions */}
                     <TableCell className="px-3 py-3.5 text-right sm:px-4">
-                      {isPending || (!isAccepted && !isRevoked) ? (
+                      {isAccepted && Boolean(invitation.usedAt && invitation.acceptedUser) && ((canManage && (invitation.role === UserRole.WORKER || invitation.role === UserRole.CLIENT)) || (canRevokeManagementMembers && (invitation.role === UserRole.SUPERVISOR || invitation.role === UserRole.COLLABORATOR))) ? (
+                        <RevokeStudioAccountButton
+                          id={invitation.id}
+                          role={invitation.role === UserRole.WORKER ? "Worker" : invitation.role === UserRole.CLIENT ? "Client" : invitation.role === UserRole.SUPERVISOR ? "Supervisor" : "Collaborator"}
+                          name={displayName}
+                        />
+                      ) : isPending || (!isAccepted && !isRevoked) || (isAccepted && !invitation.usedAt) ? (
                         <InvitationTableActions
                           id={invitation.id}
                           email={invitation.email}
                           recoverable={Boolean(invitation.tokenEncrypted)}
-                          canManageLink={isPending}
-                          canRevoke={!isAccepted && !isRevoked}
+                          canManageLink={canManage && isPending}
+                          canRevoke={canManage && !isAccepted && !isRevoked}
                         />
                       ) : null}
                     </TableCell>

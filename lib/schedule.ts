@@ -7,6 +7,8 @@ import {
   UserRole,
 } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { requireStudioArea } from "@/lib/studio-access";
+import { StudioArea } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getScheduleEventsQuerySchema } from "@/lib/validation/schedule";
 
@@ -33,9 +35,10 @@ export async function detectScheduleConflicts(
     location?: string | null;
     assigneeIds?: string[];
     excludeEventId?: string | null;
+    studioId?: string;
   }
 ): Promise<ScheduleConflictWarning[]> {
-  const { startAt, endAt, location, assigneeIds = [], excludeEventId } = params;
+  const { startAt, endAt, location, assigneeIds = [], excludeEventId, studioId } = params;
   const warnings: ScheduleConflictWarning[] = [];
 
   // Overlap condition: startAt < existing.endAt AND endAt > existing.startAt
@@ -43,6 +46,7 @@ export async function detectScheduleConflicts(
     startAt: { lt: endAt },
     endAt: { gt: startAt },
     ...(excludeEventId ? { id: { not: excludeEventId } } : {}),
+    ...(studioId ? { studioId } : {}),
   };
 
   // 1. Location conflict check
@@ -114,7 +118,9 @@ export async function detectScheduleConflicts(
 }
 
 export async function getScheduleEvents(rawQuery: unknown) {
-  const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.SCHEDULE);
+  const user = current.role === UserRole.WORKER ? current : { ...current, id: studio!.context.ownerUserId };
   const parsed = getScheduleEventsQuerySchema.safeParse(rawQuery);
 
   if (!parsed.success) {
@@ -130,8 +136,8 @@ export async function getScheduleEvents(rawQuery: unknown) {
   };
 
   const roleEventWhere: Prisma.ScheduleEventWhereInput =
-    user.role === UserRole.MANAGER
-      ? {}
+    user.role !== UserRole.WORKER
+      ? { studioId: studio!.context.studioId }
       : {
           OR: [
             { assignees: { some: { id: user.id } } },
@@ -197,8 +203,8 @@ export async function getScheduleEvents(rawQuery: unknown) {
     status: {
       in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW],
     },
-    ...(user.role === UserRole.MANAGER
-      ? { project: { managerId: user.id } }
+    ...(user.role !== UserRole.WORKER
+      ? { project: { studioId: studio!.context.studioId } }
       : { assignees: { some: { userId: user.id } } }),
     ...(projectId ? { projectId } : {}),
   };
@@ -254,10 +260,12 @@ export async function getScheduleEvents(rawQuery: unknown) {
 }
 
 export async function getScheduleEventById(id: string) {
-  const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.SCHEDULE);
+  const user = current.role === UserRole.WORKER ? current : { ...current, id: studio!.context.ownerUserId };
 
-  const event = await prisma.scheduleEvent.findUnique({
-    where: { id },
+  const event = await prisma.scheduleEvent.findFirst({
+    where: { id, ...(user.role === UserRole.WORKER ? {} : { studioId: studio!.context.studioId }) },
     include: {
       project: {
         select: { id: true, name: true },

@@ -15,6 +15,8 @@ import { createClientInvitationProposalSchema } from "@/lib/validation/invitatio
 import { WorkRequestType } from "@/generated/prisma/client";
 import { inventoryActionPayloadSchema, prepareInventoryAction } from "@/lib/ai/inventory-proposals";
 import { prepareDailyEntryProposal } from "@/lib/ai/daily-entry-proposals";
+import { StudioAccessLevel, StudioArea } from "@/generated/prisma/client";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 
 export interface ToolContext {
   userId: string;
@@ -38,6 +40,13 @@ function defineStudioTool<TArgs, TResult>(config: {
 
 export function createStudioTools(ctx: ToolContext) {
   const { userId, role, autonomousExecution } = ctx;
+  const managerSideRoles: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR];
+  const canUseManagerArea = async (area: StudioArea, level: StudioAccessLevel = StudioAccessLevel.VIEW) => {
+    if (!managerSideRoles.includes(role)) return false;
+    const access = await getStudioAccessContext(userId, role);
+    return Boolean(access && hasStudioAccess(access, StudioArea.COPILOT) && hasStudioAccess(access, area, level));
+  };
+  const getManagerOwnerId = async () => (await getStudioAccessContext(userId, role))?.ownerUserId ?? null;
   const inventoryActionTool = role === UserRole.CLIENT ? null : defineStudioTool({
     description: "Prepare, but never automatically apply, an inventory change. First use query_studio_data to find the item or record ID and check its current state. Supported actions are CREATE_ITEM and UPDATE_ITEM and RETIRE_ITEM for managers, CHECKOUT_ITEM and RETURN_ITEM for managers or workers (workers can only return their own loans), and RESOLVE_MAINTENANCE for managers. Always return a confirmation proposal card. This explicit confirmation is required even if autonomous execution is enabled.",
     parameters: inventoryActionPayloadSchema,
@@ -74,6 +83,15 @@ export function createStudioTools(ctx: ToolContext) {
           .describe("Filter results by category"),
       }),
       execute: async ({ query, category = "ALL" }) => {
+        const areas = category === "ALL" ? [StudioArea.REVIEWS, StudioArea.TASKS, StudioArea.PROJECTS]
+          : category === "REVIEWS" ? [StudioArea.REVIEWS]
+            : category === "TASKS" ? [StudioArea.TASKS] : [StudioArea.PROJECTS];
+        for (const area of areas) {
+          if (managerSideRoles.includes(role) && !(await canUseManagerArea(area))) {
+            return { error: `You do not have Copilot and view access to ${area.toLowerCase().replaceAll("_", " ")}.` };
+          }
+        }
+        const managerOwnerId = managerSideRoles.includes(role) ? await getManagerOwnerId() : null;
         const lowerQuery = query.toLowerCase().trim();
 
         // Query reviews / feedback
@@ -102,7 +120,7 @@ export function createStudioTools(ctx: ToolContext) {
           } else if (role === UserRole.WORKER) {
             feedbackWhere.assignedWorkerId = userId;
           } else {
-            feedbackWhere.project = { managerId: userId };
+            feedbackWhere.project = { managerId: managerOwnerId ?? userId };
           }
 
           const rawReviews = await prisma.clientFeedback.findMany({
@@ -153,7 +171,7 @@ export function createStudioTools(ctx: ToolContext) {
           if (role === UserRole.WORKER) {
             taskWhere.assignees = { some: { userId } };
           } else {
-            taskWhere.project = { managerId: userId };
+            taskWhere.project = { managerId: managerOwnerId ?? userId };
           }
 
           const rawTasks = await prisma.task.findMany({
@@ -192,7 +210,7 @@ export function createStudioTools(ctx: ToolContext) {
           } else if (role === UserRole.WORKER) {
             projectWhere.tasks = { some: { deletedAt: null, assignees: { some: { userId } } } };
           } else {
-            projectWhere.managerId = userId;
+            projectWhere.managerId = managerOwnerId ?? userId;
           }
 
           const rawProjects = await prisma.project.findMany({
@@ -243,6 +261,7 @@ export function createStudioTools(ctx: ToolContext) {
         if (role === UserRole.CLIENT) {
           return { error: "Client accounts do not have permission to inspect internal retoucher capacity." };
         }
+        if (managerSideRoles.includes(role) && !(await canUseManagerArea(StudioArea.TEAM))) return { error: "You do not have Copilot and view access to the team area." };
 
         const workers = await prisma.user.findMany({
           where: {
@@ -303,9 +322,9 @@ export function createStudioTools(ctx: ToolContext) {
         cutoffHours: z.number().int().min(1).max(720).default(24).describe("Hours window before cutoff"),
       }),
       execute: async ({ cutoffHours = 24 }) => {
-        if (role !== UserRole.MANAGER) {
-          return { error: "SLA triage is restricted to studio managers." };
-        }
+        if (!(await canUseManagerArea(StudioArea.TASKS))) return { error: "You do not have Copilot and view access to tasks." };
+        const managerOwnerId = await getManagerOwnerId();
+        if (!managerOwnerId) return { error: "Your studio membership is not active." };
 
         const cutoffDate = new Date();
         cutoffDate.setHours(cutoffDate.getHours() + cutoffHours);
@@ -316,7 +335,7 @@ export function createStudioTools(ctx: ToolContext) {
               deletedAt: null,
               status: { in: ["TODO", "IN_PROGRESS", "IN_REVIEW"] },
               dueAt: { lte: cutoffDate, not: null },
-              project: { managerId: userId },
+              project: { managerId: managerOwnerId },
             },
           }),
           prisma.task.findMany({
@@ -324,7 +343,7 @@ export function createStudioTools(ctx: ToolContext) {
             deletedAt: null,
             status: { in: ["TODO", "IN_PROGRESS", "IN_REVIEW"] },
             dueAt: { lte: cutoffDate, not: null },
-            project: { managerId: userId },
+            project: { managerId: managerOwnerId },
           },
           include: {
             assignees: { include: { user: { select: { name: true, email: true } } } },
@@ -431,8 +450,8 @@ export function createStudioTools(ctx: ToolContext) {
         email: z.string().trim().email().max(254).optional().describe("Email address of the client to invite"),
       }).strict(),
       execute: async ({ email }) => {
-        if (role !== UserRole.MANAGER) {
-          return { error: "Only managers can prepare client invitations." };
+        if (!managerSideRoles.includes(role) || !(await canUseManagerArea(StudioArea.TEAM, StudioAccessLevel.MANAGE))) {
+          return { error: "You do not have Copilot and manage access to the team area." };
         }
         if (!email) {
           return { needsInput: true, message: "What email address should I prepare the client invitation for?" };
@@ -466,8 +485,8 @@ export function createStudioTools(ctx: ToolContext) {
         clientEmail: z.string().email().optional().describe("Email of the active client account to associate with the project. If not supplied by the user, ask for it; never guess or use the manager's email."),
       }),
       execute: async ({ name, projectDescription, clientEmail }) => {
-        if (role !== UserRole.MANAGER) {
-          return { error: "Only managers are authorized to create projects." };
+        if (!managerSideRoles.includes(role) || !(await canUseManagerArea(StudioArea.PROJECTS, StudioAccessLevel.MANAGE))) {
+          return { error: "You do not have Copilot and manage access to projects." };
         }
         if (!clientEmail) {
           return {
@@ -479,7 +498,7 @@ export function createStudioTools(ctx: ToolContext) {
         const description = projectDescription?.trim() || `Production project for ${name}.`;
 
         // Check if confirmation is required (Safe Multi-Tier Mode)
-        if (!autonomousExecution) {
+        if (!autonomousExecution || role !== UserRole.MANAGER) {
           return {
             requiresConfirmation: true,
             proposalType: "CREATE_PROJECT",
@@ -489,7 +508,9 @@ export function createStudioTools(ctx: ToolContext) {
           };
         }
 
-        return createProjectForManager(userId, { name, description, clientEmail });
+        const ownerId = await getManagerOwnerId();
+        if (!ownerId) return { error: "Your studio membership is not active." };
+        return createProjectForManager(ownerId, { name, description, clientEmail });
       },
     }),
 
@@ -509,13 +530,15 @@ export function createStudioTools(ctx: ToolContext) {
         priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
       }),
       execute: async (args) => {
-        if (role !== UserRole.MANAGER) {
-          return { error: "Only managers are authorized to create and assign tasks." };
+        if (!managerSideRoles.includes(role) || !(await canUseManagerArea(StudioArea.TASKS, StudioAccessLevel.MANAGE))) {
+          return { error: "You do not have Copilot and manage access to tasks." };
         }
-        const prepared = await prepareTaskBatchForManager(userId, args);
+        const ownerId = await getManagerOwnerId();
+        if (!ownerId) return { error: "Your studio membership is not active." };
+        const prepared = await prepareTaskBatchForManager(ownerId, args);
         if ("error" in prepared) return prepared;
 
-        if (!autonomousExecution) {
+        if (!autonomousExecution || role !== UserRole.MANAGER) {
           return {
             requiresConfirmation: true,
             proposalType: "CREATE_TASK_BATCH",
@@ -526,7 +549,7 @@ export function createStudioTools(ctx: ToolContext) {
           };
         }
 
-        return createTaskBatchForManager(userId, prepared.payload);
+        return createTaskBatchForManager(ownerId, prepared.payload, userId);
       },
     }),
 
@@ -537,10 +560,12 @@ export function createStudioTools(ctx: ToolContext) {
         projectId: z.string().describe("Project ID to summarize"),
       }),
       execute: async ({ projectId }) => {
-        if (role !== UserRole.MANAGER) return { error: "Only managers can compile delivery wrap-up reports." };
+        if (!(await canUseManagerArea(StudioArea.PROJECTS))) return { error: "You do not have Copilot and view access to projects." };
+        const ownerId = await getManagerOwnerId();
+        if (!ownerId) return { error: "Your studio membership is not active." };
 
         const project = await prisma.project.findFirst({
-          where: { id: projectId, managerId: userId },
+          where: { id: projectId, managerId: ownerId },
           select: { id: true, name: true, client: { select: { name: true } } },
         });
 

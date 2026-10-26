@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { del } from "@vercel/blob";
 import { Prisma, UserRole } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { requireStudioManagerArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import {
   createBrandAssetSchema,
@@ -72,7 +72,7 @@ export async function createBrandAsset(
   rawInput: unknown
 ): Promise<BrandAssetActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager, context } = await requireStudioManagerArea("BRAND_ASSETS");
 
     const parsed = createBrandAssetSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -134,7 +134,8 @@ export async function createBrandAsset(
         tags: data.tags || [],
         clientId: finalClientId,
         projectId: data.projectId,
-        createdById: manager.id,
+        createdById: manager.actorId,
+        studioId: context.studioId,
       },
       select: { id: true },
     });
@@ -158,7 +159,7 @@ export async function createBrandAssets(
   rawInput: unknown
 ): Promise<BrandAssetActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager, context } = await requireStudioManagerArea("BRAND_ASSETS");
     const parsed = createBrandAssetsSchema.safeParse(rawInput);
     if (!parsed.success) {
       return { error: parsed.error.issues[0]?.message || "Invalid brand asset data." };
@@ -221,7 +222,8 @@ export async function createBrandAssets(
               tags: item.tags,
               clientId: finalClientId,
               projectId,
-              createdById: manager.id,
+              createdById: manager.actorId,
+              studioId: context.studioId,
             },
             select: { id: true },
           })
@@ -245,7 +247,7 @@ export async function createBrandAssets(
 export async function discardUnusedBrandAssetUploads(
   rawFiles: unknown
 ): Promise<void> {
-  await requireRole(UserRole.MANAGER);
+  await requireStudioManagerArea("BRAND_ASSETS");
   if (!Array.isArray(rawFiles) || rawFiles.length > 20) return;
   const files = rawFiles.filter(
     (item): item is { fileUrl: string; fileKey: string } =>
@@ -262,7 +264,7 @@ export async function updateBrandAsset(
   rawInput: unknown
 ): Promise<BrandAssetActionState> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea("BRAND_ASSETS");
 
     const parsed = updateBrandAssetSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -274,7 +276,7 @@ export async function updateBrandAsset(
     const data: UpdateBrandAssetInput = parsed.data;
 
     const existing = await prisma.brandAsset.findUnique({
-      where: { id: data.id },
+      where: { id: data.id, studioId: context.studioId },
       select: { id: true, fileUrl: true, fileKey: true, fileName: true, fileSize: true, fileMime: true, externalUrl: true, colorPalette: true, projectId: true, clientId: true },
     });
 
@@ -320,7 +322,7 @@ export async function updateBrandAsset(
     }
 
     await prisma.brandAsset.update({
-      where: { id: data.id },
+      where: { id: data.id, studioId: context.studioId },
       data: {
         ...(data.title !== undefined ? { title: data.title } : {}),
         ...(data.description !== undefined
@@ -371,7 +373,7 @@ export async function deleteBrandAsset(
   rawInput: unknown
 ): Promise<BrandAssetActionState> {
   try {
-    await requireRole(UserRole.MANAGER);
+    const { context } = await requireStudioManagerArea("BRAND_ASSETS");
 
     const parsed = deleteBrandAssetSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -383,7 +385,7 @@ export async function deleteBrandAsset(
     const { id } = parsed.data;
 
     const existing = await prisma.brandAsset.findUnique({
-      where: { id },
+      where: { id, studioId: context.studioId },
       select: { id: true, fileUrl: true, fileKey: true },
     });
 
@@ -392,7 +394,7 @@ export async function deleteBrandAsset(
     }
 
     await prisma.brandAsset.delete({
-      where: { id },
+      where: { id, studioId: context.studioId },
     });
     await deleteManagedBlob(existing.fileUrl, existing.fileKey);
 

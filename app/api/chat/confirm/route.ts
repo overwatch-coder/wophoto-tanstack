@@ -3,8 +3,9 @@ import { revalidatePath } from "next/cache";
 import { createProjectForManager, createProjectInputSchema, createTaskBatchForManager, createTaskBatchInputSchema } from "@/lib/ai/actions";
 import { createInvitationForManager } from "@/lib/invitations";
 import { createClientInvitationProposalSchema } from "@/lib/validation/invitations";
-import { UserRole } from "@/generated/prisma/client";
+import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 import { z } from "zod";
 import { inventoryActionPayloadSchema } from "@/lib/ai/inventory-proposals";
 import { createDailyEntryForWorker, dailyEntryProposalSchema } from "@/lib/ai/daily-entry-proposals";
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
   if (!(await isCopilotEnabledForUser(session.user.id, session.user.role))) {
     return Response.json({ error: "Copilot is currently disabled for your account by your studio manager." }, { status: 403 });
   }
-  if (session.user.role !== UserRole.MANAGER && session.user.role !== UserRole.WORKER) {
+  const copilotActionRoles: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER];
+  if (!copilotActionRoles.includes(session.user.role)) {
     return Response.json({ error: "Only managers can apply these studio changes." }, { status: 403 });
   }
 
@@ -55,13 +57,30 @@ export async function POST(request: Request) {
   if (parsed.data.proposalType === "CREATE_DAILY_ENTRY" && session.user.role !== UserRole.WORKER) {
     return Response.json({ error: "Only workers can log daily work entries." }, { status: 403 });
   }
-  if (parsed.data.proposalType !== "INVENTORY_ACTION" && parsed.data.proposalType !== "CREATE_DAILY_ENTRY" && session.user.role !== UserRole.MANAGER) {
+  const managerSide = session.user.role === UserRole.MANAGER || session.user.role === UserRole.SUPERVISOR || session.user.role === UserRole.COLLABORATOR;
+  let managerOwnerId = session.user.id;
+  const requiredArea = parsed.data.proposalType === "CREATE_PROJECT"
+    ? StudioArea.PROJECTS
+    : parsed.data.proposalType === "CREATE_TASK_BATCH"
+      ? StudioArea.TASKS
+      : parsed.data.proposalType === "CREATE_INVITATION"
+        ? StudioArea.TEAM
+        : parsed.data.proposalType === "INVENTORY_ACTION"
+          ? StudioArea.INVENTORY
+          : null;
+  if (managerSide && requiredArea) {
+    const context = await getStudioAccessContext(session.user.id, session.user.role);
+    if (context) managerOwnerId = context.ownerUserId;
+    const writeAllowed = context && hasStudioAccess(context, StudioArea.COPILOT, StudioAccessLevel.VIEW) && hasStudioAccess(context, requiredArea, StudioAccessLevel.MANAGE);
+    if (!writeAllowed) return Response.json({ error: "You do not have Copilot and manage access for this area." }, { status: 403 });
+  }
+  if (parsed.data.proposalType !== "INVENTORY_ACTION" && parsed.data.proposalType !== "CREATE_DAILY_ENTRY" && !managerSide) {
     return Response.json({ error: "Only managers can apply these studio changes." }, { status: 403 });
   }
   if (parsed.data.proposalType === "INVENTORY_ACTION") {
     const { action } = parsed.data.payload;
     const managerOnly = ["CREATE_ITEM", "UPDATE_ITEM", "RETIRE_ITEM", "RESOLVE_MAINTENANCE"].includes(action);
-    if (managerOnly && session.user.role !== UserRole.MANAGER) {
+    if (managerOnly && !managerSide) {
       return Response.json({ error: "Only managers can perform this inventory action." }, { status: 403 });
     }
   }
@@ -69,13 +88,13 @@ export async function POST(request: Request) {
   try {
     let result;
     if (parsed.data.proposalType === "CREATE_PROJECT") {
-      result = await createProjectForManager(session.user.id, parsed.data.payload);
+      result = await createProjectForManager(managerOwnerId, parsed.data.payload);
     } else if (parsed.data.proposalType === "CREATE_TASK_BATCH") {
-      result = await createTaskBatchForManager(session.user.id, parsed.data.payload);
+      result = await createTaskBatchForManager(managerOwnerId, parsed.data.payload, session.user.id);
     } else if (parsed.data.proposalType === "CREATE_DAILY_ENTRY") {
       result = await createDailyEntryForWorker(session.user.id, parsed.data.payload);
     } else if (parsed.data.proposalType === "CREATE_INVITATION") {
-      result = await createInvitationForManager(session.user.id, parsed.data.payload);
+      result = await createInvitationForManager(managerOwnerId, parsed.data.payload);
     } else {
       const { action, input: actionInput } = parsed.data.payload;
       const inventoryResult = action === "CREATE_ITEM"

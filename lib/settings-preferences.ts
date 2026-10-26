@@ -160,6 +160,8 @@ export const ROLE_NOTIFICATION_PREFERENCES: Record<
       description: "An assigned task is due within 24 hours.",
     },
   ],
+  [UserRole.SUPERVISOR]: [],
+  [UserRole.COLLABORATOR]: [],
   [UserRole.CLIENT]: [
     {
       type: NotificationType.FEEDBACK_RESOLVED,
@@ -185,6 +187,16 @@ export const ROLE_LANDING_OPTIONS: Record<UserRole, LandingOption[]> = {
   [UserRole.CLIENT]: [
     { value: "/client", label: "Dashboard", description: "Project overview" },
     { value: "/client/project-feedback", label: "Project feedback", description: "Feedback and revisions" },
+  ],
+  [UserRole.SUPERVISOR]: [
+    { value: "/manager", label: "Dashboard", description: "Studio overview" },
+    { value: "/manager/tasks", label: "Tasks", description: "Team workboard" },
+    { value: "/manager/reviews", label: "Reviews", description: "Client feedback triage" },
+  ],
+  [UserRole.COLLABORATOR]: [
+    { value: "/manager", label: "Dashboard", description: "Studio overview" },
+    { value: "/manager/tasks", label: "Tasks", description: "Team workboard" },
+    { value: "/manager/reviews", label: "Reviews", description: "Client feedback triage" },
   ],
 };
 

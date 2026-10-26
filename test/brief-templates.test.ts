@@ -34,6 +34,21 @@ vi.mock("@/lib/authz", () => ({
   requireUser: mocks.requireUser,
   getCurrentUser: mocks.getCurrentUser,
 }));
+vi.mock("@/lib/studio-access", () => {
+  const actor = async () => mocks.requireRole("MANAGER");
+  const context = (user: { id: string; role: string }) => ({
+    studioId: `studio-${user.id}`, ownerUserId: user.id, isOwner: user.role === "MANAGER",
+    memberId: null, role: user.role, grants: {},
+  });
+  return {
+    requireStudioArea: async () => { const user = await actor(); return { user, context: context(user) }; },
+    requireStudioManagerArea: async () => { const user = await actor(); return { manager: { ...user, actorId: user.id }, actor: user, context: context(user) }; },
+    requireStudioOwner: async () => { const user = await actor(); return { user, context: context(user) }; },
+    getStudioAccessContext: async (userId: string, role: string) => ({ studioId: `studio-${userId}`, ownerUserId: role === "MANAGER" ? userId : "manager-1", isOwner: role === "MANAGER", memberId: role === "MANAGER" ? null : "member-1", role, grants: {} }),
+    hasStudioAccess: () => true,
+  };
+});
+
 vi.mock("@vercel/blob", () => ({
   put: mocks.blobPut,
   del: mocks.blobDel,
@@ -43,6 +58,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     briefTemplate: {
       findUnique: mocks.templateFindUnique,
+      findFirst: mocks.templateFindUnique,
       findMany: mocks.templateFindMany,
       count: mocks.templateCount,
       create: mocks.templateCreate,
@@ -469,6 +485,7 @@ describe("Slice 14: Explore Briefs & Template Library", () => {
           description: "Headshots for website",
           managerId: MANAGER_USER.id,
           clientId: CLIENT_USER.id,
+          studioId: `studio-${MANAGER_USER.id}`,
         },
       });
 

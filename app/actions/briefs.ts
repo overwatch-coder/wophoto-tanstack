@@ -6,11 +6,13 @@ import {
   Prisma,
   BriefStatus,
   SignOffStatus,
+  StudioArea,
   UserRole,
 } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { managerCanAccessBrief, workerCanAccessBrief } from "@/lib/briefs";
+import { requireStudioManagerArea } from "@/lib/studio-access";
 import {
   createCreativeBriefSchema,
   updateCreativeBriefSchema,
@@ -63,7 +65,7 @@ export async function createCreativeBrief(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager, context } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const parsed = createCreativeBriefSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -114,7 +116,7 @@ export async function createCreativeBrief(
           fileMime: data.fileMime,
           tags: data.tags || [],
           projectId: data.projectId,
-          createdById: manager.id,
+      createdById: manager.actorId,
         },
         select: { id: true },
       });
@@ -139,7 +141,7 @@ export async function updateCreativeBrief(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const parsed = updateCreativeBriefSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -283,7 +285,7 @@ export async function deleteCreativeBrief(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager, context } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const id = typeof rawInput === "object" && rawInput !== null && "id" in rawInput
       ? String((rawInput as { id: unknown }).id)
@@ -306,13 +308,13 @@ export async function deleteCreativeBrief(
             status: true,
             fileUrl: true,
             fileKey: true,
-            project: { select: { managerId: true } },
+            project: { select: { studioId: true } },
             signOffs: { select: { status: true } },
             _count: { select: { questions: true } },
           },
         });
 
-        if (!existing || existing.project.managerId !== manager.id) {
+        if (!existing || existing.project.studioId !== context.studioId) {
           return { error: "Creative brief not found." } as const;
         }
         if (existing.status !== BriefStatus.DRAFT) {
@@ -365,7 +367,7 @@ export async function publishCreativeBrief(
   briefId: string
 ): Promise<BriefActionState & { enrolledCount?: number }> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     if (!briefId || briefId.trim() === "") {
       return { error: "Brief ID is required." };
@@ -454,7 +456,7 @@ export async function setBriefStatus(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const parsed = setBriefStatusSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -493,7 +495,7 @@ export async function addBriefReviewer(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const parsed = addBriefReviewerSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -553,7 +555,7 @@ export async function removeBriefReviewer(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const parsed = removeBriefReviewerSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -602,7 +604,7 @@ export async function waiveBriefSignOff(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { manager } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const parsed = waiveBriefSignOffSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -736,7 +738,8 @@ export async function updateShotItemStatus(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+    const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+    const manager = user.role === UserRole.WORKER ? null : (await requireStudioManagerArea(StudioArea.BRIEFS)).manager;
 
     const parsed = updateShotItemStatusSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -759,7 +762,7 @@ export async function updateShotItemStatus(
     if (user.role === UserRole.WORKER && !(await workerCanAccessBrief(briefId, user.id))) {
       return { error: "You do not have access to this brief." };
     }
-    if (user.role === UserRole.MANAGER && !(await managerCanAccessBrief(briefId, user.id))) {
+    if (manager && !(await managerCanAccessBrief(briefId, manager.id))) {
       return { error: "You do not have access to this brief." };
     }
 
@@ -804,7 +807,8 @@ export async function postBriefQuestion(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+    const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+    const manager = user.role === UserRole.WORKER ? null : (await requireStudioManagerArea(StudioArea.BRIEFS)).manager;
 
     const parsed = postBriefQuestionSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -827,7 +831,7 @@ export async function postBriefQuestion(
     if (user.role === UserRole.WORKER && !(await workerCanAccessBrief(brief.id, user.id))) {
       return { error: "You do not have access to this brief." };
     }
-    if (user.role === UserRole.MANAGER && !(await managerCanAccessBrief(brief.id, user.id))) {
+    if (manager && !(await managerCanAccessBrief(brief.id, manager.id))) {
       return { error: "You do not have access to this brief." };
     }
 
@@ -891,7 +895,8 @@ export async function resolveBriefQuestion(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER, UserRole.WORKER);
+    const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+    const manager = user.role === UserRole.WORKER ? null : (await requireStudioManagerArea(StudioArea.BRIEFS)).manager;
 
     const parsed = resolveBriefQuestionSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -914,12 +919,12 @@ export async function resolveBriefQuestion(
     if (user.role === UserRole.WORKER && !(await workerCanAccessBrief(question.briefId, user.id))) {
       return { error: "You do not have access to this brief discussion." };
     }
-    if (user.role === UserRole.MANAGER && !(await managerCanAccessBrief(question.briefId, user.id))) {
+    if (manager && !(await managerCanAccessBrief(question.briefId, manager.id))) {
       return { error: "You do not have access to this brief discussion." };
     }
 
     // Only manager or author can resolve
-    if (user.role !== UserRole.MANAGER && question.authorId !== user.id) {
+    if (!manager && question.authorId !== user.id) {
       return { error: "Only a manager or the question author can resolve this question." };
     }
 

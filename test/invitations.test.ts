@@ -15,6 +15,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/email", () => ({ sendNotificationEmail: mocks.sendEmail }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    studio: { findUnique: vi.fn().mockResolvedValue({ id: "studio-1" }) },
     user: { findUnique: mocks.findUniqueUser },
     invitation: { updateMany: mocks.updateManyInvitation, create: mocks.createInvitation },
     $transaction: mocks.transaction,
@@ -23,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
 
 import { createInvitationForManager } from "@/lib/invitations";
 
-describe("AI client invitation creation", () => {
+describe("Invitation creation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("AUTH_SECRET", "test-invitation-secret");
@@ -77,8 +78,35 @@ describe("AI client invitation creation", () => {
     expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
       to: "client@example.com",
       subject: "Your WoPhoto Studio invitation",
+      message: expect.stringContaining("as a client"),
       link: result.invitePath,
     }));
+  });
+
+  it.each([
+    ["SUPERVISOR", "supervisor"],
+    ["COLLABORATOR", "collaborator"],
+  ] as const)("identifies a %s invitation with the correct role in its email", async (role, label) => {
+    await createInvitationForManager("manager-1", {
+      email: "member@example.com",
+      role,
+    });
+
+    expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      to: "member@example.com",
+      message: expect.stringContaining(`as a ${label}`),
+    }));
+  });
+
+  it("does not imply test-mode invitation email was delivered to the invitee", async () => {
+    vi.stubEnv("EMAIL_DELIVERY_MODE", "test");
+
+    const result = await createInvitationForManager("manager-1", {
+      email: "member@example.com",
+      role: "SUPERVISOR",
+    });
+
+    expect(result.message).toContain("test email was sent to the configured test inbox instead of member@example.com");
   });
 
   it("keeps the copyable link when email delivery is unavailable", async () => {

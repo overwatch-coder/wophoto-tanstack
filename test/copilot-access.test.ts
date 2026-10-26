@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/authz", () => ({ requireRole: vi.fn(), requireUser: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     invitation: { findFirst: mocks.invitationFindFirst },
@@ -39,13 +40,13 @@ describe("studio Copilot access policy", () => {
   });
 
   it("preserves existing worker access when a studio has not saved a policy yet", async () => {
-    mocks.invitationFindFirst.mockResolvedValue({ invitedById: "manager-1" });
+    mocks.invitationFindFirst.mockResolvedValue({ studio: { ownerUserId: "manager-1" } });
     mocks.policyFindUnique.mockResolvedValue(null);
     await expect(isCopilotEnabledForUser("worker-1", UserRole.WORKER)).resolves.toBe(true);
   });
 
   it("lets the master switch block everyone even when a member has an allow exception", async () => {
-    mocks.invitationFindFirst.mockResolvedValue({ invitedById: "manager-1" });
+    mocks.invitationFindFirst.mockResolvedValue({ studio: { ownerUserId: "manager-1" } });
     mocks.policyFindUnique.mockResolvedValue({
       enabled: false,
       workersEnabled: true,
@@ -56,7 +57,7 @@ describe("studio Copilot access policy", () => {
   });
 
   it("applies individual allow and block exceptions before role defaults", async () => {
-    mocks.invitationFindFirst.mockResolvedValue({ invitedById: "manager-1" });
+    mocks.invitationFindFirst.mockResolvedValue({ studio: { ownerUserId: "manager-1" } });
     mocks.policyFindUnique
       .mockResolvedValueOnce({ enabled: true, workersEnabled: false, clientsEnabled: false, overrides: [{ enabled: true }] })
       .mockResolvedValueOnce({ enabled: true, workersEnabled: true, clientsEnabled: true, overrides: [{ enabled: false }] });
@@ -65,14 +66,14 @@ describe("studio Copilot access policy", () => {
   });
 
   it("uses the configured client default when there is no individual exception", async () => {
-    mocks.invitationFindFirst.mockResolvedValue({ invitedById: "manager-1" });
+    mocks.invitationFindFirst.mockResolvedValue({ studio: { ownerUserId: "manager-1" } });
     mocks.policyFindUnique.mockResolvedValue({ enabled: true, workersEnabled: true, clientsEnabled: true, overrides: [] });
     await expect(isCopilotEnabledForUser("client-1", UserRole.CLIENT)).resolves.toBe(true);
   });
 
   it("resolves a client to a studio through a current project when no invitation is linked", async () => {
     mocks.invitationFindFirst.mockResolvedValue(null);
-    mocks.projectFindFirst.mockResolvedValue({ managerId: "manager-2" });
+    mocks.projectFindFirst.mockResolvedValue({ studio: { ownerUserId: "manager-2" } });
     await expect(getCopilotStudioId("client-1", UserRole.CLIENT)).resolves.toBe("manager-2");
   });
 

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireRole } from "@/lib/authz";
+import { requireStudioOwner } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import { encryptAIKey } from "@/lib/ai/credentials";
 import { DEFAULT_AI_MODELS, isAIModelAvailable, type AIProvider } from "@/lib/settings-preferences";
@@ -12,7 +12,7 @@ import { UserRole } from "@/generated/prisma/client";
 
 export async function updateCopilotStudioPolicyAction(input: unknown) {
   try {
-    const manager = await requireRole(UserRole.MANAGER);
+    const { user: manager, context } = await requireStudioOwner();
     const parsed = parseInput(copilotStudioPolicySchema, input);
     const provider = parsed.provider as AIProvider;
     if (provider !== "CUSTOM" && !isAIModelAvailable(provider, parsed.model)) {
@@ -47,6 +47,7 @@ export async function updateCopilotStudioPolicyAction(input: unknown) {
         where: { managerId: manager.id },
         create: {
           managerId: manager.id,
+          studioId: context.studioId,
           enabled: parsed.enabled,
           workersEnabled: parsed.workersEnabled,
           clientsEnabled: parsed.clientsEnabled,
@@ -71,7 +72,7 @@ export async function updateCopilotStudioPolicyAction(input: unknown) {
       const overrides = parsed.overrides.filter((item) => item.enabled !== null);
       if (overrides.length > 0) {
         await tx.copilotAccessOverride.createMany({
-          data: overrides.map(({ userId, enabled }) => ({ managerId: manager.id, userId, enabled: enabled as boolean })),
+          data: overrides.map(({ userId, enabled }) => ({ managerId: manager.id, studioId: context.studioId, userId, enabled: enabled as boolean })),
         });
       }
     });

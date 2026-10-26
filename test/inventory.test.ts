@@ -33,6 +33,21 @@ const mocks = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/authz", () => ({ requireRole: mocks.requireRole }));
+vi.mock("@/lib/studio-access", () => {
+  const actor = async () => mocks.requireRole("MANAGER");
+  const context = (user: { id: string; role: string }) => ({
+    studioId: `studio-${user.id}`, ownerUserId: user.id, isOwner: user.role === "MANAGER",
+    memberId: null, role: user.role, grants: {},
+  });
+  return {
+    requireStudioArea: async () => { const user = await actor(); return { user, context: context(user) }; },
+    requireStudioManagerArea: async () => { const user = await actor(); return { manager: { ...user, actorId: user.id }, actor: user, context: context(user) }; },
+    requireStudioOwner: async () => { const user = await actor(); return { user, context: context(user) }; },
+    getStudioAccessContext: async (userId: string, role: string) => ({ studioId: `studio-${userId}`, ownerUserId: role === "MANAGER" ? userId : "manager-1", isOwner: role === "MANAGER", memberId: role === "MANAGER" ? null : "member-1", role, grants: {} }),
+    hasStudioAccess: () => true,
+  };
+});
+
 
 const mockPrismaTx = {
   inventoryItem: {
@@ -319,7 +334,7 @@ describe("Inventory Management System", () => {
       const workerTwo = { id: "worker-2", role: UserRole.WORKER };
       mocks.requireRole.mockResolvedValue(workerTwo);
 
-      mocks.itemFindUnique.mockResolvedValue({
+      mocks.itemFindFirst.mockResolvedValue({
         id: "item-1",
         name: "Canon R5 Mirrorless",
         status: InventoryStatus.AVAILABLE,
@@ -501,7 +516,7 @@ describe("Inventory Management System", () => {
       expect(result.success).toContain('Maintenance issue for "Wireless Mic Pack" resolved');
       expect(mocks.maintenanceUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "maint-1", status: { in: [MaintenanceStatus.OPEN, MaintenanceStatus.IN_PROGRESS] } },
+          where: { id: "maint-1", item: { studioId: "studio-mgr-1" }, status: { in: [MaintenanceStatus.OPEN, MaintenanceStatus.IN_PROGRESS] } },
           data: expect.objectContaining({
             status: MaintenanceStatus.RESOLVED,
             resolutionNotes: expect.stringContaining("Replaced battery door"),
@@ -512,7 +527,7 @@ describe("Inventory Management System", () => {
       );
       expect(mocks.itemUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "item-3", status: InventoryStatus.MAINTENANCE },
+          where: { id: "item-3", studioId: "studio-mgr-1", status: InventoryStatus.MAINTENANCE },
           data: {
             status: InventoryStatus.AVAILABLE,
             condition: InventoryCondition.EXCELLENT,
@@ -549,7 +564,7 @@ describe("Inventory Management System", () => {
   describe("Asset Retirement & Decommissioning", () => {
     it("allows manager to retire an available asset", async () => {
       mocks.requireRole.mockResolvedValue({ id: "mgr-1", role: UserRole.MANAGER });
-      mocks.itemFindUnique.mockResolvedValue({
+      mocks.itemFindFirst.mockResolvedValue({
         id: "item-old",
         name: "Legacy MacBook Pro 2017",
         assetTag: "INV-0010",
@@ -577,7 +592,7 @@ describe("Inventory Management System", () => {
 
     it("prevents retiring an asset while it is currently checked out (IN_USE)", async () => {
       mocks.requireRole.mockResolvedValue({ id: "mgr-1", role: UserRole.MANAGER });
-      mocks.itemFindUnique.mockResolvedValue({
+      mocks.itemFindFirst.mockResolvedValue({
         id: "item-active",
         name: "Sony A7 IV",
         assetTag: "INV-0011",
@@ -648,9 +663,9 @@ describe("Inventory Management System", () => {
       await getInventoryCatalog();
 
       expect(mocks.activityFindMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
+        expect.objectContaining({ where: { item: { studioId: "studio-manager-1" } } }),
       );
-      expect(mocks.activityCount).toHaveBeenCalledWith({ where: {} });
+      expect(mocks.activityCount).toHaveBeenCalledWith({ where: { item: { studioId: "studio-manager-1" } } });
     });
 
     it("marks loan not overdue when expectedReturnAt is in the future", async () => {

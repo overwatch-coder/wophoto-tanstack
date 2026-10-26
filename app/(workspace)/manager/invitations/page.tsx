@@ -1,7 +1,8 @@
-import { InvitationStatus, UserRole } from "@/generated/prisma/client"
+import { InvitationStatus, StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client"
 import { Suspense } from "react"
 import { prisma } from "@/lib/prisma"
-import { requireRole } from "@/lib/authz"
+import { requireStudioArea } from "@/lib/studio-access"
+import { hasStudioAccess } from "@/lib/studio-access"
 import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination"
 import { parseInvitationQuery } from "@/lib/validation/queries"
 import {
@@ -9,6 +10,7 @@ import {
   type InvitationStats,
 } from "@/components/invitations/invitations-view"
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton"
+import { StudioAccessPanel } from "@/components/invitations/studio-access-panel"
 
 export default function ManagerInvitationsPage({
   searchParams,
@@ -34,7 +36,10 @@ async function ManagerInvitationsContent({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const manager = await requireRole(UserRole.MANAGER)
+  const { user: actor, context } = await requireStudioArea(StudioArea.TEAM)
+  const manager = { ...actor, id: context.ownerUserId }
+  const isOwner = context.isOwner
+  const canManageTeam = hasStudioAccess(context, StudioArea.TEAM, StudioAccessLevel.MANAGE)
   const params = await searchParams
   const filters = parseInvitationQuery(params)
   const query = filters.query
@@ -43,6 +48,7 @@ async function ManagerInvitationsContent({
 
   const invitationWhere = {
     invitedById: manager.id,
+    studioId: context.studioId,
     ...(filter === "PENDING"
       ? {
           usedAt: null,
@@ -51,7 +57,7 @@ async function ManagerInvitationsContent({
         }
       : {}),
     ...(filter === "ACCEPTED"
-      ? { OR: [{ usedAt: { not: null } }, { acceptedAt: { not: null } }] }
+      ? { status: InvitationStatus.USED, usedAt: { not: null } }
       : {}),
     ...(filter === "WORKER" ? { role: UserRole.WORKER } : {}),
     ...(filter === "CLIENT" ? { role: UserRole.CLIENT } : {}),
@@ -75,13 +81,14 @@ async function ManagerInvitationsContent({
       : {}),
   }
 
-  const [total, matchingTotal, pendingCount, acceptedCount, expiredCount] =
+  const [total, matchingTotal, pendingCount, acceptedCount, expiredCount, studioMembers] =
     await Promise.all([
-      prisma.invitation.count({ where: { invitedById: manager.id } }),
+      prisma.invitation.count({ where: { invitedById: manager.id, studioId: context.studioId } }),
       prisma.invitation.count({ where: invitationWhere }),
       prisma.invitation.count({
         where: {
           invitedById: manager.id,
+          studioId: context.studioId,
           usedAt: null,
           status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
           expiresAt: { gt: now },
@@ -90,16 +97,24 @@ async function ManagerInvitationsContent({
       prisma.invitation.count({
         where: {
           invitedById: manager.id,
-          OR: [{ usedAt: { not: null } }, { acceptedAt: { not: null } }],
+          studioId: context.studioId,
+          status: InvitationStatus.USED,
+          usedAt: { not: null },
         },
       }),
       prisma.invitation.count({
         where: {
           invitedById: manager.id,
+          studioId: context.studioId,
           usedAt: null,
           expiresAt: { lte: now },
           status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
         },
+      }),
+      prisma.studioMember.findMany({
+        where: { studioId: context.studioId, revokedAt: null, user: { role: { in: [UserRole.SUPERVISOR, UserRole.COLLABORATOR] } } },
+        select: { id: true, user: { select: { name: true, email: true, role: true } }, permissions: { select: { area: true, accessLevel: true } } },
+        orderBy: { createdAt: "desc" },
       }),
     ])
 
@@ -139,6 +154,8 @@ async function ManagerInvitationsContent({
   }
 
   return (
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      {isOwner ? <StudioAccessPanel members={studioMembers.map((member) => ({ id: member.id, role: member.user.role, name: member.user.name, email: member.user.email, permissions: member.permissions }))} /> : null}
     <InvitationsView
       invitations={invitations}
       stats={stats}
@@ -148,6 +165,9 @@ async function ManagerInvitationsContent({
       searchParams={params}
       searchQuery={query}
       selectedFilter={filter}
+      canManage={canManageTeam}
+      canRevokeManagementMembers={isOwner}
     />
+    </div>
   )
 }

@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { UserRole, UserStatus } from "@/generated/prisma/client";
-import { requireRole } from "@/lib/authz";
+import { StudioArea } from "@/generated/prisma/client";
+import { requireStudioArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import { getBrandAssets } from "@/lib/brand-assets";
 import {
@@ -41,7 +42,7 @@ async function ManagerBrandAssetsContent({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await connection();
-  const user = await requireRole(UserRole.MANAGER);
+  const { user, context } = await requireStudioArea(StudioArea.BRAND_ASSETS);
   const params = await searchParams;
 
   const search = typeof params.search === "string" ? params.search : "";
@@ -63,7 +64,7 @@ async function ManagerBrandAssetsContent({
       orderBy: { name: "asc" },
     }),
     prisma.project.findMany({
-      where: { managerId: user.id },
+      where: { studioId: context.studioId },
       select: { id: true, name: true, clientId: true },
       orderBy: { name: "asc" },
     }),

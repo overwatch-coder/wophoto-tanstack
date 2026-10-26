@@ -6,6 +6,8 @@ import {
   UserRole,
 } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { requireStudioArea } from "@/lib/studio-access";
+import { StudioArea } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getBrandAssetsQuerySchema,
@@ -42,7 +44,8 @@ export async function getBrandAssets(
   rawQuery?: Record<string, unknown>
 ): Promise<BrandAssetsResult> {
   // Enforce access: Managers and Workers only
-  await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = user.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.BRAND_ASSETS);
 
   const parsed = getBrandAssetsQuerySchema.safeParse(rawQuery ?? {});
   const query = parsed.success
@@ -57,7 +60,7 @@ export async function getBrandAssets(
         assetType: null,
       };
 
-  const filters: Prisma.BrandAssetWhereInput[] = [];
+  const filters: Prisma.BrandAssetWhereInput[] = user.role === UserRole.WORKER ? [] : [{ studioId: studio!.context.studioId }];
   if (query.projectId) filters.push({ projectId: query.projectId });
   if (query.clientId) filters.push({ clientId: query.clientId });
   if (query.scope === "STUDIO") filters.push({ clientId: null, projectId: null });
@@ -146,10 +149,11 @@ export async function getBrandAssets(
 }
 
 export async function getBrandAssetById(id: string) {
-  await requireRole(UserRole.MANAGER, UserRole.WORKER);
+  const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = user.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.BRAND_ASSETS);
 
-  return prisma.brandAsset.findUnique({
-    where: { id },
+  return prisma.brandAsset.findFirst({
+    where: { id, ...(user.role === UserRole.WORKER ? {} : { studioId: studio!.context.studioId }) },
     include: {
       client: { select: { id: true, name: true, email: true } },
       project: { select: { id: true, name: true } },

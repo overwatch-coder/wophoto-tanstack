@@ -7,9 +7,11 @@ import {
   LoanStatus,
   MaintenanceStatus,
   Prisma,
+  StudioArea,
   UserRole,
 } from "@/generated/prisma/client"
 import { requireRole } from "@/lib/authz"
+import { requireStudioManagerArea } from "@/lib/studio-access"
 import { prisma } from "@/lib/prisma"
 import { generateNextAssetTag } from "@/lib/inventory"
 import { recordInventoryActivity } from "@/lib/inventory-activity"
@@ -42,7 +44,7 @@ export async function createInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER)
+    const { actor, context } = await requireStudioManagerArea(StudioArea.INVENTORY)
 
     const parsed = createInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -66,7 +68,7 @@ export async function createInventoryItem(
 
     // Check unique constraints
     const existingTag = await prisma.inventoryItem.findUnique({
-      where: { assetTag },
+      where: { studioId_assetTag: { studioId: context.studioId, assetTag } },
     })
     if (existingTag) {
       return {
@@ -76,7 +78,7 @@ export async function createInventoryItem(
 
     if (serialNumber) {
       const existingSerial = await prisma.inventoryItem.findUnique({
-        where: { serialNumber },
+        where: { studioId_serialNumber: { studioId: context.studioId, serialNumber } },
       })
       if (existingSerial) {
         return {
@@ -89,6 +91,7 @@ export async function createInventoryItem(
       const created = await tx.inventoryItem.create({
         data: {
           assetTag,
+          studioId: context.studioId,
           name,
           category: category || "General",
           model: model || null,
@@ -103,7 +106,7 @@ export async function createInventoryItem(
       })
       await recordInventoryActivity(tx, {
         itemId: created.id,
-        actor: user,
+        actor,
         action: "ITEM_CREATED",
         details: { assetTag: created.assetTag, name: created.name },
       })
@@ -130,7 +133,7 @@ export async function updateInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER)
+    const { actor, context } = await requireStudioManagerArea(StudioArea.INVENTORY)
 
     const parsed = updateInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -151,14 +154,14 @@ export async function updateInventoryItem(
       notes,
     } = parsed.data
 
-    const existing = await prisma.inventoryItem.findUnique({ where: { id } })
+    const existing = await prisma.inventoryItem.findFirst({ where: { id, studioId: context.studioId } })
     if (!existing) {
       return { error: "Inventory item not found." }
     }
 
     if (assetTag && assetTag !== existing.assetTag) {
       const tagConflict = await prisma.inventoryItem.findUnique({
-        where: { assetTag },
+        where: { studioId_assetTag: { studioId: context.studioId, assetTag } },
       })
       if (tagConflict) {
         return {
@@ -169,7 +172,7 @@ export async function updateInventoryItem(
 
     if (serialNumber && serialNumber !== existing.serialNumber) {
       const serialConflict = await prisma.inventoryItem.findUnique({
-        where: { serialNumber },
+        where: { studioId_serialNumber: { studioId: context.studioId, serialNumber } },
       })
       if (serialConflict) {
         return {
@@ -202,7 +205,7 @@ export async function updateInventoryItem(
       if (changedFields.length > 0) {
         await recordInventoryActivity(tx, {
           itemId: result.id,
-          actor: user,
+          actor,
           action: "ITEM_UPDATED",
           details: { changedFields },
         })
@@ -230,7 +233,7 @@ export async function retireInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER)
+    const { actor, context } = await requireStudioManagerArea(StudioArea.INVENTORY)
 
     const parsed = retireInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -239,7 +242,7 @@ export async function retireInventoryItem(
 
     const { id, reason } = parsed.data
 
-    const item = await prisma.inventoryItem.findUnique({ where: { id } })
+    const item = await prisma.inventoryItem.findFirst({ where: { id, studioId: context.studioId } })
     if (!item) {
       return { error: "Inventory item not found." }
     }
@@ -269,7 +272,7 @@ export async function retireInventoryItem(
       if (result.count === 1) {
         await recordInventoryActivity(tx, {
           itemId: item.id,
-          actor: user,
+          actor,
           action: "ITEM_RETIRED",
           details: { reason: reason || null },
         })
@@ -303,7 +306,7 @@ export async function retireInventoryItems(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER)
+    const { actor, context } = await requireStudioManagerArea(StudioArea.INVENTORY)
 
     const parsed = retireInventoryItemsSchema.safeParse(data)
     if (!parsed.success) {
@@ -312,7 +315,7 @@ export async function retireInventoryItems(
 
     const { ids, reason } = parsed.data
     const items = await prisma.inventoryItem.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, studioId: context.studioId },
       select: {
         id: true,
         name: true,
@@ -342,7 +345,8 @@ export async function retireInventoryItems(
       for (const item of items) {
         const result = await tx.inventoryItem.updateMany({
           where: {
-            id: item.id,
+          id: item.id,
+          studioId: context.studioId,
             status: {
               in: [InventoryStatus.AVAILABLE, InventoryStatus.MAINTENANCE],
             },
@@ -359,7 +363,7 @@ export async function retireInventoryItems(
         }
         await recordInventoryActivity(tx, {
           itemId: item.id,
-          actor: user,
+          actor,
           action: "ITEM_RETIRED",
           details: { reason: reason || null },
         })
@@ -386,7 +390,8 @@ export async function checkoutInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER, UserRole.WORKER)
+    const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER)
+    const studioContext = user.role === UserRole.WORKER ? null : (await requireStudioManagerArea(StudioArea.INVENTORY)).context
 
     const parsed = checkoutInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -399,7 +404,7 @@ export async function checkoutInventoryItem(
     // insert fails, the status change rolls back instead of stranding the item.
     const loan = await prisma.$transaction(async (tx) => {
       const reservation = await tx.inventoryItem.updateMany({
-        where: { id: itemId, status: InventoryStatus.AVAILABLE },
+        where: { id: itemId, ...(studioContext ? { studioId: studioContext.studioId } : {}), status: InventoryStatus.AVAILABLE },
         data: { status: InventoryStatus.IN_USE },
       })
       if (reservation.count === 0) return null
@@ -427,7 +432,7 @@ export async function checkoutInventoryItem(
 
     if (!loan) {
       const item = await prisma.inventoryItem.findUnique({
-        where: { id: itemId },
+        where: { id: itemId, ...(studioContext ? { studioId: studioContext.studioId } : {}) },
       })
       if (!item) return { error: "Inventory item not found." }
       return {
@@ -456,7 +461,8 @@ export async function returnInventoryItem(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER, UserRole.WORKER)
+    const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER)
+    const studioContext = user.role === UserRole.WORKER ? null : (await requireStudioManagerArea(StudioArea.INVENTORY)).context
 
     const parsed = returnInventoryItemSchema.safeParse(data)
     if (!parsed.success) {
@@ -467,7 +473,7 @@ export async function returnInventoryItem(
 
     const returnedAt = new Date()
     const loan = await prisma.inventoryLoan.findUnique({
-      where: { id: loanId },
+      where: { id: loanId, ...(studioContext ? { item: { studioId: studioContext.studioId } } : {}) },
       include: { item: true, borrower: true },
     })
 
@@ -502,7 +508,7 @@ export async function returnInventoryItem(
       if (loanUpdate.count === 0) return false
 
       const itemUpdate = await tx.inventoryItem.updateMany({
-        where: { id: loan.itemId, status: InventoryStatus.IN_USE },
+        where: { id: loan.itemId, ...(studioContext ? { studioId: studioContext.studioId } : {}), status: InventoryStatus.IN_USE },
         data: hasIssue
           ? {
               status: InventoryStatus.MAINTENANCE,
@@ -575,7 +581,7 @@ export async function resolveMaintenanceIssue(
   data: unknown
 ): Promise<InventoryActionState> {
   try {
-    const user = await requireRole(UserRole.MANAGER)
+    const { actor: user, context } = await requireStudioManagerArea(StudioArea.INVENTORY)
 
     const parsed = resolveMaintenanceSchema.safeParse(data)
     if (!parsed.success) {
@@ -585,7 +591,7 @@ export async function resolveMaintenanceIssue(
     const { logId, resolutionNotes, restoredCondition, cost } = parsed.data
 
     const log = await prisma.inventoryMaintenanceLog.findUnique({
-      where: { id: logId },
+      where: { id: logId, item: { studioId: context.studioId } },
       include: { item: true },
     })
 
@@ -604,6 +610,7 @@ export async function resolveMaintenanceIssue(
       const updateResult = await tx.inventoryMaintenanceLog.updateMany({
         where: {
           id: logId,
+          item: { studioId: context.studioId },
           status: {
             in: [MaintenanceStatus.OPEN, MaintenanceStatus.IN_PROGRESS],
           },
@@ -632,7 +639,7 @@ export async function resolveMaintenanceIssue(
       // 3. Only transition item back to AVAILABLE if all issues are resolved
       if (remainingOpenCount === 0) {
         await tx.inventoryItem.updateMany({
-          where: { id: log.itemId, status: InventoryStatus.MAINTENANCE },
+          where: { id: log.itemId, studioId: context.studioId, status: InventoryStatus.MAINTENANCE },
           data: {
             status: InventoryStatus.AVAILABLE,
             condition: restoredCondition || InventoryCondition.GOOD,

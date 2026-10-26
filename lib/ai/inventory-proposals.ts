@@ -1,8 +1,9 @@
 import "server-only";
 
 import { z } from "zod";
-import { UserRole } from "@/generated/prisma/client";
+import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 import {
   checkoutInventoryItemSchema,
   createInventoryItemSchema,
@@ -48,12 +49,17 @@ export async function prepareInventoryAction(
   rawInput: unknown,
 ) {
   if (role === UserRole.CLIENT) return { error: "Client accounts cannot access internal inventory." };
+  const managerSide = role === UserRole.MANAGER || role === UserRole.SUPERVISOR || role === UserRole.COLLABORATOR;
+  const context = managerSide ? await getStudioAccessContext(userId, role) : null;
+  if (managerSide && (!context || !hasStudioAccess(context, StudioArea.COPILOT) || !hasStudioAccess(context, StudioArea.INVENTORY, StudioAccessLevel.MANAGE))) {
+    return { error: "You do not have Copilot and manage access to inventory." };
+  }
   const parsed = inventoryActionPayloadSchema.safeParse(rawInput);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "The inventory action is invalid." };
   const payload = parsed.data;
   const managerOnly = payload.action === "CREATE_ITEM" || payload.action === "UPDATE_ITEM" ||
     payload.action === "RETIRE_ITEM" || payload.action === "RESOLVE_MAINTENANCE";
-  if (managerOnly && role !== UserRole.MANAGER) {
+  if (managerOnly && !managerSide) {
     return { error: "Only managers can create, edit, retire, or resolve inventory records." };
   }
 
@@ -75,7 +81,9 @@ export async function prepareInventoryAction(
     }
     case "UPDATE_ITEM": {
       const input = payload.input;
-      const item = await prisma.inventoryItem.findUnique({ where: { id: input.id }, select: { name: true, assetTag: true } });
+      const item = context
+        ? await prisma.inventoryItem.findFirst({ where: { id: input.id, studioId: context.studioId }, select: { name: true, assetTag: true } })
+        : await prisma.inventoryItem.findUnique({ where: { id: input.id }, select: { name: true, assetTag: true } });
       if (!item) return { error: "Inventory item not found. Ask Copilot to find the item and prepare the change again." };
       title = `Update inventory item: ${input.name ?? item.name}`;
       details = `This will update item ${item.name} (${item.assetTag}).`;
@@ -84,7 +92,9 @@ export async function prepareInventoryAction(
       break;
     }
     case "RETIRE_ITEM": {
-      const item = await prisma.inventoryItem.findUnique({ where: { id: payload.input.id }, select: { name: true, assetTag: true, status: true } });
+      const item = context
+        ? await prisma.inventoryItem.findFirst({ where: { id: payload.input.id, studioId: context.studioId }, select: { name: true, assetTag: true, status: true } })
+        : await prisma.inventoryItem.findUnique({ where: { id: payload.input.id }, select: { name: true, assetTag: true, status: true } });
       if (!item) return { error: "Inventory item not found. Ask Copilot to find the item and prepare the change again." };
       if (item.status === "IN_USE") return { error: `${item.name} is checked out and must be returned before it can be retired.` };
       title = `Retire inventory item: ${item.name}`;
@@ -93,7 +103,9 @@ export async function prepareInventoryAction(
       break;
     }
     case "CHECKOUT_ITEM": {
-      const item = await prisma.inventoryItem.findUnique({ where: { id: payload.input.itemId }, select: { name: true, assetTag: true, status: true, category: true } });
+      const item = context
+        ? await prisma.inventoryItem.findFirst({ where: { id: payload.input.itemId, studioId: context.studioId }, select: { name: true, assetTag: true, status: true, category: true } })
+        : await prisma.inventoryItem.findUnique({ where: { id: payload.input.itemId }, select: { name: true, assetTag: true, status: true, category: true } });
       if (!item) return { error: "Inventory item not found. Ask Copilot to list available inventory and try again." };
       if (item.status !== "AVAILABLE") return { error: `${item.name} is not available for checkout (status: ${item.status}).` };
       title = `Check out inventory item: ${item.name}`;
@@ -102,7 +114,9 @@ export async function prepareInventoryAction(
       break;
     }
     case "RETURN_ITEM": {
-      const loan = await prisma.inventoryLoan.findUnique({ where: { id: payload.input.loanId }, select: { status: true, borrowerId: true, item: { select: { name: true, assetTag: true } } } });
+      const loan = context
+        ? await prisma.inventoryLoan.findFirst({ where: { id: payload.input.loanId, item: { studioId: context.studioId } }, select: { status: true, borrowerId: true, item: { select: { name: true, assetTag: true } } } })
+        : await prisma.inventoryLoan.findUnique({ where: { id: payload.input.loanId }, select: { status: true, borrowerId: true, item: { select: { name: true, assetTag: true } } } });
       if (!loan || loan.status !== "ACTIVE") return { error: "Active checkout not found. Ask Copilot to list your active inventory loans." };
       if (role === UserRole.WORKER && loan.borrowerId !== userId) return { error: "You can only return inventory checked out to your own account." };
       title = `Return inventory item: ${loan.item.name}`;
@@ -113,7 +127,9 @@ export async function prepareInventoryAction(
       break;
     }
     case "RESOLVE_MAINTENANCE": {
-      const log = await prisma.inventoryMaintenanceLog.findUnique({ where: { id: payload.input.logId }, select: { title: true, status: true, item: { select: { name: true, assetTag: true } } } });
+      const log = context
+        ? await prisma.inventoryMaintenanceLog.findFirst({ where: { id: payload.input.logId, item: { studioId: context.studioId } }, select: { title: true, status: true, item: { select: { name: true, assetTag: true } } } })
+        : await prisma.inventoryMaintenanceLog.findUnique({ where: { id: payload.input.logId }, select: { title: true, status: true, item: { select: { name: true, assetTag: true } } } });
       if (!log || !["OPEN", "IN_PROGRESS"].includes(log.status)) return { error: "Open maintenance record not found. Ask Copilot to list current maintenance records." };
       title = `Resolve maintenance: ${log.item.name}`;
       details = "This will record the repair resolution and update the item condition.";

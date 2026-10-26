@@ -1,7 +1,8 @@
 import { Suspense } from "react"
 import { connection } from "next/server"
 import { UserRole } from "@/generated/prisma/client"
-import { requireRole } from "@/lib/authz"
+import { StudioArea } from "@/generated/prisma/client"
+import { requireStudioArea } from "@/lib/studio-access"
 import { getInventoryCatalog, getMaintenanceQueue } from "@/lib/inventory"
 import {
   InventoryCatalogView,
@@ -41,7 +42,7 @@ async function ManagerInventoryContent({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await connection()
-  await requireRole(UserRole.MANAGER)
+  await requireStudioArea(StudioArea.INVENTORY)
   const params = await searchParams
 
   const search = typeof params.search === "string" ? params.search : undefined

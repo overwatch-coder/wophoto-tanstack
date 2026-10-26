@@ -1,7 +1,8 @@
 import { get } from "@vercel/blob";
 import { auth } from "@/auth";
-import { UserRole } from "@/generated/prisma/client";
+import { StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 
 function isManagedBriefTemplateBlob(rawUrl: string) {
   try {
@@ -17,7 +18,9 @@ function isManagedBriefTemplateBlob(rawUrl: string) {
 
 export async function GET(request: Request) {
   const session = await auth();
-  if (!session?.user?.id || (session.user.role !== UserRole.MANAGER && session.user.role !== UserRole.WORKER)) {
+  const allowedRoles: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER];
+  const managerSideRoles: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR];
+  if (!session?.user?.id || !allowedRoles.includes(session.user.role)) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -26,14 +29,35 @@ export async function GET(request: Request) {
     return new Response("Not found", { status: 404 });
   }
 
+  let studioId: string | null = null;
+  if (managerSideRoles.includes(session.user.role)) {
+    const context = await getStudioAccessContext(session.user.id, session.user.role);
+    if (!context || !hasStudioAccess(context, StudioArea.BRIEFS)) return new Response("Not found", { status: 404 });
+    studioId = context.studioId;
+  } else {
+    const invitation = await prisma.invitation.findFirst({
+      where: { acceptedUserId: session.user.id, status: "USED" },
+      orderBy: { usedAt: "desc" },
+      select: { studioId: true },
+    });
+    studioId = invitation?.studioId ?? null;
+  }
+  if (!studioId) return new Response("Not found", { status: 404 });
+
   if (session.user.role === UserRole.WORKER) {
     const referencedByActiveTemplate = await prisma.briefTemplate.count({
       where: {
+        studioId,
         isArchived: false,
         OR: [{ coverImageUrl: fileUrl }, { attachmentUrl: fileUrl }],
       },
     });
     if (!referencedByActiveTemplate) return new Response("Not found", { status: 404 });
+  } else {
+    const referencedByStudioTemplate = await prisma.briefTemplate.count({
+      where: { studioId, OR: [{ coverImageUrl: fileUrl }, { attachmentUrl: fileUrl }] },
+    });
+    if (!referencedByStudioTemplate) return new Response("Not found", { status: 404 });
   }
 
   try {

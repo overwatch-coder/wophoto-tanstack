@@ -29,6 +29,7 @@ type WorkspaceShellProps = {
   image?: string | null
   name?: string | null
   role: WorkspaceRole
+  allowedAreas?: readonly string[] | null
   userId: string
   initialNotifications?: NotificationItemView[]
   initialUnreadCount?: number
@@ -58,6 +59,7 @@ function WorkspaceShellContent({
   image,
   name,
   role,
+  allowedAreas,
   userId,
   initialNotifications,
   initialUnreadCount,
@@ -91,6 +93,7 @@ function WorkspaceShellContent({
         image={image}
         name={name}
         role={role}
+        allowedAreas={allowedAreas}
         userId={userId}
       />
       <SidebarInset className="min-h-svh w-full max-w-full min-w-0 overflow-x-clip rounded-none">

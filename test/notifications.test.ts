@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   findUniqueUser: vi.fn(),
   findUniqueUserPreference: vi.fn(),
   findUniqueProject: vi.fn(),
+  findUniqueStudio: vi.fn(),
+  findFirstStudioMember: vi.fn(),
   createNotification: vi.fn(),
   findManyNotification: vi.fn(),
   findFirstNotification: vi.fn(),
@@ -26,6 +28,12 @@ vi.mock("@/lib/prisma", () => ({
     project: {
       findUnique: mocks.findUniqueProject,
     },
+    studio: {
+      findUnique: mocks.findUniqueStudio,
+    },
+    studioMember: {
+      findFirst: mocks.findFirstStudioMember,
+    },
     notification: {
       create: mocks.createNotification,
       findUnique: mocks.findUniqueNotification,
@@ -47,6 +55,7 @@ vi.mock("@/lib/email", () => ({
 
 import {
   createNotification,
+  createStudioAreaNotification,
   getNotificationPage,
   getLatestNotificationStreamCursor,
   getNotificationsAfter,
@@ -58,7 +67,7 @@ import {
   registerSSEStream,
   broadcastToUser,
 } from "@/lib/notifications";
-import { NotificationCategory, NotificationType, UserRole } from "@/generated/prisma/client";
+import { NotificationCategory, NotificationType, StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 
 describe("Notifications Service & Delivery Channels", () => {
   beforeEach(() => {
@@ -71,6 +80,8 @@ describe("Notifications Service & Delivery Channels", () => {
     );
     mocks.findUniqueUserPreference.mockResolvedValue(null);
     mocks.findUniqueProject.mockResolvedValue({ id: "proj_1", name: "Aura Lookbook" });
+    mocks.findUniqueStudio.mockResolvedValue(null);
+    mocks.findFirstStudioMember.mockResolvedValue(null);
     mocks.findUniqueNotification.mockResolvedValue(null);
     mocks.updateNotification.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
       id: "notif_1",
@@ -86,6 +97,54 @@ describe("Notifications Service & Delivery Channels", () => {
       task: null,
       ...data,
     }));
+  });
+
+  it("routes studio work notifications only to members with area view access", async () => {
+    const roles: Record<string, UserRole> = {
+      owner: UserRole.MANAGER,
+      supervisor: UserRole.SUPERVISOR,
+      projectViewer: UserRole.COLLABORATOR,
+      unrelatedCollaborator: UserRole.COLLABORATOR,
+    };
+    mocks.findUniqueStudio.mockResolvedValue({
+      ownerUserId: "owner",
+      members: [
+        { userId: "supervisor", user: { role: UserRole.SUPERVISOR } },
+        { userId: "projectViewer", user: { role: UserRole.COLLABORATOR } },
+        { userId: "unrelatedCollaborator", user: { role: UserRole.COLLABORATOR } },
+      ],
+    });
+    mocks.findFirstStudioMember.mockImplementation(({ where }: { where: { userId: string } }) => {
+      const permissions = where.userId === "projectViewer"
+        ? [{ area: StudioArea.PROJECTS, accessLevel: StudioAccessLevel.VIEW }]
+        : [];
+      return Promise.resolve({
+        id: `member-${where.userId}`,
+        studio: { id: "studio-1", ownerUserId: "owner" },
+        permissions,
+      });
+    });
+    mocks.findUniqueUser.mockImplementation(({ where }: { where: { id: string } }) => Promise.resolve({
+      id: where.id,
+      email: `${where.id}@example.invalid`,
+      name: where.id,
+      role: roles[where.id],
+    }));
+    const notified: string[] = [];
+    mocks.createNotification.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+      notified.push(data.userId as string);
+      return { id: `notif-${notified.length}`, ...data, actor: null, project: null, task: null, createdAt: new Date() };
+    });
+
+    await createStudioAreaNotification("studio-1", StudioArea.PROJECTS, {
+      type: NotificationType.SYSTEM_ALERT,
+      title: "Project changed",
+      message: "A project was updated.",
+      sendEmail: false,
+    });
+
+    expect(notified.sort()).toEqual(["owner", "projectViewer", "supervisor"]);
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
   describe("Delivery Channel Rules (Email vs In-App)", () => {

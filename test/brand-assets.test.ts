@@ -21,6 +21,21 @@ const mocks = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/authz", () => ({ requireRole: mocks.requireRole }));
+vi.mock("@/lib/studio-access", () => {
+  const actor = async () => mocks.requireRole("MANAGER");
+  const context = (user: { id: string; role: string }) => ({
+    studioId: `studio-${user.id}`, ownerUserId: user.id, isOwner: user.role === "MANAGER",
+    memberId: null, role: user.role, grants: {},
+  });
+  return {
+    requireStudioArea: async () => { const user = await actor(); return { user, context: context(user) }; },
+    requireStudioManagerArea: async () => { const user = await actor(); return { manager: { ...user, actorId: user.id }, actor: user, context: context(user) }; },
+    requireStudioOwner: async () => { const user = await actor(); return { user, context: context(user) }; },
+    getStudioAccessContext: async (userId: string, role: string) => ({ studioId: `studio-${userId}`, ownerUserId: role === "MANAGER" ? userId : "manager-1", isOwner: role === "MANAGER", memberId: role === "MANAGER" ? null : "member-1", role, grants: {} }),
+    hasStudioAccess: () => true,
+  };
+});
+
 vi.mock("@vercel/blob", () => ({
   put: mocks.blobPut,
   del: mocks.blobDel,
@@ -30,6 +45,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     brandAsset: {
       findUnique: mocks.brandAssetFindUnique,
+      findFirst: mocks.brandAssetFindUnique,
       findMany: mocks.brandAssetFindMany,
       count: mocks.brandAssetCount,
       groupBy: mocks.brandAssetGroupBy,
@@ -272,7 +288,7 @@ describe("Slice 11: Brand Asset Library", () => {
       expect(mocks.brandAssetUpdate.mock.invocationCallOrder[0]).toBeLessThan(mocks.blobDel.mock.invocationCallOrder[0]);
       expect(mocks.brandAssetUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "asset-1" },
+          where: { id: "asset-1", studioId: "studio-manager-1" },
           data: expect.objectContaining({
             title: "Updated Brand Logo",
             fileUrl: "https://store.private.blob.vercel-storage.com/brand-assets/new-logo.svg",
@@ -308,7 +324,7 @@ describe("Slice 11: Brand Asset Library", () => {
       expect(result.success).toBe("Brand asset updated successfully.");
       expect(mocks.brandAssetUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "asset-2" },
+          where: { id: "asset-2", studioId: "studio-manager-1" },
           data: expect.objectContaining({
             projectId: "proj-200",
             clientId: "client-enterprise",
@@ -358,7 +374,7 @@ describe("Slice 11: Brand Asset Library", () => {
         "https://store.private.blob.vercel-storage.com/brand-assets/asset-del.png"
       );
       expect(mocks.brandAssetDelete).toHaveBeenCalledWith({
-        where: { id: "asset-del" },
+        where: { id: "asset-del", studioId: "studio-manager-1" },
       });
       expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/brand-assets");
     });
@@ -398,6 +414,8 @@ describe("Slice 11: Brand Asset Library", () => {
 
       expect(mocks.requireRole).toHaveBeenCalledWith(
         UserRole.MANAGER,
+        UserRole.SUPERVISOR,
+        UserRole.COLLABORATOR,
         UserRole.WORKER
       );
       expect(result.assets).toHaveLength(1);
@@ -430,7 +448,7 @@ describe("Slice 11: Brand Asset Library", () => {
       expect(mocks.brandAssetFindMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            AND: [{ clientId: { not: null } }],
+            AND: [{ studioId: "studio-manager-1" }, { clientId: { not: null } }],
           }),
         })
       );
@@ -446,7 +464,7 @@ describe("Slice 11: Brand Asset Library", () => {
       expect(mocks.brandAssetFindMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            AND: [{ projectId: { not: null } }],
+            AND: [{ studioId: "studio-manager-1" }, { projectId: { not: null } }],
           }),
         })
       );
@@ -460,12 +478,14 @@ describe("Slice 11: Brand Asset Library", () => {
       await getBrandAssets({ scope: "CLIENT", clientId: "client-a", projectId: "project-a" });
 
       expect(mocks.brandAssetFindMany.mock.calls[0][0].where.AND).toEqual([
+        { studioId: "studio-manager-1" },
         { projectId: "project-a" },
         { clientId: "client-a" },
         { clientId: { not: null } },
       ]);
       expect(mocks.brandAssetGroupBy.mock.calls[0][0].where).toEqual({
         AND: [
+          { studioId: "studio-manager-1" },
           { projectId: "project-a" },
           { clientId: "client-a" },
           { clientId: { not: null } },
@@ -486,7 +506,7 @@ describe("Slice 11: Brand Asset Library", () => {
       const asset = await getBrandAssetById("asset-10");
       expect(asset?.title).toBe("Editorial Guidelines");
       expect(mocks.brandAssetFindUnique).toHaveBeenCalledWith({
-        where: { id: "asset-10" },
+        where: { id: "asset-10", studioId: "studio-manager-1" },
         include: expect.objectContaining({
           client: expect.anything(),
           project: expect.anything(),

@@ -19,6 +19,21 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/authz", () => ({
   requireRole: mocks.requireRole,
 }));
+vi.mock("@/lib/studio-access", () => {
+  const actor = async () => mocks.requireRole("MANAGER");
+  const context = (user: { id: string; role: string }) => ({
+    studioId: `studio-${user.id}`, ownerUserId: user.id, isOwner: user.role === "MANAGER",
+    memberId: null, role: user.role, grants: {},
+  });
+  return {
+    requireStudioArea: async () => { const user = await actor(); return { user, context: context(user) }; },
+    requireStudioManagerArea: async () => { const user = await actor(); return { manager: { ...user, actorId: user.id }, actor: user, context: context(user) }; },
+    requireStudioOwner: async () => { const user = await actor(); return { user, context: context(user) }; },
+    getStudioAccessContext: async (userId: string, role: string) => ({ studioId: `studio-${userId}`, ownerUserId: role === "MANAGER" ? userId : "manager-1", isOwner: role === "MANAGER", memberId: role === "MANAGER" ? null : "member-1", role, grants: {} }),
+    hasStudioAccess: () => true,
+  };
+});
+
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {

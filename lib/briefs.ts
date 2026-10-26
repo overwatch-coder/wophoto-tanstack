@@ -7,6 +7,8 @@ import {
   UserRole,
 } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/authz";
+import { requireStudioArea } from "@/lib/studio-access";
+import { StudioArea } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getProjectBriefsQuerySchema,
@@ -101,8 +103,9 @@ export async function getProjectBriefs(rawQuery?: Record<string, unknown>) {
       },
       ] },
     ];
-  } else if (user.role === UserRole.MANAGER) {
-    where.project = { managerId: user.id };
+  } else if (user.role === UserRole.MANAGER || user.role === UserRole.SUPERVISOR || user.role === UserRole.COLLABORATOR) {
+    const { context } = await requireStudioArea(StudioArea.BRIEFS);
+    where.project = { studioId: context.studioId };
   }
 
   if (query.projectName) {
@@ -261,6 +264,7 @@ export async function getBriefDetail(briefId: string) {
           name: true,
           clientId: true,
           managerId: true,
+          studioId: true,
           client: { select: { id: true, name: true, email: true } },
         },
       },
@@ -307,8 +311,9 @@ export async function getBriefDetail(briefId: string) {
     if (!(await workerCanAccessBrief(brief.id, user.id))) {
       return null;
     }
-  } else if (user.role === UserRole.MANAGER) {
-    if (!(await managerCanAccessBrief(brief.id, user.id))) return null;
+  } else if (user.role === UserRole.MANAGER || user.role === UserRole.SUPERVISOR || user.role === UserRole.COLLABORATOR) {
+    const { context } = await requireStudioArea(StudioArea.BRIEFS);
+    if (brief.project.studioId !== context.studioId) return null;
   }
 
   // Compute readiness for active version

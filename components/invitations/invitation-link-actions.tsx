@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react"
 import {
   getInvitationLink,
   replaceInvitationLink,
   revokeInvitation,
+  revokeStudioInvitationAccess,
 } from "@/app/actions/invitations"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -431,5 +433,48 @@ export function InvitationTableActions({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+export function RevokeStudioAccountButton({ id, role, name }: { id: string; role: string; name: string }) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string>()
+
+  function revoke() {
+    setError(undefined)
+    startTransition(async () => {
+      try {
+        const result = await revokeStudioInvitationAccess(id)
+        if (result.error) {
+          setError(result.error)
+          return
+        }
+        setOpen(false)
+        router.refresh()
+      } catch {
+        setError("Access could not be revoked. Try again.")
+      }
+    })
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger render={<Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs text-destructive hover:text-destructive">Revoke</Button>} />
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Revoke {role} access?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {name} will be signed out and will no longer be able to access this studio. Their account and existing work history will be retained. Access cannot currently be restored or re-invited from the app.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <Button type="button" variant="destructive" disabled={pending} onClick={revoke}>{pending ? "Revoking…" : "Revoke access"}</Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

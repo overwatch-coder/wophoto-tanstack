@@ -35,18 +35,20 @@ export function AppSidebar({
   image,
   name,
   role,
+  allowedAreas,
   userId,
 }: {
   email?: string | null
   image?: string | null
   name?: string | null
   role: WorkspaceRole
+  allowedAreas?: readonly string[] | null
   userId: string
 }) {
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
   const home = getWorkspaceHome(role)
-  const navigationGroups = getWorkspaceNavigationGroups(role)
+  const navigationGroups = getWorkspaceNavigationGroups(role, allowedAreas)
   const groupTitles: Record<(typeof navigationGroups)[number][number]["group"], string> = {
     primary: "Overview",
     work: "Work",

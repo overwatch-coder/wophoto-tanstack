@@ -7,11 +7,14 @@ import {
   NotificationType,
   TaskStatus,
   UserRole,
+  StudioArea,
   UserStatus,
 } from "@/generated/prisma/client"
 import { requireRole } from "@/lib/authz"
+import { requireStudioManagerArea } from "@/lib/studio-access"
 import { prisma } from "@/lib/prisma"
 import { createNotification } from "@/lib/notifications"
+import { createStudioAreaNotification } from "@/lib/notifications"
 import { notificationActionLink } from "@/lib/notification-links"
 import { InputValidationError, parseInput } from "@/lib/validation/common"
 import {
@@ -59,7 +62,7 @@ export async function createClientFeedback(
         id: projectId,
         clientId: client.id,
       },
-      select: { id: true, managerId: true, name: true },
+      select: { id: true, managerId: true, studioId: true, name: true },
     })
 
     if (!project) {
@@ -102,8 +105,7 @@ export async function createClientFeedback(
     // Notify project manager of new feedback / revision request
     if (project?.managerId) {
       try {
-        await createNotification({
-          userId: project.managerId,
+        await createStudioAreaNotification(project.studioId, StudioArea.REVIEWS, {
           actorId: client.id,
           type: NotificationType.FEEDBACK_RECEIVED,
           title: type === FeedbackType.REVISION ? "New Client Revision Request" : "New Client Review",
@@ -145,7 +147,7 @@ export async function resolveFeedback(
   _previousState: FeedbackActionState,
   formData: FormData
 ): Promise<FeedbackActionState> {
-  const manager = await requireRole(UserRole.MANAGER)
+  const { manager, actor } = await requireStudioManagerArea(StudioArea.REVIEWS)
 
   try {
     const { feedbackId, responseNote } = parseInput(feedbackResolutionSchema, {
@@ -180,7 +182,7 @@ export async function resolveFeedback(
         status: FeedbackStatus.RESOLVED,
         responseNote,
         respondedAt: new Date(),
-        respondedById: manager.id,
+        respondedById: actor.id,
       },
     })
 
@@ -201,7 +203,7 @@ export async function resolveFeedback(
       try {
         await createNotification({
           userId: feedback.clientId,
-          actorId: manager.id,
+          actorId: actor.id,
           type: NotificationType.FEEDBACK_RESOLVED,
           title: "Feedback Ticket Resolved",
           message: `Studio lead recorded resolution: "${responseNote.slice(0, 120)}"`,
@@ -237,7 +239,7 @@ export async function delegateFeedbackToWorker(
   _previousState: FeedbackActionState,
   formData: FormData
 ): Promise<FeedbackActionState> {
-  const manager = await requireRole(UserRole.MANAGER)
+  const { manager, actor } = await requireStudioManagerArea(StudioArea.REVIEWS)
 
   try {
     const { feedbackId, workerId, delegationNote } = parseInput(feedbackDelegationSchema, {
@@ -349,7 +351,7 @@ export async function delegateFeedbackToWorker(
     try {
       await createNotification({
         userId: worker.id,
-        actorId: manager.id,
+        actorId: actor.id,
         type: NotificationType.REVISION_DELEGATED,
         title: "Revision Delegated to You",
         message: `Manager delegated revision on "${feedback.title}": "${delegationNote.slice(0, 120)}"`,
@@ -403,7 +405,7 @@ export async function submitWorkerRevision(
         taskId: true,
         title: true,
         projectId: true,
-        project: { select: { name: true, managerId: true } },
+        project: { select: { name: true, managerId: true, studioId: true } },
       },
     })
 
@@ -449,8 +451,7 @@ export async function submitWorkerRevision(
     // Notify project manager that worker submitted revision
     if (feedback.project?.managerId) {
       try {
-        await createNotification({
-          userId: feedback.project.managerId,
+        await createStudioAreaNotification(feedback.project.studioId, StudioArea.REVIEWS, {
           actorId: worker.id,
           type: NotificationType.REVISION_SUBMITTED,
           title: "Worker Revision Ready for Review",
@@ -514,7 +515,7 @@ export async function updateClientFeedback(
 
     const project = await prisma.project.findFirst({
       where: { id: projectId, clientId: client.id },
-      select: { id: true, managerId: true, name: true },
+      select: { id: true, managerId: true, studioId: true, name: true },
     })
     if (!project) {
       throw new FeedbackValidationError(
@@ -550,8 +551,7 @@ export async function updateClientFeedback(
     // Notify project manager of new feedback / revision request
     if (project?.managerId) {
       try {
-        await createNotification({
-          userId: project.managerId,
+        await createStudioAreaNotification(project.studioId, StudioArea.REVIEWS, {
           actorId: client.id,
           type: NotificationType.FEEDBACK_RECEIVED,
           title: type === FeedbackType.REVISION ? "New Client Revision Request" : "New Client Review",

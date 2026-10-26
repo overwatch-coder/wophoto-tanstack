@@ -10,6 +10,8 @@ import { getUserPreferences } from "@/lib/user-preferences";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { WorkspaceShellLoading } from "@/components/workspace/workspace-shell-loading";
 import { isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
+import { getStudioAccessContext } from "@/lib/studio-access";
+import { UserRole } from "@/generated/prisma/client";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -27,6 +29,11 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
   const user = await requireUser();
   if (!isWorkspaceRole(user.role)) redirect("/forbidden");
 
+  const studioAccess = await getStudioAccessContext(user.id, user.role);
+  if ((user.role === UserRole.SUPERVISOR || user.role === UserRole.COLLABORATOR) && !studioAccess) {
+    redirect("/forbidden");
+  }
+
   const [cookieStore, initialNotifications, initialUnreadCounts, preferences, copilotEnabled] = await Promise.all([
     cookies(),
     getNotifications(user.id),
@@ -39,6 +46,7 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
   return (
     <WorkspaceShell
       role={user.role}
+      allowedAreas={studioAccess?.isOwner ? null : Object.keys(studioAccess?.grants ?? {})}
       userId={user.id}
       name={user.name}
       email={user.email}

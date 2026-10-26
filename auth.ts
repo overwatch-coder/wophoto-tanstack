@@ -4,7 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
 
 import { prisma } from "@/lib/prisma";
-import { InvitationStatus, UserStatus } from "@/generated/prisma/client";
+import { InvitationStatus, UserRole, UserStatus } from "@/generated/prisma/client";
 import { assertGoogleAccountOwner } from "@/lib/google-account-owner";
 
 function normalizeEmail(email: string) {
@@ -37,6 +37,7 @@ const inviteOnlyAdapter: Adapter = {
           usedAt: null,
           expiresAt: { gt: now },
         },
+        include: { permissions: true },
       });
 
       if (!invitation) {
@@ -59,6 +60,20 @@ const inviteOnlyAdapter: Adapter = {
         where: { id: invitation.id },
         data: { status: InvitationStatus.USED, usedAt: now, tokenEncrypted: null },
       });
+
+      if (invitation.role === UserRole.SUPERVISOR || invitation.role === UserRole.COLLABORATOR) {
+        await transaction.studioMember.create({
+          data: {
+            studioId: invitation.studioId,
+            userId: userRecord.id,
+            invitationId: invitation.id,
+            addedById: invitation.invitedById,
+            permissions: invitation.role === UserRole.COLLABORATOR
+              ? { create: invitation.permissions.map(({ area, accessLevel }) => ({ area, accessLevel })) }
+              : undefined,
+          },
+        });
+      }
 
       return userRecord;
     });
@@ -99,10 +114,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       const existingUser = await prisma.user.findUnique({
         where: { email },
-        select: { status: true },
+        select: { id: true, role: true, status: true },
       });
 
       if (existingUser) {
+        if (existingUser.role === UserRole.SUPERVISOR || existingUser.role === UserRole.COLLABORATOR) {
+          const activeMembership = await prisma.studioMember.findFirst({ where: { userId: existingUser.id, revokedAt: null }, select: { id: true } });
+          if (!activeMembership) return "/login?error=StudioAccessRevoked";
+        }
         return existingUser.status === UserStatus.ACTIVE ? true : "/login?error=AccountSuspended";
       }
 

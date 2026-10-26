@@ -1,7 +1,8 @@
 import "server-only";
 
-import { Prisma, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
+import { Prisma, StudioAccessLevel, StudioArea, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { hasStudioAccess, requireStudioManagerArea } from "@/lib/studio-access";
 import { cleanClientName } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_PAGE_SIZE, getPageCount } from "@/lib/pagination";
@@ -125,21 +126,31 @@ export type ClientAnalyticsData = {
 };
 
 export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAnalyticsData> {
-  const manager = await requireRole(UserRole.MANAGER);
+  const { manager, context } = await requireStudioManagerArea(StudioArea.DASHBOARD, StudioAccessLevel.VIEW);
+  const canReadProjects = hasStudioAccess(context, StudioArea.PROJECTS);
+  const canReadTasks = hasStudioAccess(context, StudioArea.TASKS);
+  const canReadTeam = hasStudioAccess(context, StudioArea.TEAM);
+  if (!canReadProjects || !canReadTasks) {
+    return {
+      collaboratorsPage: 1, collaboratorsPageCount: 1, collaboratorsTotal: 0,
+      kpis: { activeTasksPerPerson: 0, activeTasksBenchmark: 8, teamProductivity: 0, avgTaskDurationDays: 0, onTimeDeliveryRate: 0, workloadBalanceIndex: 0 },
+      weeklyLoad: [], serviceWorkloads: [], collaborators: [],
+    };
+  }
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setDate(1);
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   const [statusCounts, workerCount] = await Promise.all([
     prisma.task.groupBy({ by: ["status"], where: { deletedAt: null, project: { managerId: manager.id } }, _count: { _all: true } }),
-    prisma.user.count({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: manager.id } } } }),
+    canReadTeam ? prisma.user.count({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: manager.id } } } }) : Promise.resolve(0),
   ]);
   const pageCount = getPageCount(workerCount);
   const page = Math.min(Math.max(1, requestedPage), pageCount);
   const [workers, weeklyRows, serviceRows] = await Promise.all([
-    prisma.user.findMany({
+    canReadTeam ? prisma.user.findMany({
       where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: manager.id } } },
       select: { id: true, name: true, email: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: DEFAULT_PAGE_SIZE, skip: (page - 1) * DEFAULT_PAGE_SIZE,
-    }),
+    }) : Promise.resolve([]),
     prisma.$queryRaw<Array<{ month: Date; week: number; count: number }>>(Prisma.sql`
       SELECT date_trunc('month', COALESCE(t."workDate", t."dueAt", t."createdAt")) AS month,
         LEAST(4, CEIL(EXTRACT(DAY FROM COALESCE(t."workDate", t."dueAt", t."createdAt")) / 7.0))::int AS week,
@@ -169,7 +180,7 @@ export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAna
     FROM "Task" t JOIN "Project" p ON p."id" = t."projectId"
     WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL AND t."status" = 'COMPLETED'
   `);
-  const assignmentRows = workers.length ? await prisma.$queryRaw<Array<{ userId: string; status: TaskStatus; total: number; onTime: number }>>(Prisma.sql`
+  const assignmentRows = canReadTeam && workers.length ? await prisma.$queryRaw<Array<{ userId: string; status: TaskStatus; total: number; onTime: number }>>(Prisma.sql`
     SELECT a."userId", a."status", COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR a."submittedAt" IS NULL OR a."submittedAt" <= t."dueAt")::int AS "onTime"
     FROM "TaskAssignee" a JOIN "Task" t ON t."id" = a."taskId"

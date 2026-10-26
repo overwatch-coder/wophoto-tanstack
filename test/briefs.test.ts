@@ -35,6 +35,21 @@ vi.mock("@/lib/authz", () => ({
   requireRole: mocks.requireRole,
   requireUser: mocks.requireUser,
 }));
+vi.mock("@/lib/studio-access", () => {
+  const actor = async () => mocks.requireRole("MANAGER");
+  const context = (user: { id: string; role: string }) => ({
+    studioId: `studio-${user.id}`, ownerUserId: user.id, isOwner: user.role === "MANAGER",
+    memberId: null, role: user.role, grants: {},
+  });
+  return {
+    requireStudioArea: async () => { const user = await actor(); return { user, context: context(user) }; },
+    requireStudioManagerArea: async () => { const user = await actor(); return { manager: { ...user, actorId: user.id }, actor: user, context: context(user) }; },
+    requireStudioOwner: async () => { const user = await actor(); return { user, context: context(user) }; },
+    getStudioAccessContext: async (userId: string, role: string) => ({ studioId: `studio-${userId}`, ownerUserId: role === "MANAGER" ? userId : "manager-1", isOwner: role === "MANAGER", memberId: role === "MANAGER" ? null : "member-1", role, grants: {} }),
+    hasStudioAccess: () => true,
+  };
+});
+
 vi.mock("@vercel/blob", () => ({
   put: mocks.blobPut,
   del: mocks.blobDel,
@@ -265,7 +280,7 @@ describe("Slice 13: Creative Brief Review & Worker Sign-off", () => {
         fileUrl:
           "https://store.private.blob.vercel-storage.com/briefs/brief-del.pdf",
         fileKey: "briefs/brief-del.pdf",
-        project: { managerId: "manager-1" },
+          project: { studioId: "studio-manager-1" },
         signOffs: [{ status: SignOffStatus.PENDING }],
         _count: { questions: 0 },
       });
@@ -288,7 +303,7 @@ describe("Slice 13: Creative Brief Review & Worker Sign-off", () => {
         status: BriefStatus.IN_REVIEW,
         fileUrl: null,
         fileKey: null,
-        project: { managerId: "manager-1" },
+        project: { studioId: "studio-manager-1" },
         signOffs: [],
         _count: { questions: 0 },
       });
@@ -306,7 +321,7 @@ describe("Slice 13: Creative Brief Review & Worker Sign-off", () => {
         status: BriefStatus.DRAFT,
         fileUrl: null,
         fileKey: null,
-        project: { managerId: "manager-1" },
+        project: { studioId: "studio-manager-1" },
         signOffs: [{ status: SignOffStatus.SIGNED }],
         _count: { questions: 0 },
       });
@@ -595,7 +610,7 @@ describe("Slice 13: Creative Brief Review & Worker Sign-off", () => {
       expect(mocks.briefFindMany).toHaveBeenCalledWith(expect.objectContaining({
         skip: 12,
         take: 12,
-        where: expect.objectContaining({ project: { managerId: "manager-1" } }),
+        where: expect.objectContaining({ project: { studioId: "studio-manager-1" } }),
       }));
       expect(mocks.briefFindMany).toHaveBeenCalledWith(expect.objectContaining({
         where: expect.objectContaining({

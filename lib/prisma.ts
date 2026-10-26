@@ -23,9 +23,11 @@ type RuntimeModelShape = { fields?: Array<{ name: string }> };
 type PrismaRuntimeShape = {
   _runtimeDataModel?: { models?: Record<string, RuntimeModelShape> };
 };
-const cachedPreferenceFields = (
-  cachedPrisma as unknown as PrismaRuntimeShape | undefined
-)?._runtimeDataModel?.models?.UserPreference?.fields?.map(({ name }) => name);
+const cachedModels = (cachedPrisma as unknown as PrismaRuntimeShape | undefined)
+  ?._runtimeDataModel?.models;
+const cachedPreferenceFields = cachedModels?.UserPreference?.fields?.map(({ name }) => name);
+const cachedInvitationFields = cachedModels?.Invitation?.fields?.map(({ name }) => name);
+const cachedProjectFields = cachedModels?.Project?.fields?.map(({ name }) => name);
 const hasCurrentSchemaDelegates = Boolean(
   cachedPrisma &&
     typeof (cachedPrisma as unknown as { notification?: { count?: unknown } })
@@ -56,7 +58,17 @@ const hasCurrentSchemaDelegates = Boolean(
     typeof (cachedPrisma as unknown as { copilotAccessOverride?: { findMany?: unknown } })
       .copilotAccessOverride?.findMany === "function" &&
     typeof (cachedPrisma as unknown as { copilotUsageEvent?: { count?: unknown } })
-      .copilotUsageEvent?.count === "function",
+      .copilotUsageEvent?.count === "function" &&
+    typeof (cachedPrisma as unknown as { studio?: { findUnique?: unknown } })
+      .studio?.findUnique === "function" &&
+    typeof (cachedPrisma as unknown as { studioMember?: { findFirst?: unknown } })
+      .studioMember?.findFirst === "function" &&
+    typeof (cachedPrisma as unknown as { studioMemberPermission?: { findMany?: unknown } })
+      .studioMemberPermission?.findMany === "function" &&
+    typeof (cachedPrisma as unknown as { invitationPermission?: { findMany?: unknown } })
+      .invitationPermission?.findMany === "function" &&
+    cachedInvitationFields?.includes("studio") &&
+    cachedProjectFields?.includes("studioId"),
 );
 
 // `prisma generate` can add models while `next dev` is already running. The

@@ -103,12 +103,16 @@ export async function createProjectForManager(
     }
   }
 
+  const studio = await prisma.studio.findUnique({ where: { ownerUserId: managerId }, select: { id: true } });
+  if (!studio) return { error: "Your studio is not ready to create projects." };
+
   const project = await prisma.project.create({
     data: {
       name: parsed.name,
       description: parsed.description || null,
       managerId,
       clientId: client.id,
+      studioId: studio.id,
     },
     select: { id: true, name: true },
   })
@@ -125,7 +129,8 @@ export async function createProjectForManager(
 
 export async function createTaskBatchForManager(
   managerId: string,
-  input: CreateTaskBatchInput
+  input: CreateTaskBatchInput,
+  actorId = managerId,
 ) {
   const parsed = createTaskBatchInputSchema.parse(input)
   const project = await prisma.project.findFirst({
@@ -162,7 +167,7 @@ export async function createTaskBatchForManager(
           dueAt: task.dueDate
             ? new Date(`${task.dueDate}T12:00:00.000Z`)
             : null,
-          createdById: managerId,
+          createdById: actorId,
           projectId: project.id,
           assignees: { create: { userId: task.assigneeId, status: "TODO" } },
         },
