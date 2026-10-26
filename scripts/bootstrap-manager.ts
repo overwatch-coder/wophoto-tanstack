@@ -34,8 +34,16 @@ try {
         throw new Error("That email already belongs to a WoPhoto user. Choose an unused email address.");
       }
 
-      await transaction.user.create({
+      const manager = await transaction.user.create({
         data: { email, role: UserRole.MANAGER },
+        select: { id: true, name: true },
+      });
+
+      await transaction.studio.create({
+        data: {
+          name: `${manager.name?.trim() || "WoPhoto"} Studio`,
+          ownerUserId: manager.id,
+        },
       });
     },
     { isolationLevel: "Serializable" },
