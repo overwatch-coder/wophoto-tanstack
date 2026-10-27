@@ -64,14 +64,14 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
     .card { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e5e5e7; padding: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
     .brand { margin: 0 0 24px 0; }
     .brand-lockup { display: inline-block; background-color: #ffffff !important; border: 1px solid #ece8e0; border-radius: 9px; padding: 6px 8px; }
-    .brand-logo { display: block; width: 112px; max-width: 100%; height: auto; border: 0; }
+    .brand-logo { display: block; width: 95px; max-width: 100%; height: auto; border: 0; }
     .title { font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 12px 0; }
     .message { font-size: 14px; line-height: 1.6; color: #4b5563; margin-bottom: 24px; }
     .meta-box { background: #f9fafb; border-radius: 12px; border: 1px solid #f3f4f6; padding: 12px 16px; font-size: 12px; color: #6b7280; margin-bottom: 24px; }
     .button { display: inline-block; background-color: #ea580c; color: #ffffff !important; text-decoration: none; font-size: 13px; font-weight: 600; padding: 10px 22px; border-radius: 9999px; }
     .footer { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 24px; }
     @media only screen and (max-width: 480px) {
-      .brand-logo { width: 92px !important; }
+      .brand-logo { width: 85px !important; }
       .brand-lockup { padding: 5px 7px !important; }
     }
   </style>
@@ -83,7 +83,7 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
       <table role="presentation" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td class="brand-lockup" bgcolor="#ffffff" style="background-color:#ffffff !important;border:1px solid #ece8e0;border-radius:9px;padding:6px 8px">
-            <img class="brand-logo" src="${escapeHtml(logoUrl)}" width="112" alt="WoPhoto Studio" style="display:block;width:112px;max-width:100%;height:auto;border:0" />
+            <img class="brand-logo" src="${escapeHtml(logoUrl)}" width="95" alt="WoPhoto Studio" style="display:block;width:95px;max-width:100%;height:auto;border:0" />
           </td>
         </tr>
       </table>
