@@ -140,9 +140,15 @@ export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAna
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setDate(1);
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-  const [statusCounts, workerCount] = await Promise.all([
+  const [statusCounts, workerCount, deliveryTotals] = await Promise.all([
     prisma.task.groupBy({ by: ["status"], where: { deletedAt: null, project: { managerId: manager.id } }, _count: { _all: true } }),
     canReadTeam ? prisma.user.count({ where: { role: UserRole.WORKER, status: UserStatus.ACTIVE, acceptedInvitation: { is: { invitedById: manager.id } } } }) : Promise.resolve(0),
+    prisma.$queryRaw<Array<{ total: number; onTime: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime"
+      FROM "Task" t JOIN "Project" p ON p."id" = t."projectId"
+      WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL AND t."status" = 'COMPLETED'
+    `),
   ]);
   const pageCount = getPageCount(workerCount);
   const page = Math.min(Math.max(1, requestedPage), pageCount);
@@ -178,12 +184,6 @@ export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAna
     `),
   ]);
   const byStatus = Object.fromEntries(statusCounts.map((item) => [item.status, item._count._all])) as Partial<Record<TaskStatus, number>>;
-  const deliveryTotals = await prisma.$queryRaw<Array<{ total: number; onTime: number }>>(Prisma.sql`
-    SELECT COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime"
-    FROM "Task" t JOIN "Project" p ON p."id" = t."projectId"
-    WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL AND t."status" = 'COMPLETED'
-  `);
   const assignmentRows = canReadTeam && workers.length ? await prisma.$queryRaw<Array<{ userId: string; status: TaskStatus; total: number; onTime: number }>>(Prisma.sql`
     SELECT a."userId", a."status", COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR a."submittedAt" IS NULL OR a."submittedAt" <= t."dueAt")::int AS "onTime"
@@ -250,7 +250,7 @@ export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAna
 
 export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
   const user = await requireRole(UserRole.WORKER);
-  const [statusCounts, upcomingRows, dailyLogs] = await Promise.all([
+  const [statusCounts, upcomingRows, dailyLogs, onTimeStats] = await Promise.all([
     prisma.taskAssignee.groupBy({ by: ["status"], where: { userId: user.id, task: { deletedAt: null } }, _count: { _all: true } }),
     prisma.taskAssignee.findMany({
       where: { userId: user.id, status: { in: [TaskStatus.TODO, TaskStatus.IN_PROGRESS] }, task: { deletedAt: null, type: TaskType.ASSIGNED } },
@@ -262,14 +262,14 @@ export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
       select: { id: true, title: true, workDate: true, status: true, project: { select: { name: true } } },
       orderBy: [{ workDate: "desc" }, { id: "desc" }], take: 5,
     }),
+    prisma.$queryRawUnsafe<Array<{ total: number; onTime: number }>>(
+      'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR a."submittedAt" IS NULL OR a."submittedAt" <= t."dueAt")::int AS "onTime" FROM "TaskAssignee" a JOIN "Task" t ON t."id" = a."taskId" WHERE a."userId" = $1 AND a."status" = \'COMPLETED\' AND t."deletedAt" IS NULL',
+      user.id,
+    ),
   ]);
   const byStatus = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all])) as Partial<Record<TaskStatus, number>>;
   const activeTasksCount = (byStatus[TaskStatus.TODO] ?? 0) + (byStatus[TaskStatus.IN_PROGRESS] ?? 0);
   const completedTasksCount = byStatus[TaskStatus.COMPLETED] ?? 0;
-  const onTimeStats = await prisma.$queryRawUnsafe<Array<{ total: number; onTime: number }>>(
-    'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR a."submittedAt" IS NULL OR a."submittedAt" <= t."dueAt")::int AS "onTime" FROM "TaskAssignee" a JOIN "Task" t ON t."id" = a."taskId" WHERE a."userId" = $1 AND a."status" = \'COMPLETED\' AND t."deletedAt" IS NULL',
-    user.id,
-  );
   const completedTotal = onTimeStats[0]?.total ?? 0;
   const onTimeRate = completedTotal ? Math.round(((onTimeStats[0]?.onTime ?? 0) / completedTotal) * 1000) / 10 : 0;
   const upcomingTasks = upcomingRows.map(({ task, status }) => ({ id: task.id, title: task.title, projectName: task.project.name, priority: task.priority, dueAt: task.dueAt?.toISOString() ?? null, status }));
@@ -323,7 +323,7 @@ export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
 
 export async function getClientAnalytics(): Promise<ClientAnalyticsData> {
   const user = await requireRole(UserRole.CLIENT);
-  const [activeProjectsCount, statusCounts, projects] = await Promise.all([
+  const [activeProjectsCount, statusCounts, projects, recentRows, onTimeStats] = await Promise.all([
     prisma.project.count({ where: { clientId: user.id } }),
     prisma.task.groupBy({
       by: ["status"],
@@ -339,6 +339,16 @@ export async function getClientAnalytics(): Promise<ClientAnalyticsData> {
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: 6,
     }),
+    prisma.task.findMany({
+      where: { project: { clientId: user.id }, deletedAt: null, status: TaskStatus.COMPLETED },
+      select: { id: true, title: true, priority: true, completedAt: true, project: { select: { name: true } } },
+      orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+      take: 5,
+    }),
+    prisma.$queryRawUnsafe<Array<{ total: number; onTime: number }>>(
+      'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime" FROM "Task" t JOIN "Project" p ON p."id" = t."projectId" WHERE p."clientId" = $1 AND t."deletedAt" IS NULL AND t."status" = \'COMPLETED\'',
+      user.id,
+    ),
   ]);
   const byStatus = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all])) as Partial<Record<TaskStatus, number>>;
   const completedCount = byStatus[TaskStatus.COMPLETED] ?? 0;
@@ -363,16 +373,6 @@ export async function getClientAnalytics(): Promise<ClientAnalyticsData> {
       updatedAt: project.updatedAt.toISOString(),
     };
   });
-  const recentRows = await prisma.task.findMany({
-    where: { project: { clientId: user.id }, deletedAt: null, status: TaskStatus.COMPLETED },
-    select: { id: true, title: true, priority: true, completedAt: true, project: { select: { name: true } } },
-    orderBy: [{ completedAt: "desc" }, { id: "desc" }],
-    take: 5,
-  });
-  const onTimeStats = await prisma.$queryRawUnsafe<Array<{ total: number; onTime: number }>>(
-    'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime" FROM "Task" t JOIN "Project" p ON p."id" = t."projectId" WHERE p."clientId" = $1 AND t."deletedAt" IS NULL AND t."status" = \'COMPLETED\'',
-    user.id,
-  );
   const completedTotal = onTimeStats[0]?.total ?? 0;
   const onTimeDeliveryRate = completedTotal ? Math.round(((onTimeStats[0]?.onTime ?? 0) / completedTotal) * 1000) / 10 : 0;
   const now = new Date();

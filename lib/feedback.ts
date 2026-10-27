@@ -210,7 +210,8 @@ export async function getClientFeedbackData(
     : buildFeedbackWhere(baseWhere, filters);
 
   // Keep request form options bounded. Feedback records are paginated below.
-  const projects = await prisma.project.findMany({
+  const [projects, totalItems, stats] = await Promise.all([
+    prisma.project.findMany({
     where: { clientId: client.id },
     select: {
       id: true,
@@ -233,9 +234,7 @@ export async function getClientFeedbackData(
     },
     orderBy: { updatedAt: "desc" },
     take: OPTION_PAGE_SIZE,
-  });
-
-  const [totalItems, stats] = await Promise.all([
+    }),
     prisma.clientFeedback.count({ where }),
     getFeedbackStats(baseWhere),
   ]);
@@ -374,7 +373,8 @@ export async function getManagerFeedbackData(
     : buildFeedbackWhere(baseWhere, filters);
 
   // Keep form and filter options bounded. Feedback records are paginated below.
-  const projects = await prisma.project.findMany({
+  const [projects, workers, totalItems, stats] = await Promise.all([
+    prisma.project.findMany({
     where: { studioId: context.studioId },
     select: {
       id: true,
@@ -404,10 +404,9 @@ export async function getManagerFeedbackData(
     },
     orderBy: { updatedAt: "desc" },
     take: OPTION_PAGE_SIZE,
-  });
-
-  // Only show workers invited by this manager, and cap the selector options.
-  const workers = await prisma.user.findMany({
+    }),
+    // Only show workers invited by this manager, and cap the selector options.
+    prisma.user.findMany({
     where: {
       role: UserRole.WORKER,
       status: UserStatus.ACTIVE,
@@ -421,9 +420,7 @@ export async function getManagerFeedbackData(
       image: true,
     },
     take: OPTION_PAGE_SIZE,
-  });
-
-  const [totalItems, stats] = await Promise.all([
+    }),
     prisma.clientFeedback.count({ where }),
     getFeedbackStats(baseWhere),
   ]);

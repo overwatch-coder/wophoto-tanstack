@@ -22,10 +22,12 @@ async function SettingsContent() {
   // only after Next has moved this nested settings segment to request time.
   await connection();
   const user = await requireUser();
-  const preferences = await getUserPreferences(user.id, user.role);
-  const studioCopilotSettings = user.role === UserRole.MANAGER
-    ? await getCopilotStudioSettings(user.id)
-    : undefined;
+  const [preferences, studioCopilotSettings] = await Promise.all([
+    getUserPreferences(user.id, user.role),
+    user.role === UserRole.MANAGER
+      ? getCopilotStudioSettings(user.id)
+      : Promise.resolve(undefined),
+  ]);
 
   return (
     <ProfileSettings

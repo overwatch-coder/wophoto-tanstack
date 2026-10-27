@@ -93,7 +93,21 @@ async function ManagerProjectsContent({
         }
       : {}),
   }
-  const [totalProjects, totalTasks, completedTasks, projectStatuses] =
+  const fetchProjects = (page: number) => prisma.project.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+      client: { select: { id: true, name: true } },
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: DEFAULT_PAGE_SIZE,
+    skip: (page - 1) * DEFAULT_PAGE_SIZE,
+  })
+  const [totalProjects, totalTasks, completedTasks, projectStatuses, requestedProjects] =
     await Promise.all([
       prisma.project.count({ where }),
       prisma.task.count({
@@ -118,23 +132,11 @@ async function ManagerProjectsContent({
         WHEN has_review THEN 'IN_REVIEW' ELSE 'IN_PROGRESS' END AS status, COUNT(*)::int AS count
       FROM task_summary GROUP BY status
     `),
+      fetchProjects(filters.page),
     ])
   const totalPages = getPageCount(totalProjects)
   const page = Math.min(filters.page, totalPages)
-  const projects = await prisma.project.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      createdAt: true,
-      updatedAt: true,
-      client: { select: { id: true, name: true } },
-    },
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    take: DEFAULT_PAGE_SIZE,
-    skip: (page - 1) * DEFAULT_PAGE_SIZE,
-  })
+  const projects = page === filters.page ? requestedProjects : await fetchProjects(page)
   const projectIds = projects.map((project) => project.id)
   const [taskStates, latestDue] = projectIds.length
     ? await Promise.all([
