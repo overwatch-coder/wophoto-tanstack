@@ -37,6 +37,7 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   const subject = deliveryMode === "test" ? `[TEST] ${input.subject}` : input.subject;
   const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3000";
   const fullLink = safeNotificationLink(baseUrl, input.link);
+  const logoUrl = safeNotificationLink(baseUrl, "/assets/logo-trimmed.png");
 
   if (provider !== "resend" && provider !== "gmail") {
     return { success: false, status: "failed", error: "EMAIL_PROVIDER must be either 'resend' or 'gmail'." };
@@ -61,8 +62,9 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f7f8; margin: 0; padding: 24px; color: #1a1a1a; }
     .card { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e5e5e7; padding: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-    .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; }
-    .brand-pill { display: inline-block; background: #ea580c; color: #ffffff; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 10px; border-radius: 9999px; }
+    .brand { margin: 0 0 24px 0; }
+    .brand-lockup { display: inline-block; background-color: #ffffff !important; border: 1px solid #ece8e0; border-radius: 10px; padding: 8px 12px; }
+    .brand-logo { display: block; width: 220px; max-width: 100%; height: auto; border: 0; }
     .title { font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 12px 0; }
     .message { font-size: 14px; line-height: 1.6; color: #4b5563; margin-bottom: 24px; }
     .meta-box { background: #f9fafb; border-radius: 12px; border: 1px solid #f3f4f6; padding: 12px 16px; font-size: 12px; color: #6b7280; margin-bottom: 24px; }
@@ -74,7 +76,13 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   <div class="card">
     ${deliveryMode === "test" ? `<div style="margin-bottom:20px;padding:12px 14px;border:1px solid #fdba74;border-radius:10px;background:#fff7ed;color:#9a3412;font-size:13px;line-height:1.5"><strong>Test notification</strong><br/>Intended recipient: ${escapeHtml(input.to)}</div>` : ""}
     <div class="brand">
-      <span class="brand-pill">WoPhoto Studio</span>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="brand-lockup" bgcolor="#ffffff" style="background-color:#ffffff !important;border:1px solid #ece8e0;border-radius:10px;padding:8px 12px">
+            <img class="brand-logo" src="${escapeHtml(logoUrl)}" width="220" alt="WoPhoto Studio" style="display:block;width:220px;max-width:100%;height:auto;border:0" />
+          </td>
+        </tr>
+      </table>
     </div>
     <h1 class="title">${escapeHtml(input.title)}</h1>
     <p class="message">${escapeHtml(input.message)}</p>
