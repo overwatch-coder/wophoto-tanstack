@@ -67,6 +67,10 @@ const hasCurrentSchemaDelegates = Boolean(
       .studioMemberPermission?.findMany === "function" &&
     typeof (cachedPrisma as unknown as { invitationPermission?: { findMany?: unknown } })
       .invitationPermission?.findMany === "function" &&
+    typeof (cachedPrisma as unknown as { studioService?: { findMany?: unknown } })
+      .studioService?.findMany === "function" &&
+    typeof (cachedPrisma as unknown as { taskService?: { findMany?: unknown } })
+      .taskService?.findMany === "function" &&
     cachedInvitationFields?.includes("studio") &&
     cachedProjectFields?.includes("studioId"),
 );

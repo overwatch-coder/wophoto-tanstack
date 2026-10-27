@@ -7,3 +7,4 @@ const descriptionSchema = z.string().trim().max(500, "Description must be 500 ch
 export const createStudioServiceSchema = z.object({ name: nameSchema, description: descriptionSchema });
 export const updateStudioServiceSchema = z.object({ id: idSchema, name: nameSchema, description: descriptionSchema });
 export const setStudioServiceActiveSchema = z.object({ id: idSchema, isActive: z.boolean() });
+export const deleteStudioServiceSchema = z.object({ id: idSchema });
