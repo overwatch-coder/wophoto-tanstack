@@ -7,6 +7,8 @@ import {
   registerSSEStream,
 } from "@/lib/notifications";
 
+export const maxDuration = 240;
+
 export async function GET(req: NextRequest) {
   await connection();
   const session = await auth();
@@ -38,13 +40,27 @@ export async function GET(req: NextRequest) {
       // cross-instance fallback for serverless deployments.
       const unregister = registerSSEStream(userId, controller);
       let polling = false;
+      let closed = false;
+      function closeStream() {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        clearInterval(pollInterval);
+        clearTimeout(closeTimeout);
+        unregister();
+        try {
+          controller.close();
+        } catch {
+          // The request may already have disconnected.
+        }
+      }
 
       // Keepalive heartbeat ping every 25s
       const heartbeat = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": ping\n\n"));
         } catch {
-          clearInterval(heartbeat);
+          closeStream();
         }
       }, 25000);
 
@@ -74,18 +90,15 @@ export async function GET(req: NextRequest) {
           polling = false;
         }
       };
-      const pollInterval = setInterval(() => void pollForChanges(), 5000);
+      const pollInterval = setInterval(() => void pollForChanges(), 15000);
+
+      // Vercel serverless functions have a finite request lifetime. End this
+      // stream cleanly before the platform timeout; EventSource reconnects.
+      const closeTimeout = setTimeout(closeStream, 230000);
 
       // Clean up when client disconnects
       req.signal.addEventListener("abort", () => {
-        clearInterval(heartbeat);
-        clearInterval(pollInterval);
-        unregister();
-        try {
-          controller.close();
-        } catch {
-          // already closed
-        }
+        closeStream();
       }, { once: true });
     },
   });
@@ -95,6 +108,7 @@ export async function GET(req: NextRequest) {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

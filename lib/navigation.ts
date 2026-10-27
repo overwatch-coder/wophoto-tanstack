@@ -14,6 +14,7 @@ import {
   Star,
   Trash2,
   UserRoundPlus,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +44,7 @@ export const workspaceNavigation: Record<Exclude<WorkspaceRole, "SUPERVISOR" | "
     { title: "Deleted Tasks", href: "/manager/deleted-tasks", icon: Trash2, group: "archive" },
     { title: "Notifications", href: "/manager/notifications", icon: Bell, group: "communication" },
     { title: "Team Invitations", href: "/manager/invitations", icon: UserRoundPlus, group: "admin" },
+    { title: "Studio Services", href: "/manager/services", icon: Wrench, group: "admin" },
     { title: "Settings", href: "/settings", icon: Settings2, group: "account" },
   ],
   WORKER: [
@@ -76,6 +78,7 @@ const MANAGER_AREA_BY_HREF: Record<string, WorkspaceArea> = {
 export function getWorkspaceNavigationGroups(role: WorkspaceRole, allowedAreas?: readonly string[] | null) {
   const items = role === "SUPERVISOR" || role === "COLLABORATOR" ? workspaceNavigation.MANAGER : workspaceNavigation[role];
   const visibleItems = items.filter((item) => {
+    if (item.href === "/manager/services") return role === "MANAGER";
     if (!allowedAreas || role !== "SUPERVISOR" && role !== "COLLABORATOR") return true;
     const area = MANAGER_AREA_BY_HREF[item.href];
     return !area || allowedAreas.includes(area);

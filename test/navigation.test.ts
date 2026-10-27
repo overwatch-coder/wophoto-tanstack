@@ -46,6 +46,7 @@ describe("role aware workspace navigation", () => {
       ["Deleted Tasks", "/manager/deleted-tasks"],
       ["Notifications", "/manager/notifications"],
       ["Team Invitations", "/manager/invitations"],
+      ["Studio Services", "/manager/services"],
       ["Settings", "/settings"],
     ])
     expect(workspaceNavigation.WORKER[0]).toMatchObject({ title: "Dashboard", href: "/worker" })

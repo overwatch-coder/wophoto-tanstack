@@ -55,18 +55,20 @@ const invalidateTasks = () => paths.forEach((path) => revalidatePath(path));
 
 export async function createAssignedTask(_state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
-    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
+    const { manager, context } = await requireStudioManagerArea(StudioArea.TASKS);
     const input = parseInput(createAssignedTaskSchema, {
       projectId: formString(data, "projectId"),
       ...taskFormFields(data),
       workerIds: stringList(data, "workerId"),
-      specializations: stringList(data, "specialization"),
+      serviceIds: stringList(data, "serviceId"),
     });
-    const { projectId, workerIds: requestedWorkerIds, specializations, ...fields } = input;
+    const { projectId, workerIds: requestedWorkerIds, serviceIds, ...fields } = input;
     const workerIds = await checkWorkers(requestedWorkerIds);
     const project = await prisma.project.findFirst({ where: { id: projectId, managerId: manager.id }, select: { id: true } });
     if (!project) throw new Error("That project is not available to you.");
-    const task = await prisma.task.create({ data: { ...fields, projectId, createdById: manager.actorId, type: TaskType.ASSIGNED, assignees: { create: workerIds.map((userId) => ({ userId })) }, specializations: { create: specializations.map((specialization) => ({ specialization })) } }, select: { id: true } });
+    const validServices = await prisma.studioService.findMany({ where: { id: { in: serviceIds }, studioId: context.studioId, isActive: true }, select: { id: true } });
+    if (validServices.length !== serviceIds.length) throw new Error("One or more selected services are no longer available.");
+    const task = await prisma.task.create({ data: { ...fields, projectId, createdById: manager.actorId, type: TaskType.ASSIGNED, assignees: { create: workerIds.map((userId) => ({ userId })) }, services: { create: serviceIds.map((serviceId) => ({ service: { connect: { id: serviceId } } })) } }, select: { id: true } });
 
     // Notify assigned workers
     try {
@@ -96,22 +98,26 @@ export async function createAssignedTask(_state: TaskActionState, data: FormData
 
 export async function updateAssignedTask(taskId: string, _state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {
-    const { manager } = await requireStudioManagerArea(StudioArea.TASKS);
+    const { manager, context } = await requireStudioManagerArea(StudioArea.TASKS);
     const input = parseInput(updateAssignedTaskSchema, {
       taskId,
       ...taskFormFields(data),
       workerIds: stringList(data, "workerId"),
-      specializations: stringList(data, "specialization"),
+      serviceIds: stringList(data, "serviceId"),
     });
-    const { taskId: validatedTaskId, workerIds: requestedWorkerIds, specializations, ...fields } = input;
+    const { taskId: validatedTaskId, workerIds: requestedWorkerIds, serviceIds, ...fields } = input;
     const workerIds = await checkWorkers(requestedWorkerIds);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, validatedTaskId);
       const task = await tx.task.findFirst({ where: { id: validatedTaskId, deletedAt: null, type: TaskType.ASSIGNED, status: { not: TaskStatus.COMPLETED }, project: { managerId: manager.id } }, select: { id: true, assignees: { select: { userId: true } } } });
       if (!task) throw new Error("This task cannot be edited.");
+      const validServices = await tx.studioService.findMany({ where: { id: { in: serviceIds }, studioId: context.studioId, isActive: true }, select: { id: true } });
+      if (validServices.length !== serviceIds.length) throw new Error("One or more selected services are no longer available.");
       const add = workerIds.filter((id) => !task.assignees.some((a) => a.userId === id));
       const remove = task.assignees.map((a) => a.userId).filter((id) => !workerIds.includes(id));
-      await tx.task.update({ where: { id: validatedTaskId }, data: { ...fields, specializations: { deleteMany: {}, create: specializations.map((specialization) => ({ specialization })) } } });
+      const activeServices = await tx.studioService.findMany({ where: { studioId: context.studioId, isActive: true }, select: { id: true } });
+      await tx.taskService.deleteMany({ where: { taskId: validatedTaskId, serviceId: { in: activeServices.map((service) => service.id) } } });
+      await tx.task.update({ where: { id: validatedTaskId }, data: { ...fields, services: { create: serviceIds.map((serviceId) => ({ service: { connect: { id: serviceId } } })) } } });
       if (remove.length) await tx.taskAssignee.deleteMany({ where: { taskId: validatedTaskId, userId: { in: remove } } });
       if (add.length) await tx.taskAssignee.createMany({ data: add.map((userId) => ({ taskId: validatedTaskId, userId })) });
       await recompute(tx, validatedTaskId);

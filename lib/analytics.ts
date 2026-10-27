@@ -161,16 +161,20 @@ export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAna
         AND COALESCE(t."workDate", t."dueAt", t."createdAt") < NOW()
       GROUP BY 1, 2
     `),
-    prisma.$queryRaw<Array<{ specialization: string; total: number; open: number; late: number; on_time: number }>>(Prisma.sql`
-      SELECT COALESCE(ts."specialization"::text, 'POST_PRODUCTION') AS specialization,
+    prisma.$queryRaw<Array<{ id: string; service: string; total: number; open: number; late: number; on_time: number }>>(Prisma.sql`
+      SELECT s."id", s."name" AS service,
         COUNT(DISTINCT t."id")::int AS total,
         COUNT(DISTINCT t."id") FILTER (WHERE t."status" <> 'COMPLETED')::int AS open,
         COUNT(DISTINCT t."id") FILTER (WHERE t."status" <> 'COMPLETED' AND t."dueAt" < NOW())::int AS late,
         COUNT(DISTINCT t."id") FILTER (WHERE t."status" = 'COMPLETED' AND (t."dueAt" IS NULL OR t."completedAt" <= t."dueAt"))::int AS on_time
-      FROM "Task" t JOIN "Project" p ON p."id" = t."projectId"
-      LEFT JOIN "TaskSpecialization" ts ON ts."taskId" = t."id"
-      WHERE p."managerId" = ${manager.id} AND t."deletedAt" IS NULL
-      GROUP BY 1
+      FROM "StudioService" s
+      LEFT JOIN "TaskService" ts ON ts."serviceId" = s."id"
+      LEFT JOIN "Task" t ON t."id" = ts."taskId" AND t."deletedAt" IS NULL
+      LEFT JOIN "Project" p ON p."id" = t."projectId" AND p."managerId" = ${manager.id}
+      WHERE s."studioId" = ${context.studioId} AND s."isActive" = true
+        AND (t."id" IS NULL OR p."id" IS NOT NULL)
+      GROUP BY s."id", s."name"
+      ORDER BY s."name" ASC
     `),
   ]);
   const byStatus = Object.fromEntries(statusCounts.map((item) => [item.status, item._count._all])) as Partial<Record<TaskStatus, number>>;
@@ -223,12 +227,14 @@ export async function getManagerAnalytics(requestedPage = 1): Promise<ManagerAna
     const pct = (count: number) => total ? Math.round((count / total) * 1000) / 10 : 0;
     return { month, isCurrent: offset === 5, week1: pct(counts[0]), week2: pct(counts[1]), week3: pct(counts[2]), week4: pct(counts[3]) };
   });
-  const labels: Record<string, string> = { PHOTOGRAPHY: "Photography", VIDEOGRAPHY: "Videography", CONTENT_CREATION: "Content Creation", GRAPHIC_DESIGN: "Graphic Design", WEB_CREATION: "Web Creation", POST_PRODUCTION: "Post Production" };
-  const serviceMap = new Map(serviceRows.map((row) => [row.specialization, row]));
-  const serviceWorkloads = Object.entries(labels).map(([key, service]) => {
-    const row = serviceMap.get(key);
-    return { service, total: row?.total ?? 0, open: row?.open ?? 0, late: row?.late ?? 0, onTime: row?.on_time ?? 0, avgTime: "—" };
-  });
+  const serviceWorkloads = serviceRows.map((row) => ({
+    service: row.service,
+    total: row.total,
+    open: row.open,
+    late: row.late,
+    onTime: row.on_time,
+    avgTime: "—",
+  }));
   return {
     collaboratorsPage: page,
     collaboratorsPageCount: pageCount,

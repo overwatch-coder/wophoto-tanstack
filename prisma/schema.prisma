@@ -204,6 +204,7 @@ model Studio {
   scheduleEvents   ScheduleEvent[]
   brandAssets      BrandAsset[]
   briefTemplates   BriefTemplate[]
+  services         StudioService[]
 
   @@index([ownerUserId])
 }
@@ -366,6 +367,7 @@ model Task {
   createdBy       User                 @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
   assignees       TaskAssignee[]
   specializations TaskSpecialization[]
+  services        TaskService[]
   comments        Comment[]
   ratings         Rating[]
   feedbacks       ClientFeedback[]
@@ -375,6 +377,33 @@ model Task {
   @@index([projectId, status, dueAt])
   @@index([deletedAt, dueAt])
   @@index([createdById, createdAt])
+}
+
+model StudioService {
+  id          String   @id @default(cuid())
+  studioId    String
+  name        String
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  studio Studio        @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  tasks  TaskService[]
+
+  @@unique([studioId, name])
+  @@index([studioId, isActive, name])
+}
+
+model TaskService {
+  taskId    String
+  serviceId String
+
+  task    Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  service StudioService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@id([taskId, serviceId])
+  @@index([serviceId, taskId])
 }
 
 model TaskAssignee {

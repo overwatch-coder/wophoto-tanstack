@@ -16,7 +16,6 @@ import {
   X,
 } from "lucide-react"
 import {
-  Specialization,
   TaskPriority,
   TaskStatus,
   TaskType,
@@ -87,6 +86,7 @@ import { KanbanDemoModern } from "@/components/shadcn-studio/kanban/kanban-04"
 type TasksResult = TasksPageData
 export type TaskItem = TasksResult["tasks"][number]
 export type Options = {
+  services: { id: string; name: string }[]
   projects: {
     id: string
     name: string
@@ -150,14 +150,6 @@ const priorityFilterItems = [
   })),
 ]
 
-const specializationFilterItems = [
-  { value: "ALL", label: "All specializations" },
-  ...Object.values(Specialization).map((spec) => ({
-    value: spec,
-    label: spec.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-  })),
-]
-
 const prioritySelectItems = Object.values(TaskPriority).map((value) => ({
   value,
   label: value.charAt(0) + value.slice(1).toLowerCase(),
@@ -180,9 +172,9 @@ export function TasksWorkspace({
     typeof searchParams.status === "string" ? searchParams.status : "ALL"
   const priority =
     typeof searchParams.priority === "string" ? searchParams.priority : "ALL"
-  const specialization =
-    typeof searchParams.specialization === "string"
-      ? searchParams.specialization
+  const serviceId =
+    typeof searchParams.serviceId === "string"
+      ? searchParams.serviceId
       : "ALL"
   const currentQuery = typeof searchParams.q === "string" ? searchParams.q : ""
   const [searchQuery, setSearchQuery] = useState(currentQuery)
@@ -222,7 +214,7 @@ export function TasksWorkspace({
     const params = new URLSearchParams()
     if (status !== "ALL") params.set("status", status)
     if (priority !== "ALL") params.set("priority", priority)
-    if (specialization !== "ALL") params.set("specialization", specialization)
+    if (serviceId !== "ALL") params.set("serviceId", serviceId)
     if (currentQuery.trim()) params.set("q", currentQuery.trim())
     const query = params.toString()
     router.replace(
@@ -235,7 +227,7 @@ export function TasksWorkspace({
     priority,
     role,
     router,
-    specialization,
+    serviceId,
     status,
     targetTaskId,
     taskAction,
@@ -252,7 +244,7 @@ export function TasksWorkspace({
       const params = new URLSearchParams()
       if (nextStatus !== "ALL") params.set("status", nextStatus)
       if (nextPriority !== "ALL") params.set("priority", nextPriority)
-      if (nextSpec !== "ALL") params.set("specialization", nextSpec)
+      if (nextSpec !== "ALL") params.set("serviceId", nextSpec)
       if (nextQuery.trim()) params.set("q", nextQuery.trim())
       const url = params.size
         ? `?${params.toString()}`
@@ -272,14 +264,14 @@ export function TasksWorkspace({
       debouncedSearchQuery.trim() === currentQuery.trim()
     )
       return
-    applyFilters(status, priority, specialization, debouncedSearchQuery, true)
+    applyFilters(status, priority, serviceId, debouncedSearchQuery, true)
   }, [
     debouncedSearchQuery,
     searchQuery,
     currentQuery,
     status,
     priority,
-    specialization,
+    serviceId,
     applyFilters,
   ])
 
@@ -291,7 +283,7 @@ export function TasksWorkspace({
   const isFiltered =
     status !== "ALL" ||
     priority !== "ALL" ||
-    specialization !== "ALL" ||
+    serviceId !== "ALL" ||
     Boolean(currentQuery)
 
   return (
@@ -323,7 +315,7 @@ export function TasksWorkspace({
               applyFilters(
                 status === state ? "ALL" : state,
                 priority,
-                specialization,
+                serviceId,
                 searchQuery
               )
             }
@@ -356,7 +348,7 @@ export function TasksWorkspace({
               applyFilters(
                 value ?? "ALL",
                 priority,
-                specialization,
+                serviceId,
                 searchQuery
               )
             }
@@ -380,7 +372,7 @@ export function TasksWorkspace({
           <Select
             value={priority}
             onValueChange={(value) =>
-              applyFilters(status, value ?? "ALL", specialization, searchQuery)
+              applyFilters(status, value ?? "ALL", serviceId, searchQuery)
             }
             items={priorityFilterItems}
           >
@@ -400,21 +392,21 @@ export function TasksWorkspace({
             </SelectContent>
           </Select>
           <Select
-            value={specialization}
+            value={serviceId}
             onValueChange={(value) =>
               applyFilters(status, priority, value ?? "ALL", searchQuery)
             }
-            items={specializationFilterItems}
+            items={[{ value: "ALL", label: "All services" }, ...options.services.map((service) => ({ value: service.id, label: service.name }))]}
           >
             <SelectTrigger
-              id="task-specialization-filter"
-              aria-label="Filter by specialization"
+              id="task-service-filter"
+              aria-label="Filter by service"
               className="h-10 w-full sm:w-44"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {specializationFilterItems.map((item) => (
+              {[{ value: "ALL", label: "All services" }, ...options.services.map((service) => ({ value: service.id, label: service.name }))].map((item) => (
                 <SelectItem key={item.value} value={item.value}>
                   {item.label}
                 </SelectItem>
@@ -810,25 +802,25 @@ function CreateTaskDialog({
                 </fieldset>
                 <fieldset className="space-y-2">
                   <legend className="text-sm font-medium">
-                    Specializations{" "}
+                    Services{" "}
                     <span className="font-normal text-muted-foreground">
                       (optional)
                     </span>
                   </legend>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {Object.values(Specialization).map((specialization) => (
+                    {options.services.map((service) => (
                       <label
-                        key={specialization}
+                        key={service.id}
                         className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md border px-3 text-sm transition-colors hover:bg-muted/50 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
                       >
                         <input
                           type="checkbox"
-                          name="specialization"
-                          value={specialization}
+                          name="serviceId"
+                          value={service.id}
                           className="size-4 accent-primary"
                         />
                         <span>
-                          {specialization.replaceAll("_", " ").toLowerCase()}
+                          {service.name}
                         </span>
                       </label>
                     ))}
@@ -1057,18 +1049,18 @@ function ViewTaskDialog({
             </div>
           ) : null}
 
-          {task.specializations && task.specializations.length > 0 ? (
+          {task.services && task.services.length > 0 ? (
             <div className="space-y-1.5">
               <h4 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                Specializations
+                Services
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {task.specializations.map((item) => (
+                {task.services.map((service) => (
                   <span
-                    key={item.specialization}
+                    key={service.id}
                     className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-1 text-xs capitalize"
                   >
-                    {item.specialization.replaceAll("_", " ").toLowerCase()}
+                    {service.name}
                   </span>
                 ))}
               </div>
@@ -1798,25 +1790,21 @@ function EditTaskDialog({
                 </div>
               </fieldset>
               <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Specializations</legend>
+                <legend className="text-sm font-medium">Services</legend>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {Object.values(Specialization).map((specialization) => (
+                  {options.services.map((service) => (
                     <label
-                      key={specialization}
+                      key={service.id}
                       className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md border px-3 text-sm transition-colors hover:bg-muted/50 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
                     >
                       <input
                         type="checkbox"
-                        name="specialization"
-                        value={specialization}
-                        defaultChecked={task.specializations.some(
-                          (item) => item.specialization === specialization
-                        )}
+                        name="serviceId"
+                        value={service.id}
+                        defaultChecked={task.services.some((item) => item.id === service.id)}
                         className="size-4 accent-primary"
                       />
-                      <span>
-                        {specialization.replaceAll("_", " ").toLowerCase()}
-                      </span>
+                      <span>{service.name}</span>
                     </label>
                   ))}
                 </div>

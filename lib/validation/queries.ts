@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { FeedbackType, Specialization, TaskPriority, TaskStatus } from "@/generated/prisma/client";
+import { FeedbackType, TaskPriority, TaskStatus } from "@/generated/prisma/client";
 import { parsePage } from "@/lib/pagination";
 import type { SearchParamsRecord } from "@/lib/pagination";
 import { firstSearchParam, idSchema } from "./common";
 
 const taskStatus = z.nativeEnum(TaskStatus).optional().catch(undefined);
 const priority = z.nativeEnum(TaskPriority).optional().catch(undefined);
-const specialization = z.nativeEnum(Specialization).optional().catch(undefined);
+const serviceId = idSchema.optional().catch(undefined);
 const feedbackType = z.nativeEnum(FeedbackType).optional().catch(undefined);
 
 export function parsePageQuery(value: string | string[] | undefined) {
@@ -23,7 +23,7 @@ export function parseTaskQuery(params: SearchParamsRecord) {
     query: parseSearchText(params.q),
     status: taskStatus.parse(firstSearchParam(params.status)),
     priority: priority.parse(firstSearchParam(params.priority)),
-    specialization: specialization.parse(firstSearchParam(params.specialization)),
+    serviceId: serviceId.parse(firstSearchParam(params.serviceId)),
     taskId: idSchema.optional().catch(undefined).parse(firstSearchParam(params.taskId)),
     taskAction: z.enum(["view", "review"]).catch("view").parse(firstSearchParam(params.taskAction)),
   };

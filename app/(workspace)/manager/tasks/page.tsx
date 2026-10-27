@@ -36,7 +36,7 @@ async function ManagerTasksContent({
       priority: filters.priority,
       taskId: filters.taskId,
       q: filters.query,
-      specialization: filters.specialization,
+      serviceId: filters.serviceId,
     }),
     getTaskFormOptions(),
   ])
@@ -48,7 +48,7 @@ async function ManagerTasksContent({
       searchParams={{
         status: filters.status ?? "ALL",
         priority: filters.priority ?? "ALL",
-        specialization: filters.specialization ?? "ALL",
+        serviceId: filters.serviceId ?? "ALL",
         q: filters.query ?? "",
         ...(filters.taskId ? { taskId: filters.taskId, taskAction: filters.taskAction } : {}),
       }}

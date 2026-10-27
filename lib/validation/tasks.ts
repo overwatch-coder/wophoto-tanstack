@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { Specialization, TaskPriority, TaskStatus } from "@/generated/prisma/client";
+import { TaskPriority, TaskStatus } from "@/generated/prisma/client";
 import { idSchema } from "./common";
 
 const prioritySchema = z.nativeEnum(TaskPriority);
-const specializationSchema = z.nativeEnum(Specialization);
 const workerIdsSchema = z.array(idSchema).min(1, "Choose at least one worker.").max(50, "Choose no more than 50 workers.");
-const specializationsSchema = z.array(specializationSchema).max(5, "Choose valid specializations.").transform((items) => [...new Set(items)]);
+const serviceIdsSchema = z.array(idSchema).max(20, "Choose no more than 20 services.").transform((items) => [...new Set(items)]);
 
 function isCalendarDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -40,14 +39,14 @@ export const createAssignedTaskSchema = z.object({
   projectId: idSchema,
   ...taskFieldShape,
   workerIds: workerIdsSchema,
-  specializations: specializationsSchema,
+  serviceIds: serviceIdsSchema,
 }).superRefine(taskFieldsRefinement);
 
 export const updateAssignedTaskSchema = z.object({
   taskId: idSchema,
   ...taskFieldShape,
   workerIds: workerIdsSchema,
-  specializations: specializationsSchema,
+  serviceIds: serviceIdsSchema,
 }).superRefine(taskFieldsRefinement);
 
 export const dailyEntrySchema = z.object({
