@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { DelayedLoadingFallback } from "@/components/workspace/delayed-loading-fallback"
 
 type PageLoadingVariant =
   "dashboard" | "tasks" | "projects" | "invitations" | "feedback" | "basic"
@@ -11,22 +12,24 @@ export function PageLoadingSkeleton({
   label?: string
 }) {
   return (
-    <main
-      role="status"
-      aria-label={label}
-      aria-busy="true"
-      className="mx-auto w-full max-w-7xl space-y-6"
-    >
-      <span className="sr-only">{label}</span>
-      <div aria-hidden="true">
-        {variant === "dashboard" ? <DashboardSkeleton /> : null}
-        {variant === "tasks" ? <TasksSkeleton /> : null}
-        {variant === "projects" ? <ProjectsSkeleton /> : null}
-        {variant === "invitations" ? <InvitationsSkeleton /> : null}
-        {variant === "feedback" ? <FeedbackSkeleton /> : null}
-        {variant === "basic" ? <BasicSkeleton /> : null}
-      </div>
-    </main>
+    <DelayedLoadingFallback>
+      <main
+        role="status"
+        aria-label={label}
+        aria-busy="true"
+        className="mx-auto w-full max-w-7xl space-y-6"
+      >
+        <span className="sr-only">{label}</span>
+        <div aria-hidden="true">
+          {variant === "dashboard" ? <DashboardSkeleton /> : null}
+          {variant === "tasks" ? <TasksSkeleton /> : null}
+          {variant === "projects" ? <ProjectsSkeleton /> : null}
+          {variant === "invitations" ? <InvitationsSkeleton /> : null}
+          {variant === "feedback" ? <FeedbackSkeleton /> : null}
+          {variant === "basic" ? <BasicSkeleton /> : null}
+        </div>
+      </main>
+    </DelayedLoadingFallback>
   )
 }
 

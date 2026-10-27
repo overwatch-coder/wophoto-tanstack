@@ -7,10 +7,11 @@ import { requireUser } from "@/lib/authz";
 import { getUserPreferences } from "@/lib/user-preferences";
 import { getCopilotStudioSettings } from "@/lib/ai/copilot-access";
 import { UserRole } from "@/generated/prisma/client";
+import { DelayedLoadingFallback } from "@/components/workspace/delayed-loading-fallback";
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<SettingsLoading />}>
+    <Suspense fallback={<DelayedLoadingFallback><SettingsLoading /></DelayedLoadingFallback>}>
       <SettingsContent />
     </Suspense>
   );

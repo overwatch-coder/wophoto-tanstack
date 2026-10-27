@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { CreateServiceDialog, ServicesManager } from "@/components/services/services-manager";
 import { prisma } from "@/lib/prisma";
 import { requireStudioOwner } from "@/lib/studio-access";
+import { DelayedLoadingFallback } from "@/components/workspace/delayed-loading-fallback";
 
 async function ManagerServicesContent() {
   await connection();
@@ -28,16 +29,18 @@ async function ManagerServicesContent() {
 
 function ServicesLoading() {
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6" aria-busy="true">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-2">
-          <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
-          <div className="h-4 w-full max-w-2xl animate-pulse rounded-md bg-muted" />
-        </div>
-        <div className="h-10 w-full animate-pulse rounded-full bg-muted sm:w-32" />
-      </header>
-      <div className="h-72 w-full animate-pulse rounded-xl border border-border bg-card" />
-    </div>
+    <DelayedLoadingFallback>
+      <div className="mx-auto w-full max-w-6xl space-y-6" aria-busy="true">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+            <div className="h-4 w-full max-w-2xl animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="h-10 w-full animate-pulse rounded-full bg-muted sm:w-32" />
+        </header>
+        <div className="h-72 w-full animate-pulse rounded-xl border border-border bg-card" />
+      </div>
+    </DelayedLoadingFallback>
   );
 }
 
