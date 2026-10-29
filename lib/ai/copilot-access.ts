@@ -4,7 +4,7 @@ import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { decryptAIKey, isEncryptedAIKey } from "@/lib/ai/credentials";
 import { prisma } from "@/lib/prisma";
 import type { AIProvider } from "@/lib/settings-preferences";
-import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
+import { getStudioAccessContext, hasStudioAccess, type StudioAccessContext } from "@/lib/studio-access";
 import { StudioAccessLevel, StudioArea } from "@/generated/prisma/client";
 
 export type CopilotMember = {
@@ -29,11 +29,15 @@ export type CopilotStudioSettingsView = {
   usageByUser: Array<{ userId: string; name: string; role: UserRole; count: number }>;
 };
 
-export async function getCopilotStudioId(userId: string, role: UserRole): Promise<string | null> {
+export async function getCopilotStudioId(
+  userId: string,
+  role: UserRole,
+  studioAccess?: StudioAccessContext | null,
+): Promise<string | null> {
   if (role === UserRole.MANAGER) return userId;
 
   if (role === UserRole.SUPERVISOR || role === UserRole.COLLABORATOR) {
-    const context = await getStudioAccessContext(userId, role);
+    const context = studioAccess !== undefined ? studioAccess : await getStudioAccessContext(userId, role);
     return context?.ownerUserId ?? null;
   }
 
@@ -55,12 +59,19 @@ export async function getCopilotStudioId(userId: string, role: UserRole): Promis
   return null;
 }
 
-export async function isCopilotEnabledForUser(userId: string, role: UserRole): Promise<boolean> {
+export async function isCopilotEnabledForUser(
+  userId: string,
+  role: UserRole,
+  studioAccess?: StudioAccessContext | null,
+  knownStudioId?: string | null,
+): Promise<boolean> {
   if (role === UserRole.SUPERVISOR || role === UserRole.COLLABORATOR) {
-    const context = await getStudioAccessContext(userId, role);
+    const context = studioAccess !== undefined ? studioAccess : await getStudioAccessContext(userId, role);
     if (!context || !hasStudioAccess(context, StudioArea.COPILOT, StudioAccessLevel.VIEW)) return false;
   }
-  const managerId = await getCopilotStudioId(userId, role);
+  const managerId = knownStudioId === undefined
+    ? await getCopilotStudioId(userId, role, studioAccess)
+    : knownStudioId;
   if (!managerId) return false;
 
   const policy = await prisma.copilotStudioPolicy.findUnique({

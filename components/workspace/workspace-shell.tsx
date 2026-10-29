@@ -13,13 +13,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { getWorkspacePageTitle, type WorkspaceRole } from "@/lib/navigation"
-import { HeaderNotificationBell } from "@/components/workspace/header-notification-bell"
 import {
   useWorkspacePreferences,
   WorkspacePreferencesProvider,
 } from "@/components/workspace/workspace-preferences-context"
-import { StudioCopilot } from "@/components/ai/studio-copilot"
-import type { NotificationItemView } from "@/lib/notifications"
 import type { SettingsDensity } from "@/generated/prisma/browser"
 
 type WorkspaceShellProps = {
@@ -31,14 +28,11 @@ type WorkspaceShellProps = {
   role: WorkspaceRole
   allowedAreas?: readonly string[] | null
   userId: string
-  initialNotifications?: NotificationItemView[]
-  initialUnreadCount?: number
-  initialUnreadActionCount?: number
-  initialUnreadUpdateCount?: number
+  notificationBell: React.ReactNode
+  copilotSlot: React.ReactNode
+  preferencesSlot: React.ReactNode
   density: SettingsDensity
   soundAlerts: boolean
-  copilotName: string
-  copilotEnabled: boolean
 }
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
@@ -48,6 +42,7 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       initialSoundAlerts={props.soundAlerts}
     >
       <WorkspaceShellContent {...props} />
+      {props.preferencesSlot}
     </WorkspacePreferencesProvider>
   )
 }
@@ -61,14 +56,10 @@ function WorkspaceShellContent({
   role,
   allowedAreas,
   userId,
-  initialNotifications,
-  initialUnreadCount,
-  initialUnreadActionCount,
-  initialUnreadUpdateCount,
-  copilotName,
-  copilotEnabled,
+  notificationBell,
+  copilotSlot,
 }: WorkspaceShellProps) {
-  const { density, soundAlerts } = useWorkspacePreferences()
+  const { density } = useWorkspacePreferences()
   const pathname = usePathname()
   const title = getWorkspacePageTitle(role, pathname)
   const titleRef = React.useRef<HTMLHeadingElement>(null)
@@ -110,14 +101,7 @@ function WorkspaceShellContent({
           >
             {title}
           </h1>
-          <HeaderNotificationBell
-            role={role}
-            initialNotifications={initialNotifications}
-            initialUnreadCount={initialUnreadCount}
-            initialUnreadActionCount={initialUnreadActionCount}
-            initialUnreadUpdateCount={initialUnreadUpdateCount}
-            soundAlerts={soundAlerts}
-          />
+          {notificationBell}
           <ThemeToggle />
         </header>
         <div
@@ -126,7 +110,7 @@ function WorkspaceShellContent({
         >
           {children}
         </div>
-        {copilotEnabled && <StudioCopilot copilotName={copilotName} />}
+        {copilotSlot}
       </SidebarInset>
     </SidebarProvider>
   )

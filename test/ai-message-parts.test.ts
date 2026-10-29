@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { convertToCoreMessages, type UIMessage } from "ai";
+import { convertToModelMessages, type UIMessage } from "ai";
 
 describe("AI chat message parts", () => {
-  it("converts UI text and completed tool parts into model messages", () => {
+  it("converts UI text and completed tool parts into model messages", async () => {
     const messages = [
       {
         id: "user-1",
@@ -13,24 +13,19 @@ describe("AI chat message parts", () => {
       {
         id: "assistant-1",
         role: "assistant",
-        content: "",
         parts: [
           {
-            type: "tool-invocation",
-            toolInvocation: {
-              state: "result",
-              step: 0,
-              toolCallId: "call-1",
-              toolName: "smart_search",
-              args: { query: "open reviews" },
-              result: { items: [] },
-            },
+            type: "tool-smart_search",
+            state: "output-available",
+            toolCallId: "call-1",
+            input: { query: "open reviews" },
+            output: { items: [] },
           },
         ],
       },
     ] as unknown as UIMessage[];
 
-    const converted = convertToCoreMessages(messages);
+    const converted = await convertToModelMessages(messages);
 
     expect(converted[0]).toEqual({
       role: "user",
@@ -42,12 +37,12 @@ describe("AI chat message parts", () => {
         type: "tool-call",
         toolCallId: "call-1",
         toolName: "smart_search",
-        args: { query: "open reviews" },
+        input: { query: "open reviews" },
       }],
     });
     expect(converted[2]).toMatchObject({
       role: "tool",
-      content: [{ type: "tool-result", toolCallId: "call-1", result: { items: [] } }],
+      content: [{ type: "tool-result", toolCallId: "call-1", output: { type: "json", value: { items: [] } } }],
     });
   });
 });

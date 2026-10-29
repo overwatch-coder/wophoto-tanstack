@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ createTransport: vi.fn(), sendMail: vi.fn(), close: vi.fn() }));
-vi.mock("nodemailer", () => ({
+vi.mock("nodemailer-patched", () => ({
   default: { createTransport: mocks.createTransport },
 }));
 

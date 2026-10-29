@@ -7,7 +7,7 @@ describe("Copilot tool routing", () => {
     expect(getFocusedToolNames("Please log my daily work: I logged 20 photos today for Jossy Wedding", "WORKER"))
       .toEqual(["create_daily_entry"]);
     const messages = [
-      { role: "assistant", parts: [{ type: "tool-invocation", toolInvocation: { toolName: "create_daily_entry", state: "result", result: { needsInput: true, message: "Which project?" } } }] },
+      { role: "assistant", parts: [{ type: "tool-create_daily_entry", state: "output-available", input: {}, output: { needsInput: true, message: "Which project?" } }] },
       { role: "user", content: "Jossy Wedding" },
     ];
     expect(getPendingClarificationToolName(messages)).toBe("create_daily_entry");
@@ -38,12 +38,10 @@ describe("Copilot tool routing", () => {
   it("keeps a short client reply focused on the review draft clarification", () => {
     const messages = [
       { role: "assistant", parts: [{
-        type: "tool-invocation",
-        toolInvocation: {
-          toolName: "prepare_client_feedback",
-          state: "result",
-          result: { needsInput: true, message: "Which project?" },
-        },
+        type: "tool-prepare_client_feedback",
+        state: "output-available",
+        input: {},
+        output: { needsInput: true, message: "Which project?" },
       }] },
       { role: "user", content: "My PhD journey" },
     ];
@@ -55,7 +53,7 @@ describe("Copilot tool routing", () => {
 
   it("keeps a short client reply focused on the work request clarification", () => {
     const messages = [
-      { role: "assistant", parts: [{ type: "tool-invocation", toolInvocation: { toolName: "prepare_work_request", state: "result", result: { needsInput: true, message: "Which project?" } } }] },
+      { role: "assistant", parts: [{ type: "tool-prepare_work_request", state: "output-available", input: {}, output: { needsInput: true, message: "Which project?" } }] },
       { role: "user", content: "Spring campaign" },
     ];
     expect(getPendingClarificationToolName(messages)).toBe("prepare_work_request");
@@ -66,11 +64,7 @@ describe("Copilot tool routing", () => {
     expect(getFocusedToolNames("Can you invite a client if I give you the email?", "MANAGER"))
       .toEqual(["create_invitation"]);
     const messages = [
-      { role: "assistant", parts: [{ type: "tool-invocation", toolInvocation: {
-        toolName: "create_invitation",
-        state: "result",
-        result: { needsInput: true, message: "What email address?" },
-      } }] },
+      { role: "assistant", parts: [{ type: "tool-create_invitation", state: "output-available", input: {}, output: { needsInput: true, message: "What email address?" } }] },
       { role: "user", content: "client@example.com" },
     ];
     expect(getPendingClarificationToolName(messages)).toBe("create_invitation");

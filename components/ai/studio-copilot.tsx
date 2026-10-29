@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { useRouter } from "next/navigation";
 import type { UIMessage } from "ai";
+import { DefaultChatTransport } from "ai";
 import { createClientFeedback } from "@/app/actions/feedback";
 import { createWorkRequest, type WorkRequestActionState } from "@/app/actions/work-requests";
 import {
@@ -24,6 +25,7 @@ import {
   AlertCircle,
   Command,
   Paperclip,
+  Square,
   FileText,
   FileSpreadsheet,
   ImageIcon,
@@ -102,26 +104,38 @@ const markdownComponents = {
 };
 
 function getToolInvocations(message: UIMessage) {
-  const partInvocations = message.parts?.flatMap((part) =>
-    part.type === "tool-invocation" ? [part.toolInvocation] : [],
-  ) ?? [];
-  if (partInvocations.length > 0) return partInvocations;
-
-  // AI SDK v4 still populates the deprecated toolInvocations field for some
-  // stream paths, so keep traces visible across both message representations.
-  return message.toolInvocations ?? [];
+  return message.parts.flatMap((part) => {
+    const value = part as unknown as Record<string, unknown>;
+    const type = typeof value.type === "string" ? value.type : "";
+    const toolName = type === "dynamic-tool"
+      ? (typeof value.toolName === "string" ? value.toolName : "")
+      : type.startsWith("tool-") ? type.slice(5) : "";
+    if (!toolName || typeof value.toolCallId !== "string") return [];
+    const state = value.state === "output-available" || value.state === "output-error" ? "result" : "call";
+    return [{
+      toolCallId: value.toolCallId,
+      toolName,
+      args: value.input,
+      result: value.output ?? (typeof value.errorText === "string" ? { error: value.errorText } : undefined),
+      state,
+    }];
+  });
 }
 
 function getCopilotActivity(message: UIMessage): string | null {
-  const annotations = message.annotations ?? [];
-  for (let index = annotations.length - 1; index >= 0; index -= 1) {
-    const annotation = annotations[index];
-    if (!annotation || typeof annotation !== "object" || Array.isArray(annotation)) continue;
-    if (annotation.type === "copilot-activity" && typeof annotation.label === "string") {
-      return annotation.label;
-    }
+  for (let index = message.parts.length - 1; index >= 0; index -= 1) {
+    const part = message.parts[index];
+    if (part?.type !== "data-copilot-activity") continue;
+    const data = (part as { data?: unknown }).data;
+    if (data && typeof data === "object" && "label" in data && typeof data.label === "string") return data.label;
   }
   return null;
+}
+
+function getMessageAttachments(message: UIMessage) {
+  return message.parts.flatMap((part) => part.type === "file"
+    ? [{ url: part.url, contentType: part.mediaType, name: part.filename ?? "Attachment" }]
+    : []);
 }
 
 function getToolProgressLabel(toolName: string, rawArgs: unknown): string {
@@ -167,7 +181,7 @@ function getToolProgressLabel(toolName: string, rawArgs: unknown): string {
 function getMessageText(message: UIMessage) {
   return message.parts?.filter((part) => part.type === "text")
     .map((part) => part.text)
-    .join("") ?? message.content;
+    .join("") ?? "";
 }
 
 function parseUserMessageContent(content: string) {
@@ -248,9 +262,7 @@ function RenderMessageBody({ message }: { message: UIMessage }) {
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
   const rawText = getMessageText(message);
   const { displayText, attachedFileNames } = parseUserMessageContent(rawText);
-  const attachments = message.experimental_attachments as
-    | Array<{ url: string; contentType?: string; name?: string }>
-    | undefined;
+  const attachments = getMessageAttachments(message);
 
   return (
     <>
@@ -397,23 +409,22 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commandFileInputRef = useRef<HTMLInputElement>(null);
 
+  const [input, setInput] = useState("");
   const {
     messages,
-    input,
-    setInput,
-    handleInputChange,
-    append,
+    sendMessage,
     status,
     error,
     setMessages,
-    reload,
-  } = useChat({
-    api: "/api/chat",
-    initialMessages: [
+    regenerate,
+    stop,
+  } = useChat<UIMessage>({
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    messages: [
       {
         id: "welcome-msg",
         role: "assistant",
-        content: `Hello, I am ${copilotName}. I can search reviews, create tasks, inspect retoucher capacity, or flag SLA deadlines. How can I assist you today?`,
+        parts: [{ type: "text", text: `Hello, I am ${copilotName}. I can search reviews, create tasks, inspect retoucher capacity, or flag SLA deadlines. How can I assist you today?` }],
       },
     ],
   });
@@ -516,12 +527,12 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
     }
 
     try {
-      await append({
-        role: "user",
-        content: fullContent,
-        experimental_attachments: imageAttachments.map((img) => ({
-          name: img.name,
-          contentType: img.type,
+      await sendMessage({
+        text: fullContent,
+        files: imageAttachments.map((img) => ({
+          type: "file" as const,
+          filename: img.name,
+          mediaType: img.type,
           url: img.dataUrl!,
         })),
       });
@@ -590,7 +601,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
       {
         id: "welcome-msg",
         role: "assistant",
-        content: "Chat session refreshed. How can I help you?",
+        parts: [{ type: "text", text: "Chat session refreshed. How can I help you?" }],
       },
     ]);
   };
@@ -872,7 +883,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                             )}
 
                             {/* Message Text and Attachments */}
-                            {(getMessageText(m) || (m.experimental_attachments && m.experimental_attachments.length > 0)) && (
+                            {(getMessageText(m) || getMessageAttachments(m).length > 0) && (
                               <div
                                 className={`rounded-xl p-3 text-xs leading-relaxed ${
                                   m.role === "user"
@@ -1094,7 +1105,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => reload()}
+                          onClick={() => void regenerate()}
                           className="h-7 shrink-0 self-start text-xs"
                         >
                           Retry
@@ -1158,19 +1169,26 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                 <Input
                   ref={commandInputRef}
                   value={input}
-                  onChange={handleInputChange}
+                  onChange={(event) => setInput(event.currentTarget.value)}
                   placeholder="Ask Copilot to find reviews, create projects, or balance capacity..."
                   className="pl-11 pr-24 h-12 text-sm bg-muted/20 border-border rounded-xl"
                 />
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isLoading || isUploadingAttachment || (!input.trim() && pendingAttachments.length === 0)}
-                  className="absolute right-2 h-8 text-xs font-semibold gap-1.5"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Execute</span>
-                </Button>
+                {isLoading ? (
+                  <Button type="button" size="sm" onClick={stop} className="absolute right-2 h-8 gap-1.5 text-xs font-semibold" aria-label="Stop Copilot response">
+                    <Square className="h-3 w-3 fill-current" />
+                    <span>Stop</span>
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={isUploadingAttachment || (!input.trim() && pendingAttachments.length === 0)}
+                    className="absolute right-2 h-8 text-xs font-semibold gap-1.5"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>Execute</span>
+                  </Button>
+                )}
               </div>
             </form>
           </div>
@@ -1312,7 +1330,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                         )}
 
                         {/* Text and Attachments */}
-                        {(getMessageText(m) || (m.experimental_attachments && m.experimental_attachments.length > 0)) && (
+                        {(getMessageText(m) || getMessageAttachments(m).length > 0) && (
                           <div
                             className={`rounded-2xl p-3 text-xs leading-relaxed ${
                               m.role === "user"
@@ -1530,7 +1548,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => reload()}
+                      onClick={() => void regenerate()}
                       className="h-6 shrink-0 self-start px-2 text-[10px]"
                     >
                       Retry
@@ -1593,18 +1611,24 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
             <Input
               ref={inputRef}
               value={input}
-              onChange={handleInputChange}
+              onChange={(event) => setInput(event.currentTarget.value)}
               placeholder="Ask Copilot (e.g. 'Find Elena's review')..."
               className="pr-10 h-10 text-xs bg-muted/20 border-border rounded-xl"
             />
-            <Button
-              type="submit"
-              size="sm"
-              disabled={(!input.trim() && pendingAttachments.length === 0) || isLoading || isUploadingAttachment}
-              className="absolute right-1 h-8 w-8 p-0 rounded-lg shrink-0"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </Button>
+            {isLoading ? (
+              <Button type="button" size="icon" onClick={stop} className="absolute right-1 h-8 w-8 rounded-lg" aria-label="Stop Copilot response" title="Stop response">
+                <Square className="h-3 w-3 fill-current" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="sm"
+                disabled={(!input.trim() && pendingAttachments.length === 0) || isUploadingAttachment}
+                className="absolute right-1 h-8 w-8 p-0 rounded-lg shrink-0"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </form>
       </div>

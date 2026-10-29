@@ -1,8 +1,9 @@
 import "server-only";
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from "@google/genai";
-import { createDataStreamResponse, formatDataStreamPart, type ToolSet, type UIMessage } from "ai";
+import type { ToolSet, UIMessage } from "ai";
 import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
+import { createCopilotMessageResponse } from "@/lib/ai/message-stream";
 
 type ExecutableTool = {
   description?: string;
@@ -25,9 +26,6 @@ function toGoogleSchema(value: unknown): unknown {
 }
 
 function getPlainText(message: UIMessage): string {
-  const contentText = typeof message.content === "string" ? message.content : "";
-  if (contentText.trim()) return contentText;
-
   return (message.parts ?? [])
     .flatMap((part) => part.type === "text" && typeof part.text === "string" ? [part.text] : [])
     .join("");
@@ -35,7 +33,7 @@ function getPlainText(message: UIMessage): string {
 
 function getToolDeclarations(tools: ToolSet): FunctionDeclaration[] {
   return Object.entries(tools).map(([name, rawTool]) => {
-    const studioTool = rawTool as ExecutableTool;
+    const studioTool = rawTool as unknown as ExecutableTool;
     const parameters = studioTool.parameters?.jsonSchema;
 
     return {
@@ -56,7 +54,7 @@ export function createGoogleGeminiChatResponse(args: {
 }): Response {
   const { apiKey, model, systemPrompt, messages, tools, abortSignal } = args;
   const google = new GoogleGenAI({ apiKey });
-  const toolMap = tools as Record<string, ExecutableTool>;
+  const toolMap = tools as unknown as Record<string, ExecutableTool>;
   const declarations = getToolDeclarations(tools);
 
   // Keep only visible text and image attachments from previous turns. Tool-call history is represented
@@ -68,7 +66,9 @@ export function createGoogleGeminiChatResponse(args: {
       parts.push({ text });
     }
 
-    const attachments = (message as { experimental_attachments?: Array<{ url: string; contentType?: string }> }).experimental_attachments;
+    const attachments = (message.parts ?? []).flatMap((part) => part.type === "file"
+      ? [{ url: part.url, contentType: part.mediaType }]
+      : []);
     if (attachments && Array.isArray(attachments)) {
       for (const att of attachments) {
         if (typeof att.url === "string" && att.url.startsWith("data:") && att.url.includes(";base64,")) {
@@ -93,11 +93,12 @@ export function createGoogleGeminiChatResponse(args: {
     }];
   });
 
-  return createDataStreamResponse({
+  return createCopilotMessageResponse({
+    originalMessages: messages,
     headers: { "Cache-Control": "no-cache" },
     onError: () => "The Copilot could not complete that request. Check the provider setup and try again.",
     execute: async (stream) => {
-      const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
+      const reportActivity = (label: string) => stream.writeActivity(label);
       reportActivity("Understanding your request…");
       for (let step = 0; step < 5; step += 1) {
         if (step > 0) reportActivity("Reviewing the information gathered…");
@@ -121,14 +122,8 @@ export function createGoogleGeminiChatResponse(args: {
           const finalText = responseParts
             .flatMap((part: Part) => !part.thought && typeof part.text === "string" ? [part.text] : [])
             .join("");
-          if (finalText) stream.write(formatDataStreamPart("text", finalText));
-          stream.write(formatDataStreamPart("finish_message", {
-            finishReason: "stop",
-            usage: {
-              promptTokens: response.usageMetadata?.promptTokenCount ?? 0,
-              completionTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
-            },
-          }));
+          if (finalText) stream.writeText(finalText);
+          stream.finish();
           return;
         }
 
@@ -140,7 +135,7 @@ export function createGoogleGeminiChatResponse(args: {
           const tool = toolMap[toolName];
           const toolCallId = call.id || crypto.randomUUID();
           const toolArgs = call.args ?? {};
-          stream.write(formatDataStreamPart("tool_call", { toolCallId, toolName, args: toolArgs }));
+          stream.writeToolCall(toolCallId, toolName, toolArgs);
 
           let toolOutput: unknown;
           try {
@@ -158,10 +153,10 @@ export function createGoogleGeminiChatResponse(args: {
             };
           }
 
-          stream.write(formatDataStreamPart("tool_result", { toolCallId, result: toolOutput }));
+          stream.writeToolResult(toolCallId, toolOutput);
           if (isTerminalToolResult(toolOutput)) {
-            stream.write(formatDataStreamPart("text", getTerminalToolMessage(toolOutput)));
-            stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+            stream.writeText(getTerminalToolMessage(toolOutput));
+            stream.finish();
             return;
           }
           functionResponses.push({
@@ -176,8 +171,8 @@ export function createGoogleGeminiChatResponse(args: {
         contents.push({ role: "user", parts: functionResponses });
       }
 
-      stream.write(formatDataStreamPart("text", "I reached the tool-call limit for this turn. Please narrow the request and try again."));
-      stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+      stream.writeText("I reached the tool-call limit for this turn. Please narrow the request and try again.");
+      stream.finish();
     },
   });
 }

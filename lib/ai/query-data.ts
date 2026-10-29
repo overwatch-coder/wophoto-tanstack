@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import { Prisma, StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
+import { getStudioAccessContext, hasStudioAccess, type StudioAccessContext } from "@/lib/studio-access";
 
 const queryValueSchema = z.union([
   z.string().trim().min(1).max(200),
@@ -46,7 +46,7 @@ export const studioDataQuerySchema = z.object({
 
 export type StudioDataQuery = z.infer<typeof studioDataQuerySchema>;
 
-type QueryContext = { userId: string; role: UserRole; studioId?: string };
+type QueryContext = { userId: string; role: UserRole; studioId?: string; studioAccess?: StudioAccessContext | null };
 const MANAGER_SIDE_ROLES: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR];
 const isManagerSide = (ctx: QueryContext) => MANAGER_SIDE_ROLES.includes(ctx.role);
 type QueryOperator = z.infer<typeof queryFilterSchema>["operator"];
@@ -684,7 +684,9 @@ export async function queryStudioData(ctx: QueryContext, input: StudioDataQuery)
         INVITATIONS: StudioArea.TEAM,
         TEAM: StudioArea.TEAM,
       };
-      const context = await getStudioAccessContext(ctx.userId, ctx.role);
+      const context = "studioAccess" in ctx
+        ? ctx.studioAccess
+        : await getStudioAccessContext(ctx.userId, ctx.role);
       if (!context || !hasStudioAccess(context, StudioArea.COPILOT, StudioAccessLevel.VIEW)) {
         return denied("Copilot access is not enabled for this account.");
       }

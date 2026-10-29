@@ -33,6 +33,18 @@ export function maskApiKey(key: string | null | undefined): string {
   return `••••••••${key.slice(-4)}`;
 }
 
+export async function getWorkspacePreferences(userId: string) {
+  const stored = await prisma.userPreference.findUnique({
+    where: { userId },
+    select: { density: true, soundAlerts: true },
+  });
+
+  return {
+    density: stored?.density ?? SettingsDensity.COZY,
+    soundAlerts: stored?.soundAlerts ?? true,
+  };
+}
+
 export async function getUserPreferences(
   userId: string,
   role: UserRole,

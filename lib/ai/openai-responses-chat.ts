@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createDataStreamResponse, formatDataStreamPart, type ToolSet, type UIMessage } from "ai";
+import type { ToolSet, UIMessage } from "ai";
 import OpenAI from "openai";
 import type {
   FunctionTool,
@@ -9,6 +9,7 @@ import type {
   ResponseInputItem,
 } from "openai/resources/responses/responses";
 import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
+import { createCopilotMessageResponse } from "@/lib/ai/message-stream";
 
 type ExecutableTool = {
   description?: string;
@@ -20,9 +21,6 @@ type ExecutableTool = {
 };
 
 function getPlainText(message: UIMessage): string {
-  const contentText = typeof message.content === "string" ? message.content : "";
-  if (contentText.trim()) return contentText;
-
   return (message.parts ?? [])
     .flatMap((part) => part.type === "text" && typeof part.text === "string" ? [part.text] : [])
     .join("");
@@ -38,7 +36,7 @@ export function createOpenAIResponsesChatResponse(args: {
 }): Response {
   const { apiKey, model, systemPrompt, messages, tools, abortSignal } = args;
   const client = new OpenAI({ apiKey, maxRetries: 1 });
-  const toolMap = tools as Record<string, ExecutableTool>;
+  const toolMap = tools as unknown as Record<string, ExecutableTool>;
   const declarations: FunctionTool[] = Object.entries(toolMap).map(([name, studioTool]) => ({
     type: "function",
     name,
@@ -48,10 +46,11 @@ export function createOpenAIResponsesChatResponse(args: {
   }));
   const input: ResponseInput = messages.flatMap((message): ResponseInputItem[] => {
     const text = getPlainText(message).trim();
-    if (message.role === "data") return [];
     const role = message.role === "system" ? "system" : message.role === "user" ? "user" : "assistant";
 
-    const attachments = (message as { experimental_attachments?: Array<{ url: string; contentType?: string }> }).experimental_attachments;
+    const attachments = (message.parts ?? []).flatMap((part) => part.type === "file"
+      ? [{ url: part.url, contentType: part.mediaType }]
+      : []);
     if (message.role === "user" && attachments && Array.isArray(attachments) && attachments.length > 0) {
       const contentParts: ResponseInputContent[] = [];
       if (text) {
@@ -75,11 +74,12 @@ export function createOpenAIResponsesChatResponse(args: {
     return [{ role, content: text }];
   });
 
-  return createDataStreamResponse({
+  return createCopilotMessageResponse({
+    originalMessages: messages,
     headers: { "Cache-Control": "no-cache" },
     onError: () => "The Copilot could not complete that request. Check the provider setup and try again.",
     execute: async (stream) => {
-      const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
+      const reportActivity = (label: string) => stream.writeActivity(label);
       reportActivity("Understanding your request…");
       for (let step = 0; step < 5; step += 1) {
         if (step > 0) reportActivity("Reviewing the information gathered…");
@@ -122,14 +122,8 @@ export function createOpenAIResponsesChatResponse(args: {
             .filter((part) => part.type === "output_text")
             .map((part) => part.text)
             .join("");
-          if (finalText) stream.write(formatDataStreamPart("text", finalText));
-          stream.write(formatDataStreamPart("finish_message", {
-            finishReason: "stop",
-            usage: {
-              promptTokens: response.usage?.input_tokens ?? 0,
-              completionTokens: response.usage?.output_tokens ?? 0,
-            },
-          }));
+          if (finalText) stream.writeText(finalText);
+          stream.finish();
           return;
         }
 
@@ -148,7 +142,7 @@ export function createOpenAIResponsesChatResponse(args: {
             toolArgs = {};
           }
           if (!toolArgs || typeof toolArgs !== "object" || Array.isArray(toolArgs)) toolArgs = {};
-          stream.write(formatDataStreamPart("tool_call", { toolCallId, toolName, args: toolArgs }));
+          stream.writeToolCall(toolCallId, toolName, toolArgs);
 
           let toolOutput: unknown;
           try {
@@ -166,10 +160,10 @@ export function createOpenAIResponsesChatResponse(args: {
             };
           }
 
-          stream.write(formatDataStreamPart("tool_result", { toolCallId, result: toolOutput }));
+          stream.writeToolResult(toolCallId, toolOutput);
           if (isTerminalToolResult(toolOutput)) {
-            stream.write(formatDataStreamPart("text", getTerminalToolMessage(toolOutput)));
-            stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+            stream.writeText(getTerminalToolMessage(toolOutput));
+            stream.finish();
             return;
           }
           input.push({
@@ -180,8 +174,8 @@ export function createOpenAIResponsesChatResponse(args: {
         }
       }
 
-      stream.write(formatDataStreamPart("text", "I reached the tool-call limit for this turn. Please narrow the request and try again."));
-      stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+      stream.writeText("I reached the tool-call limit for this turn. Please narrow the request and try again.");
+      stream.finish();
     },
   });
 }

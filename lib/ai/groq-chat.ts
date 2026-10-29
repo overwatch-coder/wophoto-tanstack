@@ -1,7 +1,8 @@
 import "server-only";
 
-import { createDataStreamResponse, formatDataStreamPart, type ToolSet, type UIMessage } from "ai";
+import type { ToolSet, UIMessage } from "ai";
 import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
+import { createCopilotMessageResponse } from "@/lib/ai/message-stream";
 
 type ExecutableTool = {
   description?: string;
@@ -26,9 +27,6 @@ function toGroqSchema(value: unknown): unknown {
 }
 
 function getPlainText(message: UIMessage): string {
-  const contentText = typeof message.content === "string" ? message.content : "";
-  if (contentText.trim()) return contentText;
-
   return (message.parts ?? [])
     .flatMap((part) => part.type === "text" && typeof part.text === "string" ? [part.text] : [])
     .join("");
@@ -43,7 +41,7 @@ export function createGroqChatResponse(args: {
   abortSignal?: AbortSignal;
 }): Response {
   const { apiKey, model, systemPrompt, messages, tools, abortSignal } = args;
-  const toolMap = tools as Record<string, ExecutableTool>;
+  const toolMap = tools as unknown as Record<string, ExecutableTool>;
   const declarations = Object.entries(toolMap).map(([name, studioTool]) => ({
     type: "function",
     function: {
@@ -60,11 +58,12 @@ export function createGroqChatResponse(args: {
     }),
   ];
 
-  return createDataStreamResponse({
+  return createCopilotMessageResponse({
+    originalMessages: messages,
     headers: { "Cache-Control": "no-cache" },
     onError: () => "The Copilot could not complete that request. Check the provider setup and try again.",
     execute: async (stream) => {
-      const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
+      const reportActivity = (label: string) => stream.writeActivity(label);
       reportActivity("Understanding your request…");
       for (let step = 0; step < 5; step += 1) {
         if (step > 0) reportActivity("Reviewing the information gathered…");
@@ -99,14 +98,8 @@ export function createGroqChatResponse(args: {
           const finalText = typeof assistantMessage.content === "string"
             ? assistantMessage.content
             : assistantMessage.content?.map((part) => part.text ?? "").join("") ?? "";
-          if (finalText) stream.write(formatDataStreamPart("text", finalText));
-          stream.write(formatDataStreamPart("finish_message", {
-            finishReason: "stop",
-            usage: {
-              promptTokens: payload.usage?.prompt_tokens ?? 0,
-              completionTokens: payload.usage?.completion_tokens ?? 0,
-            },
-          }));
+          if (finalText) stream.writeText(finalText);
+          stream.finish();
           return;
         }
 
@@ -122,7 +115,7 @@ export function createGroqChatResponse(args: {
             toolArgs = {};
           }
           if (!toolArgs || typeof toolArgs !== "object" || Array.isArray(toolArgs)) toolArgs = {};
-          stream.write(formatDataStreamPart("tool_call", { toolCallId, toolName, args: toolArgs }));
+          stream.writeToolCall(toolCallId, toolName, toolArgs);
 
           let toolOutput: unknown;
           try {
@@ -140,10 +133,10 @@ export function createGroqChatResponse(args: {
             };
           }
 
-          stream.write(formatDataStreamPart("tool_result", { toolCallId, result: toolOutput }));
+          stream.writeToolResult(toolCallId, toolOutput);
           if (isTerminalToolResult(toolOutput)) {
-            stream.write(formatDataStreamPart("text", getTerminalToolMessage(toolOutput)));
-            stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+            stream.writeText(getTerminalToolMessage(toolOutput));
+            stream.finish();
             return;
           }
           history.push({
@@ -154,8 +147,8 @@ export function createGroqChatResponse(args: {
         }
       }
 
-      stream.write(formatDataStreamPart("text", "I reached the tool-call limit for this turn. Please narrow the request and try again."));
-      stream.write(formatDataStreamPart("finish_message", { finishReason: "stop" }));
+      stream.writeText("I reached the tool-call limit for this turn. Please narrow the request and try again.");
+      stream.finish();
     },
   });
 }

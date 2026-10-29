@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { LogOut, Moon, Sun, UserRound } from "lucide-react"
 import Image from "next/image"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { getProfileImageSrc } from "@/lib/profile-image"
 import { WoPhotoLogo, WoPhotoMark } from "@/components/brand/logo"
@@ -46,9 +46,13 @@ export function AppSidebar({
   userId: string
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const { setOpenMobile } = useSidebar()
   const home = getWorkspaceHome(role)
   const navigationGroups = getWorkspaceNavigationGroups(role, allowedAreas)
+  const prefetchOnIntent = React.useCallback((href: string) => {
+    void router.prefetch(href)
+  }, [router])
   const groupTitles: Record<(typeof navigationGroups)[number][number]["group"], string> = {
     primary: "Overview",
     work: "Work",
@@ -78,7 +82,16 @@ export function AppSidebar({
             <SidebarMenuButton
               size="lg"
               tooltip="WoPhoto home"
-              render={<Link href={home} onClick={() => setOpenMobile(false)} />}
+              render={
+                <Link
+                  href={home}
+                  prefetch={false}
+                  onPointerEnter={() => prefetchOnIntent(home)}
+                  onFocus={() => prefetchOnIntent(home)}
+                  onTouchStart={() => prefetchOnIntent(home)}
+                  onClick={() => setOpenMobile(false)}
+                />
+              }
               className="gap-3 px-1 group-data-[collapsible=icon]:px-0"
             >
               <WoPhotoLogo
@@ -116,6 +129,10 @@ export function AppSidebar({
                           render={
                             <Link
                               href={item.href}
+                              prefetch={false}
+                              onPointerEnter={() => prefetchOnIntent(item.href)}
+                              onFocus={() => prefetchOnIntent(item.href)}
+                              onTouchStart={() => prefetchOnIntent(item.href)}
                               aria-current={
                                 matchesWorkspacePath(pathname, item.href)
                                   ? "page"
@@ -143,7 +160,14 @@ export function AppSidebar({
       <SidebarFooter className="gap-2 border-t border-sidebar-border px-2 pt-2.5 pb-2.5 group-data-[collapsible=icon]:px-1.5">
         <ThemeModeToggle />
         <SidebarSeparator className="mx-0" />
-        <AccountIdentity email={email} image={image} name={name} role={role} userId={userId} />
+        <AccountIdentity
+          email={email}
+          image={image}
+          name={name}
+          role={role}
+          userId={userId}
+          prefetchOnIntent={prefetchOnIntent}
+        />
       </SidebarFooter>
 
       <SidebarRail />
@@ -219,12 +243,14 @@ function AccountIdentity({
   name,
   role,
   userId,
+  prefetchOnIntent,
 }: {
   email?: string | null
   image?: string | null
   name?: string | null
   role: WorkspaceRole
   userId: string
+  prefetchOnIntent: (href: string) => void
 }) {
   const { state, isMobile } = useSidebar()
   const compact = state === "collapsed" && !isMobile
@@ -238,7 +264,15 @@ function AccountIdentity({
           <SidebarMenuButton
             tooltip={`${displayName} (${roleLabel})`}
             aria-label={`${displayName}, ${roleLabel}`}
-            render={<Link href="/settings" />}
+            render={
+              <Link
+                href="/settings"
+                prefetch={false}
+                onPointerEnter={() => prefetchOnIntent("/settings")}
+                onFocus={() => prefetchOnIntent("/settings")}
+                onTouchStart={() => prefetchOnIntent("/settings")}
+              />
+            }
             className="size-8 justify-center p-0 rounded-full hover:bg-sidebar-accent"
           >
             <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
@@ -279,6 +313,10 @@ function AccountIdentity({
     <div className="flex w-full items-center justify-between gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
       <Link
         href="/settings"
+        prefetch={false}
+        onPointerEnter={() => prefetchOnIntent("/settings")}
+        onFocus={() => prefetchOnIntent("/settings")}
+        onTouchStart={() => prefetchOnIntent("/settings")}
         role="group"
         aria-label={`${displayName}, ${roleLabel}`}
         title={`${displayName} (${roleLabel})`}

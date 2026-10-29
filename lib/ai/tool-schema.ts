@@ -1,19 +1,16 @@
 import { jsonSchema } from "ai";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import type { JSONSchema7 } from "@ai-sdk/provider";
-import type { ZodType, ZodTypeDef } from "zod";
+import type { ZodType } from "zod";
 
 /** Converts Zod schemas to provider JSON Schema and validates tool input. */
 export function createToolInputSchema<TOutput, TInput = TOutput>(
-  schema: ZodType<TOutput, ZodTypeDef, TInput>,
+  schema: ZodType<TOutput, TInput>,
 ) {
   // Tool arguments arrive in the schema's input form. Serializing that side
   // preserves input types for fields that Zod transforms before validation
   // returns (for example, an ISO date string converted to a Date).
-  const providerSchema = zodToJsonSchema(schema, {
-    target: "jsonSchema7",
-    effectStrategy: "input",
-  });
+  const providerSchema = z.toJSONSchema(schema, { target: "draft-7", io: "input" });
   const providerObjectSchema = providerSchema as unknown as {
     $schema?: string;
     type?: string;

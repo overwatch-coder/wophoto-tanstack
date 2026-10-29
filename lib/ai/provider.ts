@@ -4,7 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
-import type { LanguageModelV1 } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { AIProvider } from "@/lib/settings-preferences";
 
 export interface AIProviderConfig {
@@ -15,7 +15,7 @@ export interface AIProviderConfig {
 }
 
 /**
- * AI SDK v4 defaults temperature to 0. GPT-6 reasoning models reject
+ * The AI SDK's OpenAI adapter defaults temperature to 0. GPT-6 reasoning models reject
  * temperature and top_p, so remove those defaults from Responses API requests.
  */
 export function createOpenAIResponsesFetch(baseFetch: typeof fetch = fetch): typeof fetch {
@@ -70,7 +70,7 @@ function validateCustomEndpoint(rawEndpoint: string): string {
 }
 
 export function resolveLanguageModel(config: AIProviderConfig): {
-  model: LanguageModelV1;
+  model: LanguageModelV3;
   providerName: string;
   modelName: string;
 } {
@@ -173,8 +173,8 @@ export function resolveLanguageModel(config: AIProviderConfig): {
       const openai = createOpenAI({ apiKey, fetch: createOpenAIResponsesFetch() });
       const modelId = model || "gpt-6.1-sol";
       return {
-        // GPT-6.1 supports tool calling through Responses API. The AI SDK v4
-        // chat adapter uses Chat Completions, which does not support its tools.
+        // GPT-6.1 supports tool calling through the Responses API. The Chat
+        // Completions endpoint does not support its tools.
         model: modelId.startsWith("gpt-6") ? openai.responses(modelId) : openai(modelId),
         providerName: "OpenAI",
         modelName: modelId,

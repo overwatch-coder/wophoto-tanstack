@@ -5,7 +5,7 @@ import { createGoogleGeminiChatResponse } from "@/lib/ai/google-chat";
 import { createGroqChatResponse } from "@/lib/ai/groq-chat";
 import { createOpenAIResponsesChatResponse } from "@/lib/ai/openai-responses-chat";
 import { createStudioTools } from "@/lib/ai/tools";
-import { convertToCoreMessages, createDataStreamResponse, formatDataStreamPart, streamText, type UIMessage } from "ai";
+import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, stepCountIs, streamText, type UIMessage } from "ai";
 import { decryptAIKey } from "@/lib/ai/credentials";
 import { AIProvider } from "@/lib/settings-preferences";
 import { getEffectiveCopilotName } from "@/lib/ai/copilot-name";
@@ -13,6 +13,8 @@ import { getImageCapabilityError } from "@/lib/ai/model-capabilities";
 import { getFocusedToolNames, getPendingClarificationToolName, restrictTools } from "@/lib/ai/tool-routing";
 import { MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/ai/attachment-types";
 import { consumeCopilotDailyRequest, getCopilotRuntimeConfig, getCopilotStudioId, isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
+import { getStudioAccessContext } from "@/lib/studio-access";
+import { UserRole } from "@/generated/prisma/client";
 import { z } from "zod";
 
 export const maxDuration = 30;
@@ -26,7 +28,7 @@ const attachmentItemSchema = z.object({
 const chatMessageSchema = z.object({
   id: z.string().max(200).optional(),
   role: z.enum(["user", "assistant"]),
-  content: z.string().max(1_000_000),
+  content: z.string().max(1_000_000).optional(),
   parts: z.array(z.record(z.string(), z.unknown())).max(80).optional(),
   experimental_attachments: z.array(attachmentItemSchema).max(MAX_ATTACHMENTS_PER_MESSAGE).optional(),
 }).passthrough();
@@ -39,6 +41,13 @@ const providerSchema = z.enum(["OPENAI", "ANTHROPIC", "GEMINI", "GROK", "GROQ", 
 
 function chatError(message: string, status: number) {
   return new Response(message, { status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+}
+
+function getMessageText(message: Pick<UIMessage, "parts"> & { content?: string }) {
+  const partText = (message.parts ?? [])
+    .flatMap((part) => part.type === "text" && typeof part.text === "string" ? [part.text] : [])
+    .join("");
+  return partText || message.content || "";
 }
 
 function getSafeAIErrorMessage(error: unknown): string {
@@ -75,8 +84,14 @@ export async function POST(req: Request) {
     if (!session?.user?.id) {
       return new Response("Unauthorized", { status: 401 });
     }
-    const studioId = await getCopilotStudioId(session.user.id, session.user.role);
-    if (!studioId || !(await isCopilotEnabledForUser(session.user.id, session.user.role))) {
+    // Resolve role grants once and reuse this request snapshot in policy and tool checks.
+    // Confirmation endpoints still perform fresh authorization before applying changes.
+    const membershipRoles: UserRole[] = [UserRole.SUPERVISOR, UserRole.COLLABORATOR];
+    const studioAccess = membershipRoles.includes(session.user.role)
+      ? await getStudioAccessContext(session.user.id, session.user.role)
+      : undefined;
+    const studioId = await getCopilotStudioId(session.user.id, session.user.role, studioAccess);
+    if (!studioId || !(await isCopilotEnabledForUser(session.user.id, session.user.role, studioAccess, studioId))) {
       return chatError("Copilot is currently disabled for your account by your studio manager.", 403);
     }
 
@@ -102,20 +117,21 @@ export async function POST(req: Request) {
     const { messages } = parsedBody.data;
 
     // Query user preferences for AI settings
-    const preference = await prisma.userPreference.findUnique({
-      where: { userId: session.user.id },
-      select: {
-        aiProvider: true,
-        aiCopilotName: true,
-        aiModel: true,
-        aiApiKeyEncrypted: true,
-        aiApiKeyProvider: true,
-        aiCustomEndpoint: true,
-        aiAutonomousExecution: true,
-      },
-    });
-
-    const studioConfig = await getCopilotRuntimeConfig(studioId);
+    const [preference, studioConfig] = await Promise.all([
+      prisma.userPreference.findUnique({
+        where: { userId: session.user.id },
+        select: {
+          aiProvider: true,
+          aiCopilotName: true,
+          aiModel: true,
+          aiApiKeyEncrypted: true,
+          aiApiKeyProvider: true,
+          aiCustomEndpoint: true,
+          aiAutonomousExecution: true,
+        },
+      }),
+      getCopilotRuntimeConfig(studioId),
+    ]);
     const useSharedConnection = Boolean(studioConfig?.apiKey);
 
     const providerResult = providerSchema.safeParse(useSharedConnection ? studioConfig?.provider : preference?.aiProvider || "OPENAI");
@@ -125,7 +141,8 @@ export async function POST(req: Request) {
     const provider = providerResult.data as AIProvider;
     const model = useSharedConnection ? studioConfig?.model || "gpt-6.1-sol" : preference?.aiModel || "gpt-6.1-sol";
     const hasImageAttachment = messages.some((message) =>
-      message.experimental_attachments?.some((attachment) => attachment.url.startsWith("data:image/")),
+      message.experimental_attachments?.some((attachment) => attachment.url.startsWith("data:image/")) ||
+      message.parts?.some((part) => part.type === "file" && typeof part.url === "string" && part.url.startsWith("data:image/")),
     );
     if (hasImageAttachment) {
       const capabilityError = getImageCapabilityError(provider, model);
@@ -154,10 +171,11 @@ export async function POST(req: Request) {
       role: session.user.role,
       userEmail: session.user.email ?? "",
       autonomousExecution: session.user.role === "MANAGER" && autonomousExecution,
+      ...(studioAccess !== undefined ? { studioAccess } : {}),
     });
     const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
     const focusedToolNames = getFocusedToolNames(
-      lastUserMessage?.content ?? "",
+      lastUserMessage ? getMessageText(lastUserMessage as unknown as UIMessage) : "",
       session.user.role,
       getPendingClarificationToolName(messages),
     );
@@ -246,7 +264,7 @@ Guidelines:
       });
     }
 
-    // Resolve the remaining providers through the shared AI SDK v4 stream adapter.
+    // Resolve the remaining providers through the shared AI SDK stream adapter.
     const { model: languageModel } = resolveLanguageModel({
       provider,
       model,
@@ -254,25 +272,26 @@ Guidelines:
       customEndpoint,
     });
 
-    return createDataStreamResponse({
+    const stream = createUIMessageStream<UIMessage>({
+      originalMessages: messages as unknown as UIMessage[],
       onError: getSafeAIErrorMessage,
-      execute: async (stream) => {
-        const reportActivity = (label: string) => stream.write(formatDataStreamPart("message_annotations", [{ type: "copilot-activity", label }]));
-        reportActivity("Understanding your request…");
+      execute: async ({ writer }) => {
+        writer.write({ type: "data-copilot-activity", data: { label: "Understanding your request…" } });
 
         const result = streamText({
           model: languageModel,
           system: systemPrompt,
-          messages: convertToCoreMessages(messages as unknown as UIMessage[], { tools }),
+          messages: await convertToModelMessages(messages as unknown as UIMessage[], { tools }),
           tools,
-          maxSteps: focusedToolNames?.includes("prepare_client_feedback") || focusedToolNames?.includes("prepare_work_request") || focusedToolNames?.includes("create_invitation") ? 1 : 3,
-          experimental_activeTools: Object.keys(tools) as Array<keyof typeof tools>,
-          onStepFinish: () => reportActivity("Reviewing the information gathered…"),
+          abortSignal: req.signal,
+          stopWhen: stepCountIs(focusedToolNames?.includes("prepare_client_feedback") || focusedToolNames?.includes("prepare_work_request") || focusedToolNames?.includes("create_invitation") ? 1 : 3),
+          activeTools: Object.keys(tools) as Array<keyof typeof tools>,
         });
 
-        result.mergeIntoDataStream(stream);
+        writer.merge(result.toUIMessageStream());
       },
     });
+    return createUIMessageStreamResponse({ stream, headers: { "Cache-Control": "no-cache" } });
   } catch (error) {
     console.error("AI Chat Route Error:", error);
     if (error instanceof Error && /does not have access to model/i.test(error.message)) {

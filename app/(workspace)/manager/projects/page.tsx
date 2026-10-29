@@ -42,7 +42,7 @@ async function ManagerProjectsContent({
   const filters = parseProjectQuery(params)
   const q = filters.query
   const clientParam = filters.client
-  const clients = await prisma.user.findMany({
+  const clientsPromise = prisma.user.findMany({
     where: {
       role: UserRole.CLIENT,
       status: UserStatus.ACTIVE,
@@ -54,46 +54,16 @@ async function ManagerProjectsContent({
     orderBy: [{ name: "asc" }, { id: "asc" }],
     take: 100,
   })
-  const legacyClient = clients.find((client) => client.id === clientParam)
-  if (legacyClient) {
-    const canonicalParams = new URLSearchParams()
-    for (const [key, value] of Object.entries(params)) {
-      if (key === "client" || value === undefined) continue
-      for (const item of Array.isArray(value) ? value : [value])
-        canonicalParams.append(key, item)
-    }
-    canonicalParams.set(
-      "client",
-      cleanClientName(legacyClient.name) || "Unnamed client"
-    )
-    redirect(`/manager/projects?${canonicalParams.toString()}`)
-  }
-  const clientName = clientParam
-  const selectedClientIds =
-    clientName && clientName !== "ALL"
-      ? clients
-          .filter(
-            (client) =>
-              (cleanClientName(client.name) || "Unnamed client") === clientName
-          )
-          .map((client) => client.id)
-      : []
-  const where = {
-    managerId: manager.id,
-    ...(clientName && clientName !== "ALL"
-      ? { clientId: { in: selectedClientIds } }
-      : {}),
-    ...(q
-      ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { description: { contains: q, mode: "insensitive" as const } },
-            { client: { name: { contains: q, mode: "insensitive" as const } } },
-          ],
-        }
-      : {}),
-  }
-  const fetchProjects = (page: number) => prisma.project.findMany({
+  const searchWhere = q
+    ? {
+        OR: [
+          { name: { contains: q, mode: "insensitive" as const } },
+          { description: { contains: q, mode: "insensitive" as const } },
+          { client: { name: { contains: q, mode: "insensitive" as const } } },
+        ],
+      }
+    : {}
+  const fetchProjects = (where: Prisma.ProjectWhereInput, page: number) => prisma.project.findMany({
     where,
     select: {
       id: true,
@@ -107,20 +77,16 @@ async function ManagerProjectsContent({
     take: DEFAULT_PAGE_SIZE,
     skip: (page - 1) * DEFAULT_PAGE_SIZE,
   })
-  const [totalProjects, totalTasks, completedTasks, projectStatuses, requestedProjects] =
-    await Promise.all([
-      prisma.project.count({ where }),
-      prisma.task.count({
-        where: { project: { managerId: manager.id }, deletedAt: null },
-      }),
-      prisma.task.count({
-        where: {
-          project: { managerId: manager.id },
-          deletedAt: null,
-          status: "COMPLETED",
-        },
-      }),
-      prisma.$queryRaw<Array<{ status: string; count: number }>>(Prisma.sql`
+  const loadProjectData = async (where: Prisma.ProjectWhereInput) => {
+    const [totalProjects, taskStatusCounts, projectStatuses, requestedProjects] =
+      await Promise.all([
+        prisma.project.count({ where }),
+        prisma.task.groupBy({
+          by: ["status"],
+          where: { project: { managerId: manager.id }, deletedAt: null },
+          _count: { _all: true },
+        }),
+        prisma.$queryRaw<Array<{ status: string; count: number }>>(Prisma.sql`
       WITH task_summary AS (
         SELECT p."id", COUNT(t."id") FILTER (WHERE t."deletedAt" IS NULL) AS total,
           COUNT(t."id") FILTER (WHERE t."deletedAt" IS NULL AND t."status" = 'COMPLETED') AS completed,
@@ -132,11 +98,63 @@ async function ManagerProjectsContent({
         WHEN has_review THEN 'IN_REVIEW' ELSE 'IN_PROGRESS' END AS status, COUNT(*)::int AS count
       FROM task_summary GROUP BY status
     `),
-      fetchProjects(filters.page),
-    ])
+        fetchProjects(where, filters.page),
+      ]);
+    return {
+      totalProjects,
+      totalTasks: taskStatusCounts.reduce((total, row) => total + row._count._all, 0),
+      completedTasks: taskStatusCounts.find((row) => row.status === "COMPLETED")?._count._all ?? 0,
+      projectStatuses,
+      requestedProjects,
+    };
+  };
+
+  let clients: Awaited<typeof clientsPromise>;
+  let data: Awaited<ReturnType<typeof loadProjectData>>;
+  let where: Prisma.ProjectWhereInput;
+  const hasClientFilter = Boolean(clientParam && clientParam !== "ALL");
+
+  if (hasClientFilter) {
+    clients = await clientsPromise;
+    const legacyClient = clients.find((client) => client.id === clientParam);
+    if (legacyClient) {
+      const canonicalParams = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (key === "client" || value === undefined) continue;
+        for (const item of Array.isArray(value) ? value : [value])
+          canonicalParams.append(key, item);
+      }
+      canonicalParams.set(
+        "client",
+        cleanClientName(legacyClient.name) || "Unnamed client"
+      );
+      redirect(`/manager/projects?${canonicalParams.toString()}`);
+    }
+
+    const selectedClientIds = clients
+      .filter(
+        (client) =>
+          (cleanClientName(client.name) || "Unnamed client") === clientParam
+      )
+      .map((client) => client.id);
+    where = {
+      managerId: manager.id,
+      clientId: { in: selectedClientIds },
+      ...searchWhere,
+    };
+    data = await loadProjectData(where);
+  } else {
+    where = { managerId: manager.id, ...searchWhere };
+    [clients, data] = await Promise.all([
+      clientsPromise,
+      loadProjectData(where),
+    ]);
+  }
+
+  const { totalProjects, totalTasks, completedTasks, projectStatuses, requestedProjects } = data;
   const totalPages = getPageCount(totalProjects)
   const page = Math.min(filters.page, totalPages)
-  const projects = page === filters.page ? requestedProjects : await fetchProjects(page)
+  const projects = page === filters.page ? requestedProjects : await fetchProjects(where, page)
   const projectIds = projects.map((project) => project.id)
   const [taskStates, latestDue] = projectIds.length
     ? await Promise.all([

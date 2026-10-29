@@ -11,11 +11,13 @@ export function getPendingClarificationToolName(messages: unknown): string | nul
 
   for (const rawPart of previous.parts) {
     if (!rawPart || typeof rawPart !== "object") continue;
-    const part = rawPart as { type?: unknown; toolInvocation?: unknown };
-    if (part.type !== "tool-invocation" || !part.toolInvocation || typeof part.toolInvocation !== "object") continue;
-    const invocation = part.toolInvocation as { toolName?: unknown; state?: unknown; result?: unknown };
-    if (typeof invocation.toolName !== "string" || invocation.state !== "result" || !invocation.result || typeof invocation.result !== "object") continue;
-    if ((invocation.result as { needsInput?: unknown }).needsInput === true) return invocation.toolName;
+    const part = rawPart as { type?: unknown; toolName?: unknown; state?: unknown; output?: unknown };
+    const isToolPart = part.type === "dynamic-tool" || (typeof part.type === "string" && part.type.startsWith("tool-"));
+    const toolName = part.type === "dynamic-tool"
+      ? part.toolName
+      : typeof part.type === "string" ? part.type.slice(5) : null;
+    if (!isToolPart || typeof toolName !== "string" || part.state !== "output-available" || !part.output || typeof part.output !== "object") continue;
+    if ((part.output as { needsInput?: unknown }).needsInput === true) return toolName;
   }
   return null;
 }

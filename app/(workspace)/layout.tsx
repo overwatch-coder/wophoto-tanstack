@@ -5,13 +5,15 @@ import { Suspense } from "react";
 
 import { requireUser } from "@/lib/authz";
 import { isWorkspaceRole } from "@/lib/navigation";
-import { getNotifications, getUnreadNotificationCounts } from "@/lib/notifications";
-import { getUserPreferences } from "@/lib/user-preferences";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
 import { WorkspaceShellLoading } from "@/components/workspace/workspace-shell-loading";
-import { isCopilotEnabledForUser } from "@/lib/ai/copilot-access";
 import { getStudioAccessContext } from "@/lib/studio-access";
-import { UserRole } from "@/generated/prisma/client";
+import {
+  WorkspaceCopilotSlot,
+  WorkspaceNotificationSlot,
+  WorkspacePreferencesSlot,
+} from "@/components/workspace/workspace-shell-async";
+import { SettingsDensity, UserRole } from "@/generated/prisma/client";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,18 +31,13 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
   const user = await requireUser();
   if (!isWorkspaceRole(user.role)) redirect("/forbidden");
 
-  const studioAccess = await getStudioAccessContext(user.id, user.role);
+  const [studioAccess, cookieStore] = await Promise.all([
+    getStudioAccessContext(user.id, user.role),
+    cookies(),
+  ]);
   if ((user.role === UserRole.SUPERVISOR || user.role === UserRole.COLLABORATOR) && !studioAccess) {
     redirect("/forbidden");
   }
-
-  const [cookieStore, initialNotifications, initialUnreadCounts, preferences, copilotEnabled] = await Promise.all([
-    cookies(),
-    getNotifications(user.id),
-    getUnreadNotificationCounts(user.id),
-    getUserPreferences(user.id, user.role),
-    isCopilotEnabledForUser(user.id, user.role),
-  ]);
   const defaultSidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
@@ -52,14 +49,22 @@ async function AuthenticatedWorkspace({ children }: { children: React.ReactNode 
       email={user.email}
       image={user.image}
       defaultSidebarOpen={defaultSidebarOpen}
-      initialNotifications={initialNotifications}
-      initialUnreadCount={initialUnreadCounts.unread}
-      initialUnreadActionCount={initialUnreadCounts.actionRequired}
-      initialUnreadUpdateCount={initialUnreadCounts.updates}
-      density={preferences.density}
-      soundAlerts={preferences.soundAlerts}
-      copilotName={preferences.aiPreferences.aiCopilotName}
-      copilotEnabled={copilotEnabled}
+      notificationBell={
+        <WorkspaceNotificationSlot
+          role={user.role}
+          userId={user.id}
+        />
+      }
+      copilotSlot={
+        <WorkspaceCopilotSlot
+          role={user.role}
+          studioAccess={studioAccess}
+          userId={user.id}
+        />
+      }
+      preferencesSlot={<WorkspacePreferencesSlot userId={user.id} />}
+      density={SettingsDensity.COZY}
+      soundAlerts={false}
     >
       {children}
     </WorkspaceShell>

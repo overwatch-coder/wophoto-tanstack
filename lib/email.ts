@@ -1,5 +1,5 @@
 import "server-only";
-import nodemailer from "nodemailer";
+import nodemailer from "nodemailer-patched";
 
 export type SendEmailInput = {
   to: string;

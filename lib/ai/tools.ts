@@ -16,13 +16,14 @@ import { WorkRequestType } from "@/generated/prisma/client";
 import { inventoryActionPayloadSchema, prepareInventoryAction } from "@/lib/ai/inventory-proposals";
 import { prepareDailyEntryProposal } from "@/lib/ai/daily-entry-proposals";
 import { StudioAccessLevel, StudioArea } from "@/generated/prisma/client";
-import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
+import { getStudioAccessContext, hasStudioAccess, type StudioAccessContext } from "@/lib/studio-access";
 
 export interface ToolContext {
   userId: string;
   role: UserRole;
   userEmail: string;
   autonomousExecution: boolean;
+  studioAccess?: StudioAccessContext | null;
 }
 
 // Type-safe tool definition helper bridging Zod schemas with Vercel AI SDK
@@ -39,14 +40,18 @@ function defineStudioTool<TSchema extends z.ZodTypeAny, TResult>(config: {
 }
 
 export function createStudioTools(ctx: ToolContext) {
-  const { userId, role, autonomousExecution } = ctx;
+  const { userId, role, autonomousExecution, studioAccess } = ctx;
   const managerSideRoles: UserRole[] = [UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR];
+  let accessContextPromise: Promise<StudioAccessContext | null> | null = "studioAccess" in ctx
+    ? Promise.resolve(studioAccess ?? null)
+    : null;
+  const getRequestStudioAccess = () => accessContextPromise ??= getStudioAccessContext(userId, role);
   const canUseManagerArea = async (area: StudioArea, level: StudioAccessLevel = StudioAccessLevel.VIEW) => {
     if (!managerSideRoles.includes(role)) return false;
-    const access = await getStudioAccessContext(userId, role);
+    const access = await getRequestStudioAccess();
     return Boolean(access && hasStudioAccess(access, StudioArea.COPILOT) && hasStudioAccess(access, area, level));
   };
-  const getManagerOwnerId = async () => (await getStudioAccessContext(userId, role))?.ownerUserId ?? null;
+  const getManagerOwnerId = async () => (await getRequestStudioAccess())?.ownerUserId ?? null;
   const inventoryActionTool = role === UserRole.CLIENT ? null : defineStudioTool({
     description: "Prepare, but never automatically apply, an inventory change. First use query_studio_data to find the item or record ID and check its current state. Supported actions are CREATE_ITEM and UPDATE_ITEM and RETIRE_ITEM for managers, CHECKOUT_ITEM and RETURN_ITEM for managers or workers (workers can only return their own loans), and RESOLVE_MAINTENANCE for managers. Always return a confirmation proposal card. This explicit confirmation is required even if autonomous execution is enabled.",
     parameters: inventoryActionPayloadSchema,
@@ -248,7 +253,7 @@ export function createStudioTools(ctx: ToolContext) {
       description:
         "Query records in the studio database when the user asks to get, list, count, or inspect data. Supports PROJECTS, TASKS, DELETED_TASKS, FEEDBACK, WORK_REQUESTS, NOTIFICATIONS, COMMENTS, RATINGS, INVITATIONS, TEAM, INVENTORY, INVENTORY_LOANS, and INVENTORY_MAINTENANCE, with LIST, GET, or COUNT operations. WORK_REQUESTS are available to managers for requests assigned to their studio and clients for their own requests; workers cannot read them. Inventory is available only to managers and workers; workers can read only their own loan records, while maintenance records are manager only. Use explicit filters for exact counts or criteria (for example INVENTORY with status EQUALS AVAILABLE). For LIST/GET, results include approved summaries and pages of at most 20 records. Filters support EQUALS, NOT_EQUALS, CONTAINS, BEFORE, AFTER, GTE, LTE on supported entity fields. This is the authoritative retrieval/count tool; do not use smart_search to infer whether a table or category has records. Access is restricted to the signed-in user's role and ownership scope.",
       parameters: studioDataQuerySchema,
-      execute: async (input) => queryStudioData({ userId, role }, input),
+      execute: async (input) => queryStudioData({ userId, role, studioAccess: await getRequestStudioAccess() }, input),
     }),
 
     // 3. QUERY TEAM CAPACITY TOOL (Read-only, Manager & Worker)
