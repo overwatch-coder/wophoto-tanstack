@@ -1,4 +1,3 @@
-import "server-only";
 
 import { Prisma, StudioAccessLevel, StudioArea, TaskPriority, TaskStatus, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";

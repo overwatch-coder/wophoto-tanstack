@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireStudioOwner } from "@/lib/studio-access";
@@ -8,8 +6,7 @@ import { parseInput } from "@/lib/validation/common";
 import { createStudioServiceSchema, deleteStudioServiceSchema, setStudioServiceActiveSchema, updateStudioServiceSchema } from "@/lib/validation/services";
 
 export type StudioServiceActionState = { error?: string; success?: string };
-const servicePaths = ["/manager/services", "/manager", "/manager/tasks"];
-const revalidateServices = () => servicePaths.forEach((path) => revalidatePath(path));
+const revalidateServices = () => (() => {})();
 const getMessage = (error: unknown) => error instanceof Error ? error.message : "The service could not be saved.";
 
 export async function createStudioService(_state: StudioServiceActionState, formData: FormData): Promise<StudioServiceActionState> {

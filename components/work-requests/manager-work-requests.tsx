@@ -1,7 +1,5 @@
-"use client"
-
 import { useActionState, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@tanstack/react-router"
 import { useDebounce } from "@uidotdev/usehooks"
 import { CalendarDays, Check, CircleHelp, Eye, FolderKanban, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -364,8 +362,9 @@ export function ManagerWorkRequests({
     const search = new URLSearchParams()
     if (filterStatus !== "ALL") search.set("status", filterStatus)
     if (normalizedQuery) search.set("q", normalizedQuery)
-    router.replace(`/manager/work-requests${search.size ? `?${search}` : ""}`, {
-      scroll: false,
+    router.navigate({
+      href: `/manager/work-requests${search.size ? `?${search}` : ""}`,
+      replace: true,
     })
   }, [debouncedSearch, filterStatus, query, router, status])
   const total =

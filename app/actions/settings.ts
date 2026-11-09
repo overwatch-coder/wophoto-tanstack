@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
@@ -132,9 +130,6 @@ export async function updateUserPreferencesAction(input: unknown) {
       create: { userId: user.id, ...updateData },
       update: updateData,
     });
-
-    revalidatePath("/settings");
-    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     return {

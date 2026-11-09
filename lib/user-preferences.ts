@@ -1,4 +1,3 @@
-import "server-only";
 
 import { SettingsDensity, UserRole, WorkerAvailability } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";

@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { InvitationStatus, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireStudioManagerArea } from "@/lib/studio-access";
 import { StudioArea } from "@/generated/prisma/client";
@@ -50,9 +48,6 @@ export async function createProject(
         studioId: context.studioId,
       },
     });
-
-    revalidatePath("/manager/projects");
-    revalidatePath("/manager/tasks");
     return { success: "Project created." };
   } catch (error) {
     return {

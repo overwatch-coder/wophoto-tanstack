@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { InvitationStatus, StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireStudioOwner } from "@/lib/studio-access";
@@ -45,10 +43,6 @@ export async function updateStudioMemberAccess(input: unknown): Promise<StudioAc
       await tx.studioMemberPermission.createMany({ data: permissions.map((grant) => ({ ...grant, studioMemberId: member.id })) });
     }
   });
-
-  revalidatePath("/manager/invitations");
-  revalidatePath("/manager");
-  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -74,8 +68,5 @@ export async function revokeStudioMember(input: unknown): Promise<StudioAccessAc
     }),
     prisma.session.deleteMany({ where: { userId: member.userId } }),
   ]);
-
-  revalidatePath("/manager/invitations");
-  revalidatePath("/", "layout");
   return { success: true };
 }

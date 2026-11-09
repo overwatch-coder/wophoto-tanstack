@@ -1,4 +1,3 @@
-import "server-only";
 
 import type { ToolSet, UIMessage } from "ai";
 import OpenAI from "openai";

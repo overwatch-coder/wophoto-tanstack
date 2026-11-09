@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { del } from "@vercel/blob";
 import {
   UserRole,
@@ -32,17 +30,8 @@ export type BriefTemplateActionState = {
   attachmentName?: string;
 };
 
-const TEMPLATE_PATHS = [
-  "/manager/explore-briefs",
-  "/worker/explore-briefs",
-  "/manager/brief-review",
-  "/worker/brief-review",
-];
-
 function revalidateTemplatePaths() {
-  for (const path of TEMPLATE_PATHS) {
-    revalidatePath(path);
-  }
+  // TanStack Router invalidates route queries on navigation/mutation
 }
 
 function isManagedTemplateFile(fileUrl: string | null | undefined, allowBriefSource = false) {

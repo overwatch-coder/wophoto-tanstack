@@ -99,8 +99,6 @@ describe("Deleted Tasks Trash & Recovery actions", () => {
         where: { id: "task_123" },
         data: { deletedAt: null },
       });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/deleted-tasks");
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/tasks");
       expect(result).toEqual({
         success: "Task restored successfully.",
         taskId: "task_123",
@@ -139,7 +137,6 @@ describe("Deleted Tasks Trash & Recovery actions", () => {
         },
         data: { deletedAt: null },
       });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/deleted-tasks");
       expect(result).toEqual({ success: "3 task(s) restored successfully." });
     });
 
@@ -169,7 +166,6 @@ describe("Deleted Tasks Trash & Recovery actions", () => {
       expect(mocks.deleteTask).toHaveBeenCalledWith({
         where: { id: "task_del_1" },
       });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/deleted-tasks");
       expect(result).toEqual({
         success: "Task permanently deleted.",
         taskId: "task_del_1",
@@ -198,7 +194,6 @@ describe("Deleted Tasks Trash & Recovery actions", () => {
           project: { managerId: managerUser.id },
         },
       });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/deleted-tasks");
       expect(result).toEqual({
         success: "Trash emptied. 7 task(s) permanently removed.",
       });

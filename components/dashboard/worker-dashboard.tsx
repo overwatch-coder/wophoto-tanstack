@@ -1,6 +1,4 @@
-"use client"
-
-import Link from "next/link"
+import { Link } from "@tanstack/react-router"
 import type { WorkerAnalyticsData } from "@/lib/analytics"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,7 +34,7 @@ export function WorkerDashboard({ data }: { data: WorkerAnalyticsData }) {
         <div>
           <Button
             nativeButton={false}
-            render={<Link href="/worker/tasks" />}
+            render={<Link to="/worker/tasks" />}
             className="w-full gap-1.5 bg-orange-600 text-xs font-semibold text-white shadow-xs hover:bg-orange-700 sm:w-auto"
           >
             <Plus className="size-3.5" />
@@ -192,7 +190,7 @@ export function WorkerDashboard({ data }: { data: WorkerAnalyticsData }) {
                 </p>
               </div>
               <Link
-                href="/worker/tasks"
+                to="/worker/tasks"
                 className="flex items-center gap-1 text-xs font-medium text-orange-600 hover:underline dark:text-orange-400"
               >
                 <span>View all</span>
@@ -236,7 +234,7 @@ export function WorkerDashboard({ data }: { data: WorkerAnalyticsData }) {
 
           <div className="border-t border-border pt-3 text-xs text-muted-foreground">
             <Link
-              href="/worker/tasks"
+              to="/worker/tasks"
               className="font-medium text-orange-600 hover:underline dark:text-orange-400"
             >
               Open Workboard →
@@ -257,7 +255,7 @@ export function WorkerDashboard({ data }: { data: WorkerAnalyticsData }) {
                 </p>
               </div>
               <Link
-                href="/worker/tasks"
+                to="/worker/tasks"
                 className="flex items-center gap-1 text-xs font-medium text-orange-600 hover:underline dark:text-orange-400"
               >
                 <span>Log work</span>

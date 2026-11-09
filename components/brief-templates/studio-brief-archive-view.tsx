@@ -1,8 +1,5 @@
-"use client";
-
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
-import Image from "next/image";
+import { useLocation } from "@tanstack/react-router";
 import { type SerializedStudioBriefArchiveItem } from "@/lib/brief-templates";
 import { getProfileImageSrc } from "@/lib/profile-image";
 import { formatBriefStatus, getBriefStatusBadgeClass } from "@/components/briefs/labels";
@@ -78,7 +75,8 @@ export function StudioBriefArchiveView({
   currentPage,
   pageSize,
 }: StudioBriefArchiveViewProps) {
-  const searchParams = useSearchParams();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.searchStr);
   const search = searchParams.get("search") ?? "";
   const selectedProject = searchParams.get("project") ?? "ALL";
   const selectedClient = searchParams.get("client") ?? "ALL";
@@ -282,12 +280,10 @@ export function StudioBriefArchiveView({
                     );
                     return avatarUrl ? (
                       <div className="relative size-5 rounded-full overflow-hidden border">
-                        <Image
+                        <img
                           src={avatarUrl}
                           alt={brief.createdBy.name ?? "Creator"}
-                          fill
-                          unoptimized
-                          className="object-cover"
+                          className="size-full object-cover"
                         />
                       </div>
                     ) : (

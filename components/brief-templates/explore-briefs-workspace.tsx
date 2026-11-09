@@ -1,7 +1,5 @@
-"use client";
-
-import { useState, useTransition } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter, useLocation } from "@tanstack/react-router";
 import {
   type SerializedBriefTemplate,
   type SerializedStudioBriefArchiveItem,
@@ -66,8 +64,9 @@ export function ExploreBriefsWorkspace({
   role,
 }: ExploreBriefsWorkspaceProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const location = useLocation();
+  const pathname = location.pathname;
+  const searchParams = useMemo(() => new URLSearchParams(location.searchStr), [location.searchStr]);
   const [, startTransition] = useTransition();
 
   const isManager = role === UserRole.MANAGER;
@@ -114,7 +113,7 @@ export function ExploreBriefsWorkspace({
       }
     }
     startTransition(() => {
-      router.push(`${pathname}?${current.toString()}`);
+      router.navigate({ href: `${pathname}?${current.toString()}` });
     });
   };
 
@@ -153,7 +152,7 @@ export function ExploreBriefsWorkspace({
       } else {
         await archiveBriefTemplate({ id: template.id });
       }
-      router.refresh();
+      router.invalidate();
     } catch {
       // Handled by revalidation
     }
@@ -453,7 +452,7 @@ export function ExploreBriefsWorkspace({
           onOpenChange={setTemplateDialogOpen}
           template={editingTemplate}
           onSuccess={() => {
-            router.refresh();
+            router.invalidate();
           }}
         />
       )}
@@ -466,7 +465,7 @@ export function ExploreBriefsWorkspace({
           projects={projects}
           clients={clients}
           onSuccess={() => {
-            router.push(`/manager/brief-review?search=${encodeURIComponent(targetTemplate.title)}`);
+            router.navigate({ href: `/manager/brief-review?search=${encodeURIComponent(targetTemplate.title)}` });
           }}
         />
       )}
@@ -490,7 +489,7 @@ export function ExploreBriefsWorkspace({
           onOpenChange={setConvertOpen}
           brief={convertSourceBrief}
           onSuccess={() => {
-            router.refresh();
+            router.invalidate();
           }}
         />
       )}

@@ -163,9 +163,6 @@ describe("Client Feedback & Request Actions", () => {
           details: "Please cool down the warmth by 200K.",
         },
       });
-
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/client/project-feedback");
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/reviews");
     });
 
     it("successfully submits a client review with its rating and review text", async () => {
@@ -202,8 +199,6 @@ describe("Client Feedback & Request Actions", () => {
           details: "The project is taking longer than expected.",
         },
       });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/client/project-feedback");
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/reviews");
     });
   });
 
@@ -395,9 +390,6 @@ describe("Client Feedback & Request Actions", () => {
           respondedById: "manager-1",
         },
       });
-
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/reviews");
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/client/project-feedback");
     });
   });
 });

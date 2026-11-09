@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import {
   getNotificationCounts,
@@ -36,9 +34,6 @@ export async function markNotificationReadAction(notificationId: string) {
     const parsedId = parseInput(notificationIdSchema, notificationId);
 
     await markNotificationRead(parsedId, session.user.id);
-    revalidatePath("/manager/notifications");
-    revalidatePath("/worker/notifications");
-    revalidatePath("/client/notifications");
     return { success: true };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to mark as read." };
@@ -51,9 +46,6 @@ export async function markAllNotificationsReadAction() {
     if (!session?.user?.id) throw new Error("Unauthorized");
 
     await markAllNotificationsRead(session.user.id);
-    revalidatePath("/manager/notifications");
-    revalidatePath("/worker/notifications");
-    revalidatePath("/client/notifications");
     return { success: true };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to mark all as read." };

@@ -1,8 +1,6 @@
-"use client";
-
 import { useState, useTransition } from "react";
 import { Shield, Settings2, UserRound, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@tanstack/react-router";
 import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/browser";
 import { updateStudioMemberAccess, revokeStudioMember } from "@/app/actions/studio-access";
 import { Button } from "@/components/ui/button";
@@ -78,7 +76,7 @@ function MemberRow({ member }: { member: StudioAccessMember }) {
         setMessage("");
         setToastMessage("Studio access saved.");
         window.setTimeout(() => setToastMessage(""), 3200);
-        router.refresh();
+        router.invalidate();
       } catch {
         setMessage("Access could not be saved. Try again.");
       }
@@ -95,7 +93,7 @@ function MemberRow({ member }: { member: StudioAccessMember }) {
           setRemoveOpen(false);
           setToastMessage("Member access revoked.");
           window.setTimeout(() => setToastMessage(""), 3200);
-          router.refresh();
+          router.invalidate();
         }
       } catch {
         setMessage("Member access could not be revoked. Try again.");

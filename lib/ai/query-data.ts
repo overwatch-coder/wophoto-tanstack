@@ -1,4 +1,3 @@
-import "server-only";
 
 import { z } from "zod";
 import { Prisma, StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";

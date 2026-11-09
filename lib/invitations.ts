@@ -1,7 +1,4 @@
-import "server-only";
-
 import { createHash, randomBytes } from "node:crypto";
-import { revalidatePath } from "next/cache";
 import { InvitationStatus, type UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { encryptInvitationToken } from "@/lib/invitation-token";
@@ -60,7 +57,6 @@ export async function createInvitationForManager(managerId: string, input: unkno
     }),
   ]);
 
-  revalidatePath("/manager/invitations");
   const invitePath = `/invite/${token}`;
   const roleLabel: Record<UserRole, string> = {
     MANAGER: "manager",

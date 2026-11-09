@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
 }))
 
-vi.mock("next/headers", () => ({ cookies: mocks.cookies }))
+vi.mock("@tanstack/react-start/server", () => ({ deleteCookie: mocks.deleteCookie }))
 vi.mock("@/auth", () => ({ signIn: mocks.signIn, signOut: mocks.signOut }))
 
 import { signInWithGoogle, signOutUser } from "@/app/actions/auth"
@@ -37,7 +37,6 @@ describe("authentication server actions", () => {
   it("clears the sidebar preference and redirects through Auth.js on sign out (AC-5, AC-13)", async () => {
     await signOutUser()
 
-    expect(mocks.cookies).toHaveBeenCalledOnce()
     expect(mocks.deleteCookie).toHaveBeenCalledWith("sidebar_state")
     expect(mocks.signOut).toHaveBeenCalledWith({ redirectTo: "/login" })
   })

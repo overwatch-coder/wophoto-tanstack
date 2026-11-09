@@ -1,7 +1,5 @@
-"use server";
 
 import { del, put } from "@vercel/blob";
-import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
@@ -22,8 +20,6 @@ export async function updateProfileName(
   const { name } = parsed.data;
 
   await prisma.user.update({ where: { id: user.id }, data: { name } });
-  revalidatePath("/settings");
-  revalidatePath("/", "layout");
 
   return { success: "Your name has been updated." };
 }
@@ -76,9 +72,6 @@ export async function updateProfilePicture(
           : "The image uploaded, but your profile could not be updated. Please try again.",
     };
   }
-
-  revalidatePath("/settings");
-  revalidatePath("/", "layout");
   return { success: "Your profile picture has been updated." };
 }
 
@@ -88,8 +81,6 @@ export async function removeProfilePicture(): Promise<ProfileActionState> {
     await del(user.image).catch(() => undefined);
   }
   await prisma.user.update({ where: { id: user.id }, data: { image: null } });
-  revalidatePath("/settings");
-  revalidatePath("/", "layout");
   return { success: "Your profile picture has been removed." };
 }
 

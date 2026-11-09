@@ -1,7 +1,4 @@
-"use client";
-
 import { useState } from "react";
-import Image from "next/image";
 import { upload } from "@vercel/blob/client";
 import {
   Dialog,
@@ -354,11 +351,10 @@ function TemplateForm({
           <div className="flex flex-col gap-3 md:flex-row md:items-start">
             {coverImageUrl ? (
               <div className="relative size-12 rounded border overflow-hidden shrink-0">
-                <Image
+                <img
                   src={`/api/brief-templates/file?url=${encodeURIComponent(coverImageUrl)}`}
                   alt="Cover Preview"
-                  fill
-                  className="object-cover"
+                  className="size-full object-cover"
                 />
                 <button
                   type="button"

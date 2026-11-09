@@ -1,7 +1,5 @@
-"use client"
-
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@tanstack/react-router"
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react"
 import {
   getInvitationLink,
@@ -452,7 +450,7 @@ export function RevokeStudioAccountButton({ id, role, name }: { id: string; role
           return
         }
         setOpen(false)
-        router.refresh()
+        router.invalidate()
       } catch {
         setError("Access could not be revoked. Try again.")
       }

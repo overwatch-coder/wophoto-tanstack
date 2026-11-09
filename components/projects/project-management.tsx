@@ -1,5 +1,3 @@
-"use client"
-
 import {
   useCallback,
   useEffect,
@@ -8,8 +6,7 @@ import {
   useState,
   useTransition,
 } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { Link, useRouter } from "@tanstack/react-router"
 import {
   Briefcase,
   Calendar,
@@ -502,10 +499,10 @@ export function ProjectManagement({
       if (trimmedSearch) params.set("q", trimmedSearch)
       if (nextClient !== "ALL") params.set("client", nextClient)
       const query = params.toString()
-      router.replace(
-        query ? `/manager/projects?${query}` : "/manager/projects",
-        { scroll: false }
-      )
+      router.navigate({
+        href: query ? `/manager/projects?${query}` : "/manager/projects",
+        replace: true,
+      })
     },
     [router]
   )
@@ -696,7 +693,7 @@ export function ProjectManagement({
             ) : (
               <Button
                 nativeButton={false}
-                render={<Link href="/manager/projects" />}
+                render={<Link to="/manager/projects" />}
                 variant="outline"
                 size="sm"
                 className="mt-4 text-xs"

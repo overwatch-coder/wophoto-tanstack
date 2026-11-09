@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { NotificationCategory, Prisma, NotificationType, StudioArea, TaskStatus, TaskType, UserRole, UserStatus, WorkRequestStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { requireStudioManagerArea } from "@/lib/studio-access";
@@ -21,7 +19,6 @@ import {
 } from "@/lib/validation/tasks";
 
 export type TaskActionState = { error?: string; success?: string; taskId?: string };
-const paths = ["/manager/tasks", "/worker/tasks", "/manager/deleted-tasks"];
 const message = (error: unknown) => error instanceof Error ? error.message : "The task could not be saved. Try again.";
 const formString = (data: FormData, key: string) => data.get(key) ?? "";
 const taskFormFields = (data: FormData) => ({
@@ -51,7 +48,7 @@ async function recompute(tx: Prisma.TransactionClient, taskId: string) {
       ? TaskStatus.IN_REVIEW : TaskStatus.IN_PROGRESS;
   await tx.task.update({ where: { id: taskId }, data: { status, completedAt: null } });
 }
-const invalidateTasks = () => paths.forEach((path) => revalidatePath(path));
+const invalidateTasks = () => (() => {})();
 
 export async function createAssignedTask(_state: TaskActionState, data: FormData): Promise<TaskActionState> {
   try {

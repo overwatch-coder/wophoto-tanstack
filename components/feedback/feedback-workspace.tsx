@@ -1,13 +1,12 @@
-"use client"
-
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   useSyncExternalStore,
   useTransition,
 } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useLocation, useRouter } from "@tanstack/react-router"
 import {
   MessageSquareText,
   Plus,
@@ -77,8 +76,9 @@ export function FeedbackWorkspace({
 }) {
   const { feedbacks, projects, workers = [], stats } = initialData
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const location = useLocation()
+  const pathname = location.pathname
+  const searchParams = useMemo(() => new URLSearchParams(location.searchStr), [location.searchStr])
   const currentSearch = searchParams.toString()
   const targetFeedbackId = searchParams.get("feedbackId")
   const shouldOpenNewFeedback = searchParams.get("newFeedback") === "1"
@@ -119,8 +119,9 @@ export function FeedbackWorkspace({
       else params.set(key, value)
       params.delete("page")
       const query = params.toString()
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
+      router.navigate({
+        href: query ? `${pathname}?${query}` : pathname,
+        replace: true,
       })
     },
     [pathname, router]
@@ -148,7 +149,10 @@ export function FeedbackWorkspace({
     params.delete("feedbackId")
     params.delete("newFeedback")
     const query = params.toString()
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+    router.navigate({
+      href: query ? `${pathname}?${query}` : pathname,
+      replace: true,
+    })
   }
 
   // Form states for creating request (Client)
@@ -597,8 +601,9 @@ export function FeedbackWorkspace({
                   params.delete(key)
                 )
                 const query = params.toString()
-                router.replace(query ? `${pathname}?${query}` : pathname, {
-                  scroll: false,
+                router.navigate({
+                  href: query ? `${pathname}?${query}` : pathname,
+                  replace: true,
                 })
               }}
               className="rounded-full text-xs"

@@ -1,8 +1,5 @@
-"use client";
-
 import { useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, useRouter } from "@tanstack/react-router";
 import {
   Bell,
   Mail,
@@ -44,6 +41,13 @@ export function HeaderNotificationBell({
   const [unreadCount, setUnreadCount] = useState<number>(initialUnreadCount);
   const [unreadActionCount, setUnreadActionCount] = useState(initialUnreadActionCount);
   const [unreadUpdateCount, setUnreadUpdateCount] = useState(initialUnreadUpdateCount);
+
+  useEffect(() => {
+    setNotifications(initialNotifications);
+    setUnreadCount(initialUnreadCount);
+    setUnreadActionCount(initialUnreadActionCount);
+    setUnreadUpdateCount(initialUnreadUpdateCount);
+  }, [initialNotifications, initialUnreadCount, initialUnreadActionCount, initialUnreadUpdateCount]);
   const [isOpen, setIsOpen] = useState(false);
   const [popoverTab, setPopoverTab] = useState<"ACTION" | "UPDATES">("ACTION");
   const [, startTransition] = useTransition();
@@ -150,7 +154,7 @@ export function HeaderNotificationBell({
       await markNotificationReadAction(id);
       if (link) {
         setIsOpen(false);
-        router.push(link);
+        router.navigate({ href: link });
       }
     });
   };
@@ -318,7 +322,7 @@ export function HeaderNotificationBell({
             {/* Popover Footer */}
             <div className="border-t p-2 text-center bg-muted/20">
               <Link
-                href={notificationsHubUrl}
+                to={notificationsHubUrl as any}
                 onClick={() => setIsOpen(false)}
                 className="inline-flex items-center justify-center w-full h-7 rounded-full text-xs font-medium text-primary hover:text-primary hover:bg-primary/10 transition-colors"
               >

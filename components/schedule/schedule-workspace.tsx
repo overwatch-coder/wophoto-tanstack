@@ -1,8 +1,5 @@
-"use client";
-
 import { useState, useTransition, useMemo } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@tanstack/react-router";
 import {
   ScheduleEventType,
   TaskStatus,
@@ -337,7 +334,7 @@ export function ScheduleWorkspace({
 
   const refreshWorkspace = () => {
     startTransition(() => {
-      router.refresh();
+      router.invalidate();
     });
   };
 
@@ -814,11 +811,10 @@ export function ScheduleWorkspace({
                               className="relative h-6 w-6 rounded-full overflow-hidden bg-primary/10 border border-border flex items-center justify-center text-[10px] font-bold text-primary"
                             >
                               {src ? (
-                                <Image
+                                <img
                                   src={src}
                                   alt={worker.name || "Worker"}
-                                  fill
-                                  className="object-cover"
+                                  className="size-full object-cover"
                                 />
                               ) : (
                                 (worker.name || worker.email)[0].toUpperCase()

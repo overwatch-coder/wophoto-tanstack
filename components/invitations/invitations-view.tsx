@@ -1,7 +1,5 @@
-"use client"
-
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@tanstack/react-router"
 import {
   Search,
   Briefcase,
@@ -98,10 +96,10 @@ export function InvitationsView({
     else params.delete("q")
     params.delete("page")
     const next = params.toString()
-    router.replace(
-      next ? `/manager/invitations?${next}` : "/manager/invitations",
-      { scroll: false }
-    )
+    router.navigate({
+      href: next ? `/manager/invitations?${next}` : "/manager/invitations",
+      replace: true,
+    })
   }, [debouncedSearchTerm, router, searchQuery, searchTerm])
 
   function updateFilter(nextFilter: string) {
@@ -110,10 +108,10 @@ export function InvitationsView({
     else params.set("filter", nextFilter)
     params.delete("page")
     const next = params.toString()
-    router.replace(
-      next ? `/manager/invitations?${next}` : "/manager/invitations",
-      { scroll: false }
-    )
+    router.navigate({
+      href: next ? `/manager/invitations?${next}` : "/manager/invitations",
+      replace: true,
+    })
   }
 
   const filtered = invitations

@@ -1,4 +1,3 @@
-import "server-only";
 
 import * as XLSX from "xlsx";
 import * as mammoth from "mammoth";

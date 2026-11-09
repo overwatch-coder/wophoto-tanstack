@@ -1,8 +1,6 @@
-"use client"
-
 import * as React from "react"
 import { useTheme } from "next-themes"
-import { usePathname } from "next/navigation"
+import { useLocation } from "@tanstack/react-router"
 import { Moon, Sun } from "lucide-react"
 
 import { AppSidebar } from "@/components/workspace/app-sidebar"
@@ -60,7 +58,7 @@ function WorkspaceShellContent({
   copilotSlot,
 }: WorkspaceShellProps) {
   const { density } = useWorkspacePreferences()
-  const pathname = usePathname()
+  const { pathname } = useLocation()
   const title = getWorkspacePageTitle(role, pathname)
   const titleRef = React.useRef<HTMLHeadingElement>(null)
   const previousPathname = React.useRef(pathname)

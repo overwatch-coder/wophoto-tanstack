@@ -1,8 +1,6 @@
-"use client"
-
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useDebounce } from "@uidotdev/usehooks"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import { useLocation, useRouter } from "@tanstack/react-router"
 import {
   InventoryCondition,
   InventoryStatus,
@@ -242,8 +240,9 @@ export function InventoryCatalogView({
   maintenanceQueue = [],
 }: InventoryCatalogViewProps) {
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const location = useLocation()
+  const pathname = location.pathname
+  const searchParams = useMemo(() => new URLSearchParams(location.searchStr), [location.searchStr])
   const [, startTransition] = useTransition()
 
   // Search and tab state
@@ -322,7 +321,7 @@ export function InventoryCatalogView({
       }
       setRetireConfirmOpen(false)
       setSelectedAssetIds([])
-      router.refresh()
+      router.invalidate()
     } catch (error) {
       setRetireError(
         error instanceof Error
@@ -344,7 +343,7 @@ export function InventoryCatalogView({
     params.delete("page")
 
     startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`)
+      router.navigate({ href: `${pathname}?${params.toString()}`, replace: true })
     })
   }, [
     currentSearch,
@@ -371,7 +370,7 @@ export function InventoryCatalogView({
     }
 
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`)
+      router.navigate({ href: `${pathname}?${params.toString()}` })
     })
   }
 
@@ -382,7 +381,7 @@ export function InventoryCatalogView({
 
   const handleRefresh = () => {
     startTransition(() => {
-      router.refresh()
+      router.invalidate()
     })
   }
 

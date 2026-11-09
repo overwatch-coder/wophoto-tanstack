@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
@@ -22,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { BrandAssetType } from "@/generated/prisma/browser";
 import { upload } from "@vercel/blob/client";
-import Image from "next/image";
 import { FileDropzone } from "@/components/ui/file-dropzone";
 import {
   BRAND_ASSET_TYPE_LABELS,
@@ -710,7 +707,7 @@ function BrandAssetForm({
                         <div key={`${entry.file.name}-${index}`} className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md border bg-card p-2 sm:grid-cols-[6rem_minmax(0,1fr)_auto]">
                           <div className="flex h-16 w-[4.5rem] items-center justify-center overflow-hidden rounded border bg-muted/30 sm:w-24">
                             {isImage ? (
-                              <Image src={entry.previewUrl} alt={`Preview of ${entry.file.name}`} width={96} height={64} unoptimized className="h-full w-full object-contain" />
+                              <img src={entry.previewUrl} alt={`Preview of ${entry.file.name}`} width={96} height={64} className="h-full w-full object-contain" />
                             ) : isPdf ? (
                               <iframe src={entry.previewUrl} title={`Preview of ${entry.file.name}`} className="h-full w-full bg-white" />
                             ) : (

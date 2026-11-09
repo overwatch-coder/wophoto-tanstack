@@ -1,4 +1,3 @@
-"use client"
 
 import { useActionState, useState } from "react"
 import { Check, CircleHelp, Eye, FilePlus2, Send } from "lucide-react"

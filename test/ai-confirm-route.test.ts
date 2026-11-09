@@ -117,7 +117,6 @@ describe("Copilot proposal confirmation route", () => {
       select: { id: true, name: true },
     });
     expect(await response.json()).toMatchObject({ success: true, projectId: "project-1" });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/projects");
   });
 
   it("creates an invitation only after a manager confirms the client proposal", async () => {
@@ -171,7 +170,6 @@ describe("Copilot proposal confirmation route", () => {
     expect(response.status).toBe(200);
     expect(mocks.checkoutInventoryItem).toHaveBeenCalledWith({ itemId: "item-1", expectedReturnAt: null, notes: undefined });
     expect(await response.json()).toMatchObject({ itemId: "item-1", loanId: "loan-1", message: "Asset checked out successfully." });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/worker/inventory");
   });
 
   it("prevents workers from confirming manager-only inventory actions", async () => {

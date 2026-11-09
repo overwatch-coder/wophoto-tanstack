@@ -74,7 +74,6 @@ describe("Invitation creation", () => {
       }),
       select: { id: true },
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/invitations");
     expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
       to: "client@example.com",
       subject: "Your WoPhoto Studio invitation",

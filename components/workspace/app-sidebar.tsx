@@ -1,10 +1,6 @@
-"use client"
-
 import * as React from "react"
-import Link from "next/link"
+import { Link, useLocation, useRouter } from "@tanstack/react-router"
 import { LogOut, Moon, Sun, UserRound } from "lucide-react"
-import Image from "next/image"
-import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { getProfileImageSrc } from "@/lib/profile-image"
 import { WoPhotoLogo, WoPhotoMark } from "@/components/brand/logo"
@@ -45,13 +41,13 @@ export function AppSidebar({
   allowedAreas?: readonly string[] | null
   userId: string
 }) {
-  const pathname = usePathname()
+  const { pathname } = useLocation()
   const router = useRouter()
   const { setOpenMobile } = useSidebar()
   const home = getWorkspaceHome(role)
   const navigationGroups = getWorkspaceNavigationGroups(role, allowedAreas)
   const prefetchOnIntent = React.useCallback((href: string) => {
-    void router.prefetch(href)
+    void router.preloadRoute({ href } as any)
   }, [router])
   const groupTitles: Record<(typeof navigationGroups)[number][number]["group"], string> = {
     primary: "Overview",
@@ -84,8 +80,8 @@ export function AppSidebar({
               tooltip="WoPhoto home"
               render={
                 <Link
-                  href={home}
-                  prefetch={false}
+                  to={home as any}
+                  preload={false}
                   onPointerEnter={() => prefetchOnIntent(home)}
                   onFocus={() => prefetchOnIntent(home)}
                   onTouchStart={() => prefetchOnIntent(home)}
@@ -128,8 +124,8 @@ export function AppSidebar({
                           tooltip={item.title}
                           render={
                             <Link
-                              href={item.href}
-                              prefetch={false}
+                              to={item.href as any}
+                              preload={false}
                               onPointerEnter={() => prefetchOnIntent(item.href)}
                               onFocus={() => prefetchOnIntent(item.href)}
                               onTouchStart={() => prefetchOnIntent(item.href)}
@@ -266,8 +262,8 @@ function AccountIdentity({
             aria-label={`${displayName}, ${roleLabel}`}
             render={
               <Link
-                href="/settings"
-                prefetch={false}
+                to="/settings"
+                preload={false}
                 onPointerEnter={() => prefetchOnIntent("/settings")}
                 onFocus={() => prefetchOnIntent("/settings")}
                 onTouchStart={() => prefetchOnIntent("/settings")}
@@ -277,12 +273,11 @@ function AccountIdentity({
           >
             <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
               {image ? (
-                <Image
+                <img
                   src={getProfileImageSrc(image, userId) ?? image}
                   alt=""
                   width={32}
                   height={32}
-                  unoptimized
                   className="size-full object-cover"
                 />
               ) : (
@@ -312,8 +307,8 @@ function AccountIdentity({
   return (
     <div className="flex w-full items-center justify-between gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
       <Link
-        href="/settings"
-        prefetch={false}
+        to="/settings"
+        preload={false}
         onPointerEnter={() => prefetchOnIntent("/settings")}
         onFocus={() => prefetchOnIntent("/settings")}
         onTouchStart={() => prefetchOnIntent("/settings")}
@@ -324,12 +319,11 @@ function AccountIdentity({
       >
         <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
           {image ? (
-            <Image
+            <img
               src={getProfileImageSrc(image, userId) ?? image}
               alt=""
               width={32}
               height={32}
-              unoptimized
               className="size-full object-cover"
             />
           ) : (

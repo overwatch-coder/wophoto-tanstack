@@ -1,6 +1,3 @@
-"use client";
-
-import Image from "next/image";
 import { type SerializedBriefTemplate } from "@/lib/brief-templates";
 import { getProfileImageSrc } from "@/lib/profile-image";
 import {
@@ -48,11 +45,10 @@ export function TemplateCard({
         {/* Cover Image or Category Placeholder */}
         <div className="relative h-36 w-full bg-muted/60 overflow-hidden flex items-center justify-center">
           {template.coverImageUrl ? (
-            <Image
+            <img
               src={`/api/brief-templates/file?url=${encodeURIComponent(template.coverImageUrl)}`}
               alt={template.title}
-              fill
-              className="object-cover"
+              className="size-full object-cover"
             />
           ) : (
             <div className="flex flex-col items-center justify-center gap-1.5 text-muted-foreground/70">
@@ -152,12 +148,10 @@ export function TemplateCard({
             );
             return avatarUrl ? (
               <div className="relative size-6 rounded-full overflow-hidden border">
-                <Image
+                <img
                   src={avatarUrl}
                   alt={template.createdBy.name ?? "Creator"}
-                  fill
-                  unoptimized
-                  className="object-cover"
+                  className="size-full object-cover"
                 />
               </div>
             ) : (

@@ -1,7 +1,20 @@
-import "server-only";
 
+import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+
+// Suppress known benign internal driver deprecation warning from pg/adapter-pg
+// pending upstream Prisma update (pg deprecation notice for concurrent query queue)
+if (typeof process !== "undefined" && typeof process.emitWarning === "function") {
+  const originalEmitWarning = process.emitWarning;
+  process.emitWarning = function (warning: string | Error, ...args: unknown[]) {
+    const msg = typeof warning === "string" ? warning : warning?.message;
+    if (typeof msg === "string" && msg.includes("already executing a query is deprecated")) {
+      return;
+    }
+    return Reflect.apply(originalEmitWarning, this, [warning, ...args]);
+  };
+}
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -11,10 +24,19 @@ if (!connectionString) {
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
+  pool?: Pool;
 };
 
+const pool =
+  globalForPrisma.pool ??
+  new Pool({
+    connectionString,
+    max: 20,
+    idleTimeoutMillis: 30000,
+  });
+
 function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
 
@@ -88,4 +110,5 @@ export const prisma = hasCurrentSchemaDelegates ? cachedPrisma! : createPrismaCl
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+  globalForPrisma.pool = pool;
 }

@@ -1,9 +1,6 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { Link, useRouter } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
-import { useRouter } from "next/navigation";
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import { createClientFeedback } from "@/app/actions/feedback";
@@ -283,7 +280,6 @@ function RenderMessageBody({ message }: { message: UIMessage }) {
                   aria-label={`Preview ${att.name || "attached image"}`}
                   className="group relative max-h-40 max-w-56 overflow-hidden rounded-lg border border-border/60 bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={att.url}
                     alt={att.name || "Attached image"}
@@ -338,7 +334,6 @@ function RenderMessageBody({ message }: { message: UIMessage }) {
         <DialogTitle className="sr-only">{previewImage?.name || "Image preview"}</DialogTitle>
         <DialogDescription className="sr-only">Full size preview of the image attached to this message.</DialogDescription>
         {previewImage && (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={previewImage.url} alt={previewImage.name} className="max-h-[80vh] max-w-full rounded-md object-contain" />
         )}
       </DialogContent>
@@ -608,7 +603,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
 
   const handleOpenClientFeedbackDraft = (draft: ClientFeedbackDraft) => {
     setClientFeedbackDraft(draft);
-    router.push("/client/project-feedback?newFeedback=1");
+    router.navigate({ href: "/client/project-feedback?newFeedback=1" });
   };
 
   const handleSubmitClientReviewDraft = async (proposalId: string, draft: ClientFeedbackDraft) => {
@@ -639,7 +634,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
           message: result.success ?? "Review submitted successfully.",
         },
       }));
-      router.refresh();
+      router.invalidate();
     } catch (submitError) {
       setProposalStatus((prev) => ({
         ...prev,
@@ -667,7 +662,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
       const result: WorkRequestActionState = await createWorkRequest({}, formData);
       if (result.error) throw new Error(result.error);
       setProposalStatus((previous) => ({ ...previous, [proposalId]: { state: "success", message: result.success ?? "Request submitted." } }));
-      router.refresh();
+      router.invalidate();
     } catch (submitError) {
       setProposalStatus((previous) => ({ ...previous, [proposalId]: { state: "error", message: submitError instanceof Error ? submitError.message : "Could not submit the request. Please try again." } }));
     }
@@ -712,9 +707,9 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
         },
       }));
       if (proposalType === "CREATE_PROJECT" || proposalType === "CREATE_TASK_BATCH" || proposalType === "CREATE_DAILY_ENTRY" || proposalType === "INVENTORY_ACTION") {
-        router.refresh();
+        router.invalidate();
       }
-      if (proposalType === "CREATE_INVITATION") router.refresh();
+      if (proposalType === "CREATE_INVITATION") router.invalidate();
     } catch (confirmationError) {
       setProposalStatus((prev) => ({
         ...prev,
@@ -979,7 +974,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                         {(res.message as string) || "Navigation Target Ready"}
                                       </span>
                                       <Link
-                                        href={res.href}
+                                        to={res.href as any}
                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors shadow-xs"
                                       >
                                         <span>Jump</span>
@@ -1426,7 +1421,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                     {(res.message as string) || "Navigate"}
                                   </span>
                                   <Link
-                                    href={res.href}
+                                    to={res.href as any}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground font-semibold text-[11px] hover:bg-primary/90 transition-colors shadow-xs shrink-0"
                                   >
                                     <span>Jump</span>

@@ -1,4 +1,3 @@
-import { NextRequest, connection } from "next/server";
 import { auth } from "@/auth";
 import {
   getLatestNotificationStreamCursor,
@@ -9,8 +8,7 @@ import {
 
 export const maxDuration = 240;
 
-export async function GET(req: NextRequest) {
-  await connection();
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 });

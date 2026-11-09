@@ -1,6 +1,3 @@
-import "server-only";
-
-import { revalidatePath } from "next/cache";
 import { TaskPriority, TaskType, UserRole, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { idSchema } from "@/lib/validation/common";
@@ -141,7 +138,5 @@ export async function createDailyEntryForWorker(userId: string, rawInput: DailyE
     select: { id: true },
   });
 
-  revalidatePath("/worker/tasks");
-  revalidatePath("/manager/tasks");
   return { message: `Daily work logged for ${eligible.name}.`, taskId: task.id };
 }

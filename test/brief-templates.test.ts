@@ -202,7 +202,6 @@ describe("Slice 14: Explore Briefs & Template Library", () => {
           }),
         })
       );
-      expect(mocks.revalidatePath).toHaveBeenCalled();
     });
 
     it("updates existing template and handles soft archival", async () => {

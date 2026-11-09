@@ -227,7 +227,6 @@ describe("Slice 13: Creative Brief Review & Worker Sign-off", () => {
         where: { projectId: "proj-1", isPrimary: true },
         data: { isPrimary: false },
       });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/brief-review");
     });
 
     it("does not allow a manager to create a brief under another manager's project", async () => {

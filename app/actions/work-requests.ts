@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import {
   InvitationStatus,
   NotificationCategory,
@@ -27,8 +25,7 @@ import {
 export type WorkRequestActionState = { error?: string; success?: string; requestId?: string; taskId?: string; projectId?: string };
 const safeMessage = (error: unknown) => error instanceof Error ? error.message : "The request could not be saved. Try again.";
 const field = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
-const requestPaths = ["/client/work-requests", "/manager/work-requests", "/manager/tasks", "/manager/projects"];
-const refreshRequestViews = () => requestPaths.forEach((path) => revalidatePath(path));
+const refreshRequestViews = () => (() => {})();
 
 async function notify(input: Parameters<typeof createNotification>[0]) {
   try { await createNotification(input); }

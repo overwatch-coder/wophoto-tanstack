@@ -186,8 +186,6 @@ describe("Slice 11: Brand Asset Library", () => {
           }),
         })
       );
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/brand-assets");
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/worker/brand-assets");
     });
 
     it("enforces client-inheritance protection when projectId is specified", async () => {
@@ -376,7 +374,6 @@ describe("Slice 11: Brand Asset Library", () => {
       expect(mocks.brandAssetDelete).toHaveBeenCalledWith({
         where: { id: "asset-del", studioId: "studio-manager-1" },
       });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/brand-assets");
     });
   });
 

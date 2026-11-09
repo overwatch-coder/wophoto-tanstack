@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
 import {
   Check,
   CheckCheck,
@@ -59,6 +57,13 @@ export function NotificationsWorkspace({
   const [nextCursor, setNextCursor] = useState(initialCursor);
   const [counts, setCounts] = useState(initialCounts);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNotifications(initialNotifications);
+    setCounts(initialCounts);
+    setHasMore(initialHasMore);
+    setNextCursor(initialCursor);
+  }, [initialNotifications, initialCounts, initialHasMore, initialCursor]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentTime] = useState(() => Date.now());
   const [, startTransition] = useTransition();
@@ -603,7 +608,7 @@ export function NotificationsWorkspace({
           )}
           {item.link ? (
             <Link
-              href={item.link}
+              to={item.link as any}
               onClick={() => handleMarkItemRead(item.id)}
               className="inline-flex items-center gap-1 rounded-full text-xs h-7 px-3 bg-card border hover:bg-muted text-foreground font-medium transition-colors cursor-pointer"
             >

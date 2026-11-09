@@ -1,4 +1,3 @@
-"use client";
 
 import { useRef, useState, type ChangeEvent, type DragEvent, type RefObject } from "react";
 import { FileUp } from "lucide-react";

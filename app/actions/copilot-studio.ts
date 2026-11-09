@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 
 import { requireStudioOwner } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
@@ -76,9 +74,6 @@ export async function updateCopilotStudioPolicyAction(input: unknown) {
         });
       }
     });
-
-    revalidatePath("/settings");
-    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Copilot access settings could not be saved." };

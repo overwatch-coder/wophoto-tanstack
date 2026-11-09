@@ -1,4 +1,3 @@
-"use client";
 
 import { HeaderNotificationBell } from "@/components/workspace/header-notification-bell";
 import { useWorkspacePreferences } from "@/components/workspace/workspace-preferences-context";

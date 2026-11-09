@@ -1,6 +1,5 @@
-"use client"
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react"
 import {
   CalendarClockIcon,
   FolderKanbanIcon,
@@ -358,6 +357,10 @@ function KanbanBoardState({
   const [columns, setColumns] = useState(() =>
     getTaskColumns(tasks, statuses, role)
   )
+
+  useEffect(() => {
+    setColumns(getTaskColumns(tasks, statuses, role))
+  }, [tasks, statuses, role])
 
   function handleMove({
     activeContainer,

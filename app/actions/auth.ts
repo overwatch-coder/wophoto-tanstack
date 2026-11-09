@@ -1,6 +1,4 @@
-"use server";
-
-import { cookies } from "next/headers";
+import { deleteCookie } from "@tanstack/react-start/server";
 import { signIn, signOut } from "@/auth";
 
 export async function signInWithGoogle() {
@@ -11,7 +9,10 @@ export async function signInWithGoogle() {
 }
 
 export async function signOutUser() {
-  const cookieStore = await cookies();
-  cookieStore.delete("sidebar_state");
+  try {
+    deleteCookie("sidebar_state");
+  } catch {
+    // outside server context
+  }
   await signOut({ redirectTo: "/login" });
 }

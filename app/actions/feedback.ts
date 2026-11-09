@@ -1,6 +1,4 @@
-"use server"
 
-import { revalidatePath } from "next/cache"
 import {
   FeedbackStatus,
   FeedbackType,
@@ -121,10 +119,6 @@ export async function createClientFeedback(
       }
     }
 
-    revalidatePath("/client/project-feedback")
-    revalidatePath("/manager/reviews")
-    revalidatePath("/client")
-
     return {
       success:
         type === FeedbackType.REVIEW
@@ -217,13 +211,6 @@ export async function resolveFeedback(
         console.warn("[feedback] Failed to dispatch resolution notification:", notifErr)
       }
     }
-
-    revalidatePath("/manager/reviews")
-    revalidatePath("/client/project-feedback")
-    revalidatePath("/worker/reviews")
-    revalidatePath("/worker/tasks")
-    revalidatePath("/manager/tasks")
-    revalidatePath("/client")
 
     return {
       success: "Resolution note recorded and ticket marked as resolved.",
@@ -365,12 +352,6 @@ export async function delegateFeedbackToWorker(
       console.warn("[feedback] Failed to dispatch delegation notification:", notifErr)
     }
 
-    revalidatePath("/manager/reviews")
-    revalidatePath("/client/project-feedback")
-    revalidatePath("/worker/reviews")
-    revalidatePath("/worker/tasks")
-    revalidatePath("/manager/tasks")
-
     return {
       success: `Revision delegated to ${worker.name || "worker"}.`,
     }
@@ -467,12 +448,6 @@ export async function submitWorkerRevision(
       }
     }
 
-    revalidatePath("/worker/reviews")
-    revalidatePath("/manager/reviews")
-    revalidatePath("/client/project-feedback")
-    revalidatePath("/worker/tasks")
-    revalidatePath("/manager/tasks")
-
     return {
       success: "Revisions submitted to manager for review.",
     }
@@ -566,9 +541,6 @@ export async function updateClientFeedback(
         console.warn("[feedback] Failed to dispatch notification:", notifErr)
       }
     }
-
-    revalidatePath("/client/project-feedback")
-    revalidatePath("/client")
     return {
       success: type === FeedbackType.REVIEW
         ? "Review updated."
@@ -602,9 +574,6 @@ export async function deleteClientFeedback(
     }
 
     await prisma.clientFeedback.delete({ where: { id: feedback.id } })
-    revalidatePath("/client/project-feedback")
-    revalidatePath("/client")
-    revalidatePath("/manager/reviews")
     return { success: "Feedback request deleted." }
   } catch (error) {
     return {

@@ -1,6 +1,3 @@
-"use client";
-
-import Image from "next/image";
 import { useActionState, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { useTheme } from "next-themes";
 import {
@@ -92,6 +89,12 @@ export function ProfileSettings({
   const [locationDraft, setLocationDraft] = useState(initialPreferences.location);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [endpointDraft, setEndpointDraft] = useState(initialPreferences.aiPreferences?.aiCustomEndpoint || "");
+
+  useEffect(() => {
+    setPreferences(initialPreferences);
+    setLocationDraft(initialPreferences.location);
+    setEndpointDraft(initialPreferences.aiPreferences?.aiCustomEndpoint || "");
+  }, [initialPreferences]);
   const [saving, startSaveTransition] = useTransition();
   const selectedAIProvider = preferences.aiPreferences?.aiProvider ?? "OPENAI";
   const selectedAIModel = preferences.aiPreferences?.aiModel ?? DEFAULT_AI_MODELS[selectedAIProvider];
@@ -1350,13 +1353,10 @@ function ProfilePhoto({
       style={{ width: size, height: size }}
     >
       {imgSrc ? (
-        <Image
+        <img
           src={imgSrc}
           alt={name || "User avatar"}
-          fill
-          unoptimized
-          sizes={`${size}px`}
-          className="object-cover"
+          className="size-full object-cover"
         />
       ) : (
         initials

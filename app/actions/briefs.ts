@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { del } from "@vercel/blob";
 import {
   Prisma,
@@ -37,16 +35,8 @@ export type BriefActionState = {
   questionId?: string;
 };
 
-const BRIEF_PATHS = [
-  "/manager/brief-review",
-  "/worker/brief-review",
-  "/client/brief-review",
-];
-
 function revalidateBriefs() {
-  for (const path of BRIEF_PATHS) {
-    revalidatePath(path);
-  }
+  // TanStack Router invalidates route queries on navigation/mutation
 }
 
 function isManagedBriefFile(fileUrl?: string | null, fileKey?: string | null) {
@@ -65,7 +55,7 @@ export async function createCreativeBrief(
   rawInput: unknown
 ): Promise<BriefActionState> {
   try {
-    const { manager, context } = await requireStudioManagerArea(StudioArea.BRIEFS);
+    const { manager } = await requireStudioManagerArea(StudioArea.BRIEFS);
 
     const parsed = createCreativeBriefSchema.safeParse(rawInput);
     if (!parsed.success) {

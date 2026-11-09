@@ -1,9 +1,6 @@
-"use client";
-
 import { useState, useTransition, useMemo, useEffect, useCallback } from "react";
 import { useDebounce } from "@uidotdev/usehooks";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import Image from "next/image";
+import { useRouter, useLocation } from "@tanstack/react-router";
 import { BrandAssetType } from "@/generated/prisma/browser";
 import {
   formatBrandAssetType,
@@ -146,11 +143,16 @@ export function BrandAssetWorkspace({
   canManage = false,
 }: BrandAssetWorkspaceProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const location = useLocation();
+  const pathname = location.pathname;
+  const searchParams = useMemo(() => new URLSearchParams(location.searchStr), [location.searchStr]);
   const [isPending, startTransition] = useTransition();
   const [results, setResults] = useState({ assets: initialAssets, pagination, stats });
   const [filterError, setFilterError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setResults({ assets: initialAssets, pagination, stats });
+  }, [initialAssets, pagination, stats]);
 
   const currentTab = searchParams.get("type") || "ALL";
   const currentScope = searchParams.get("scope") || "ALL";
@@ -171,7 +173,7 @@ export function BrandAssetWorkspace({
     const params = new URLSearchParams(searchParams.toString());
     params.delete("clientId");
     params.delete("projectId");
-    router.replace(params.size ? `${pathname}?${params.toString()}` : pathname);
+    router.navigate({ href: params.size ? `${pathname}?${params.toString()}` : pathname, replace: true });
   }, [pathname, router, searchParams]);
 
   const loadResults = useCallback((
@@ -199,11 +201,12 @@ export function BrandAssetWorkspace({
           const normalizedParams = new URLSearchParams(params);
           if (next.pagination.page === 1) normalizedParams.delete("page");
           else normalizedParams.set("page", String(next.pagination.page));
-          router.replace(
-            normalizedParams.size
+          router.navigate({
+            href: normalizedParams.size
               ? `${pathname}?${normalizedParams.toString()}`
               : pathname,
-          );
+            replace: true,
+          });
         }
       } catch {
         setFilterError("Filters could not be applied. Please try again.");
@@ -223,10 +226,9 @@ export function BrandAssetWorkspace({
     else params.delete("search");
 
     startTransition(() => {
-      router.replace(params.size ? `${pathname}?${params.toString()}` : pathname);
+      router.navigate({ href: params.size ? `${pathname}?${params.toString()}` : pathname, replace: true });
     });
     // This effect synchronizes the debounced search with the server query.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadResults(params);
   }, [currentSearch, debouncedSearch, loadResults, pathname, router, searchParams]);
 
@@ -259,7 +261,7 @@ export function BrandAssetWorkspace({
     }
 
     startTransition(() => {
-      router.push(params.size ? `${pathname}?${params.toString()}` : pathname);
+      router.navigate({ href: params.size ? `${pathname}?${params.toString()}` : pathname });
     });
     loadResults(params);
   };
@@ -273,7 +275,7 @@ export function BrandAssetWorkspace({
     params.delete("clientId");
     params.delete("projectId");
     params.delete("page");
-    startTransition(() => router.push(`${pathname}?${params.toString()}`));
+    startTransition(() => router.navigate({ href: `${pathname}?${params.toString()}` }));
     loadResults(params, clientId);
   };
 
@@ -286,7 +288,7 @@ export function BrandAssetWorkspace({
     params.delete("clientId");
     params.delete("projectId");
     params.delete("page");
-    startTransition(() => router.push(`${pathname}?${params.toString()}`));
+    startTransition(() => router.navigate({ href: `${pathname}?${params.toString()}` }));
     loadResults(params, currentClient, projectId);
   };
 
@@ -333,7 +335,7 @@ export function BrandAssetWorkspace({
   };
 
   const refreshAssets = () => {
-    router.refresh();
+    router.invalidate();
     loadResults(new URLSearchParams(searchParams.toString()));
   };
 
@@ -479,7 +481,7 @@ export function BrandAssetWorkspace({
             const params = new URLSearchParams(searchParams.toString());
             params.set("scope", val);
             params.delete("page");
-            startTransition(() => router.push(`${pathname}?${params.toString()}`));
+            startTransition(() => router.navigate({ href: `${pathname}?${params.toString()}` }));
             loadResults(params, nextClient, nextProject);
           }}
         >
@@ -585,7 +587,7 @@ export function BrandAssetWorkspace({
                 setCurrentClient("ALL");
                 setCurrentProject("ALL");
                 const params = new URLSearchParams();
-                startTransition(() => router.push(pathname));
+                startTransition(() => router.navigate({ href: pathname }));
                 loadResults(params, "ALL", "ALL");
               }}
               className="mt-4"
@@ -749,12 +751,10 @@ export function BrandAssetWorkspace({
                       </div>
                     ) : isImage && asset.fileUrl ? (
                       <div className="relative w-full h-full p-4 flex items-center justify-center">
-                        <Image
+                        <img
                           src={`/api/brand-assets/${asset.id}/file`}
                           alt={asset.title}
-                          fill
-                          className="object-contain p-4 transition-transform group-hover:scale-105"
-                          unoptimized
+                          className="size-full object-contain p-4 transition-transform group-hover:scale-105"
                         />
                       </div>
                     ) : safeExternalUrl ? (
@@ -996,7 +996,7 @@ export function BrandAssetWorkspace({
                   />
                 ) : previewAsset.fileUrl && (/^image\/(png|jpeg|webp|svg\+xml)$/.test(previewAsset.fileMime || "") || /\.(svg|png|jpe?g|webp)$/i.test(previewAsset.fileName || "")) ? (
                   <div className="relative flex h-[min(65dvh,44rem)] min-h-64 w-full items-center justify-center overflow-hidden rounded-lg border bg-muted/20">
-                    <Image src={`/api/brand-assets/${previewAsset.id}/file`} alt={previewAsset.title} fill unoptimized className="object-contain p-2" />
+                    <img src={`/api/brand-assets/${previewAsset.id}/file`} alt={previewAsset.title} className="size-full object-contain p-2" />
                   </div>
                 ) : safePreviewUrl ? (
                   <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg border bg-muted/20 p-6 text-center">

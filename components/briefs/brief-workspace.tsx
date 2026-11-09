@@ -1,9 +1,6 @@
-"use client"
-
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useDebounce } from "@uidotdev/usehooks"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import Image from "next/image"
+import { useRouter, useLocation } from "@tanstack/react-router"
 import {
   BriefStatus,
   SignOffStatus,
@@ -206,8 +203,9 @@ export function BriefWorkspace({
   pageSize,
 }: BriefWorkspaceProps) {
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const location = useLocation()
+  const pathname = location.pathname
+  const searchParams = useMemo(() => new URLSearchParams(location.searchStr), [location.searchStr])
   const [isFilterPending, startTransition] = useTransition()
 
   const isManager = role === UserRole.MANAGER
@@ -276,7 +274,7 @@ export function BriefWorkspace({
       lastAppliedSearch.current = updates.search?.trim() || ""
     }
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`)
+      router.navigate({ href: `${pathname}?${params.toString()}` })
     })
   }
 
@@ -293,9 +291,10 @@ export function BriefWorkspace({
     else params.delete("search")
     lastAppliedSearch.current = search
     startTransition(() => {
-      router.replace(
-        params.size ? `${pathname}?${params.toString()}` : pathname
-      )
+      router.navigate({
+        href: params.size ? `${pathname}?${params.toString()}` : pathname,
+        replace: true,
+      })
     })
   }, [
     currentSearch,
@@ -316,14 +315,14 @@ export function BriefWorkspace({
     setActionLoadingId(`publish-${briefId}`)
     await publishCreativeBrief(briefId)
     setActionLoadingId(null)
-    router.refresh()
+    router.invalidate()
   }
 
   const handleStatusChange = async (briefId: string, status: BriefStatus) => {
     setActionLoadingId(`status-${briefId}`)
     await setBriefStatus({ id: briefId, status })
     setActionLoadingId(null)
-    router.refresh()
+    router.invalidate()
   }
 
   const handleWaive = async (briefId: string, userId: string) => {
@@ -335,7 +334,7 @@ export function BriefWorkspace({
     setActionLoadingId(`waive-${briefId}-${userId}`)
     await waiveBriefSignOff({ briefId, userId, reason: reason.trim() })
     setActionLoadingId(null)
-    router.refresh()
+    router.invalidate()
   }
 
   const handleAddReviewer = async (briefId: string) => {
@@ -346,7 +345,7 @@ export function BriefWorkspace({
     setActionLoadingId(null)
     setSelectedWorkerId("")
     setAddingReviewerBriefId(null)
-    router.refresh()
+    router.invalidate()
   }
 
   const handleRemoveReviewer = async (briefId: string, userId: string) => {
@@ -355,7 +354,7 @@ export function BriefWorkspace({
     setActionLoadingId(`remove-rev-${briefId}-${userId}`)
     await removeBriefReviewer({ briefId, userId })
     setActionLoadingId(null)
-    router.refresh()
+    router.invalidate()
   }
 
   const handleToggleShot = async (
@@ -366,7 +365,7 @@ export function BriefWorkspace({
     setActionLoadingId(`shot-${shotId}`)
     await updateShotItemStatus({ briefId, shotId, status: nextStatus })
     setActionLoadingId(null)
-    router.refresh()
+    router.invalidate()
   }
 
   const handleOpenEdit = (brief: SerializedCreativeBrief) => {
@@ -414,7 +413,7 @@ export function BriefWorkspace({
     setDeleteTarget(null)
     setSelectedBrief(null)
     setDialogOpen(false)
-    router.refresh()
+    router.invalidate()
   }
 
   const handleOpenSignOff = (brief: SerializedCreativeBrief) => {
@@ -1177,12 +1176,10 @@ export function BriefWorkspace({
                                   <div className="flex items-center gap-3">
                                     <div className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border bg-muted text-xs font-semibold">
                                       {avatar ? (
-                                        <Image
+                                        <img
                                           src={avatar}
                                           alt={signOff.user.name || "User"}
-                                          fill
-                                          className="object-cover"
-                                          unoptimized
+                                          className="size-full object-cover"
                                         />
                                       ) : (
                                         signOff.user.name?.charAt(0) || "W"
@@ -1286,7 +1283,7 @@ export function BriefWorkspace({
                           currentUserId={currentUserId}
                           isManager={isManager}
                           questions={brief.questions || []}
-                          onRefresh={() => router.refresh()}
+                          onRefresh={() => router.invalidate()}
                         />
                       </div>
                     )}
@@ -1374,7 +1371,7 @@ export function BriefWorkspace({
         projects={projects}
         onDeleteRequest={requestDeleteBrief}
         onSuccess={() => {
-          router.refresh()
+          router.invalidate()
         }}
       />
 
@@ -1428,7 +1425,7 @@ export function BriefWorkspace({
         onOpenChange={setSignOffDialogOpen}
         brief={signOffTargetBrief}
         onSuccess={() => {
-          router.refresh()
+          router.invalidate()
         }}
       />
     </div>

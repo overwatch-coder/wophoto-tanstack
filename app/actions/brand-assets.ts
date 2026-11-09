@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { del } from "@vercel/blob";
 import { Prisma, UserRole } from "@/generated/prisma/client";
 import { requireStudioManagerArea } from "@/lib/studio-access";
@@ -34,15 +32,8 @@ export type BrandAssetActionState = {
   assetIds?: string[];
 };
 
-const BRAND_ASSET_PATHS = [
-  "/manager/brand-assets",
-  "/worker/brand-assets",
-];
-
 function revalidateBrandAssets() {
-  for (const path of BRAND_ASSET_PATHS) {
-    revalidatePath(path);
-  }
+  // TanStack Router invalidates route queries on navigation/mutation
 }
 
 function isManagedBrandAssetFile(fileUrl: string | null | undefined, fileKey: string | null | undefined) {

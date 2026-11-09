@@ -1,7 +1,13 @@
-import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
+import { Auth, skipCSRFCheck } from "@auth/core";
+import Google from "@auth/core/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import type { Adapter } from "next-auth/adapters";
+import type { Adapter } from "@auth/core/adapters";
+import type { AuthConfig, Session } from "@auth/core/types";
+import {
+  getCookie,
+  deleteCookie,
+  getRequestHeader,
+} from "@tanstack/react-start/server";
 
 import { prisma } from "@/lib/prisma";
 import { InvitationStatus, UserRole, UserStatus } from "@/generated/prisma/client";
@@ -11,12 +17,15 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-const prismaAdapter = PrismaAdapter(prisma);
+const prismaAdapter = PrismaAdapter(prisma) as Adapter;
 
 const inviteOnlyAdapter: Adapter = {
   ...prismaAdapter,
   async linkAccount(account) {
-    const owner = await prisma.user.findUnique({ where: { id: account.userId }, select: { email: true } });
+    const owner = await prisma.user.findUnique({
+      where: { id: account.userId },
+      select: { email: true },
+    });
     if (!owner) throw new Error("The WoPhoto account was not found.");
     assertGoogleAccountOwner(account, owner.email);
     await prismaAdapter.linkAccount!(account);
@@ -47,7 +56,9 @@ const inviteOnlyAdapter: Adapter = {
       const userRecord = await transaction.user.create({
         data: {
           id: user.id,
-          name: user.name ? user.name.replace(/\s*\([^)]*\)/g, "").trim() || user.name : null,
+          name: user.name
+            ? user.name.replace(/\s*\([^)]*\)/g, "").trim() || user.name
+            : null,
           email,
           emailVerified: user.emailVerified,
           image: user.image,
@@ -61,16 +72,24 @@ const inviteOnlyAdapter: Adapter = {
         data: { status: InvitationStatus.USED, usedAt: now, tokenEncrypted: null },
       });
 
-      if (invitation.role === UserRole.SUPERVISOR || invitation.role === UserRole.COLLABORATOR) {
+      if (
+        invitation.role === UserRole.SUPERVISOR ||
+        invitation.role === UserRole.COLLABORATOR
+      ) {
         await transaction.studioMember.create({
           data: {
             studioId: invitation.studioId,
             userId: userRecord.id,
             invitationId: invitation.id,
             addedById: invitation.invitedById,
-            permissions: invitation.role === UserRole.COLLABORATOR
-              ? { create: invitation.permissions.map(({ area, accessLevel }) => ({ area, accessLevel })) }
-              : undefined,
+            permissions:
+              invitation.role === UserRole.COLLABORATOR
+                ? {
+                    create: invitation.permissions.map(
+                      ({ area, accessLevel }) => ({ area, accessLevel })
+                    ),
+                  }
+                : undefined,
           },
         });
       }
@@ -80,10 +99,13 @@ const inviteOnlyAdapter: Adapter = {
   },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authConfig: AuthConfig = {
   adapter: inviteOnlyAdapter,
   providers: [
     Google({
+      clientId: process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID,
+      clientSecret:
+        process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
       authorization: {
         params: {
           prompt: "select_account",
@@ -96,6 +118,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
     error: "/login",
   },
+  basePath: "/api/auth",
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  trustHost: true,
+  skipCSRFCheck,
   callbacks: {
     async signIn({ account, profile, user }) {
       if (
@@ -110,7 +136,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const email = normalizeEmail(profile.email);
       // A previously linked Google subject must never authenticate as a different
       // WoPhoto user just because the adapter returned that user's email.
-      if (normalizeEmail(user.email) !== email) return "/login?error=AccountMismatch";
+      if (normalizeEmail(user.email) !== email)
+        return "/login?error=AccountMismatch";
 
       const existingUser = await prisma.user.findUnique({
         where: { email },
@@ -118,11 +145,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       });
 
       if (existingUser) {
-        if (existingUser.role === UserRole.SUPERVISOR || existingUser.role === UserRole.COLLABORATOR) {
-          const activeMembership = await prisma.studioMember.findFirst({ where: { userId: existingUser.id, revokedAt: null }, select: { id: true } });
+        if (
+          existingUser.role === UserRole.SUPERVISOR ||
+          existingUser.role === UserRole.COLLABORATOR
+        ) {
+          const activeMembership = await prisma.studioMember.findFirst({
+            where: { userId: existingUser.id, revokedAt: null },
+            select: { id: true },
+          });
           if (!activeMembership) return "/login?error=StudioAccessRevoked";
         }
-        return existingUser.status === UserStatus.ACTIVE ? true : "/login?error=AccountSuspended";
+        return existingUser.status === UserStatus.ACTIVE
+          ? true
+          : "/login?error=AccountSuspended";
       }
 
       const acceptedInvitation = await prisma.invitation.findFirst({
@@ -146,4 +181,141 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-});
+};
+
+export const handlers = {
+  GET: (request: Request) => Auth(request, authConfig),
+  POST: (request: Request) => Auth(request, authConfig),
+};
+
+export async function auth(req?: Request): Promise<Session | null> {
+  let sessionToken: string | undefined;
+
+  if (req) {
+    const cookieHeader = req.headers.get("cookie");
+    if (cookieHeader) {
+      const match = cookieHeader.match(
+        /(?:^|;\s*)(?:__Secure-)?authjs\.session-token=([^;]+)/
+      );
+      if (match) sessionToken = decodeURIComponent(match[1]);
+    }
+  }
+
+  if (!sessionToken) {
+    try {
+      sessionToken =
+        getCookie("authjs.session-token") ??
+        getCookie("__Secure-authjs.session-token");
+    } catch {
+      // outside server context
+    }
+  }
+
+  if (!sessionToken) return null;
+
+  try {
+    const session = await prisma.session.findUnique({
+      where: { sessionToken },
+      include: { user: true },
+    });
+
+    if (
+      !session ||
+      session.expires < new Date() ||
+      session.user.status !== UserStatus.ACTIVE
+    ) {
+      return null;
+    }
+
+    return {
+      user: {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image,
+        role: session.user.role,
+      },
+      expires: session.expires.toISOString(),
+    };
+  } catch (error) {
+    console.error("Failed to resolve session:", error);
+    return null;
+  }
+}
+
+export async function signIn(
+  provider = "google",
+  options?: { redirectTo?: string; redirect?: boolean }
+) {
+  const host =
+    getRequestHeader("x-forwarded-host") ||
+    getRequestHeader("host") ||
+    (process.env.APP_URL ? new URL(process.env.APP_URL).host : "localhost:3000");
+  const proto =
+    getRequestHeader("x-forwarded-proto") ||
+    (process.env.APP_URL ? new URL(process.env.APP_URL).protocol.replace(":", "") : "http");
+  const origin = `${proto}://${host}`;
+  const redirectTo = options?.redirectTo ?? "/";
+
+  const req = new Request(`${origin}/api/auth/signin/${provider}`, {
+    method: "POST",
+    headers: {
+      host,
+      "x-forwarded-host": host,
+      "x-forwarded-proto": proto,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: `redirectTo=${encodeURIComponent(redirectTo)}`,
+  });
+
+  const res = await Auth(req, { ...authConfig, skipCSRFCheck });
+  if (options?.redirect === false) {
+    return res;
+  }
+  throw res;
+}
+
+export async function signOut(options?: {
+  redirectTo?: string;
+  redirect?: boolean;
+}) {
+  const host =
+    getRequestHeader("x-forwarded-host") ||
+    getRequestHeader("host") ||
+    (process.env.APP_URL ? new URL(process.env.APP_URL).host : "localhost:3000");
+  const proto =
+    getRequestHeader("x-forwarded-proto") ||
+    (process.env.APP_URL ? new URL(process.env.APP_URL).protocol.replace(":", "") : "http");
+  const origin = `${proto}://${host}`;
+  const redirectTo = options?.redirectTo ?? "/login";
+
+  try {
+    const token =
+      getCookie("authjs.session-token") ??
+      getCookie("__Secure-authjs.session-token");
+    if (token) {
+      await prisma.session.deleteMany({ where: { sessionToken: token } });
+    }
+    deleteCookie("authjs.session-token");
+    deleteCookie("__Secure-authjs.session-token");
+  } catch {
+    // outside server context
+  }
+
+  const req = new Request(`${origin}/api/auth/signout`, {
+    method: "POST",
+    headers: {
+      host,
+      "x-forwarded-host": host,
+      "x-forwarded-proto": proto,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: `redirectTo=${encodeURIComponent(redirectTo)}`,
+  });
+
+  const res = await Auth(req, { ...authConfig, skipCSRFCheck });
+  if (options?.redirect === false) {
+    return res;
+  }
+  throw res;
+}

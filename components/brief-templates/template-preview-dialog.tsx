@@ -1,6 +1,3 @@
-"use client";
-
-import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -72,11 +69,10 @@ export function TemplatePreviewDialog({
           {/* Cover Image banner if present */}
           {template.coverImageUrl && (
             <div className="relative h-48 w-full rounded-lg overflow-hidden border">
-              <Image
+              <img
                 src={`/api/brief-templates/file?url=${encodeURIComponent(template.coverImageUrl)}`}
                 alt={template.title}
-                fill
-                className="object-cover"
+                className="size-full object-cover"
               />
             </div>
           )}

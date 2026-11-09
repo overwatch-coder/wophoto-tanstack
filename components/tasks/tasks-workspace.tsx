@@ -1,8 +1,5 @@
-"use client"
-
 import { useCallback, useEffect, useRef, useState, useTransition } from "react"
-import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@tanstack/react-router"
 import {
   CalendarDays,
   Check,
@@ -217,10 +214,10 @@ export function TasksWorkspace({
     if (serviceId !== "ALL") params.set("serviceId", serviceId)
     if (currentQuery.trim()) params.set("q", currentQuery.trim())
     const query = params.toString()
-    router.replace(
-      query ? `${window.location.pathname}?${query}` : window.location.pathname,
-      { scroll: false }
-    )
+    router.navigate({
+      href: query ? `${window.location.pathname}?${query}` : window.location.pathname,
+      replace: true,
+    })
   }, [
     boardTasks,
     currentQuery,
@@ -249,11 +246,7 @@ export function TasksWorkspace({
       const url = params.size
         ? `?${params.toString()}`
         : window.location.pathname
-      if (replace) {
-        router.replace(url, { scroll: false })
-      } else {
-        router.push(url)
-      }
+      router.navigate({ href: url, replace })
     },
     [router]
   )
@@ -277,7 +270,7 @@ export function TasksWorkspace({
 
   function resetAllFilters() {
     setSearchQuery("")
-    router.push(window.location.pathname)
+    router.navigate({ href: window.location.pathname })
   }
 
   const isFiltered =
@@ -769,13 +762,11 @@ function CreateTaskDialog({
                               className={`flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${colorClass}`}
                             >
                               {avatarSrc ? (
-                                <Image
+                                <img
                                   src={avatarSrc}
                                   alt=""
                                   width={24}
                                   height={24}
-                                  sizes="24px"
-                                  unoptimized
                                   className="size-full rounded-full object-cover"
                                 />
                               ) : (
@@ -1018,13 +1009,11 @@ function ViewTaskDialog({
                           className={`flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${colorClass}`}
                         >
                           {avatarSrc ? (
-                            <Image
+                            <img
                               src={avatarSrc}
                               alt={displayName}
                               width={28}
                               height={28}
-                              sizes="28px"
-                              unoptimized
                               className="size-full rounded-full object-cover"
                             />
                           ) : (
@@ -1121,13 +1110,11 @@ function AssigneeAvatars({
             className={`flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ${colorClass}`}
           >
             {avatarSrc ? (
-              <Image
+              <img
                 src={avatarSrc}
                 alt={displayName}
                 width={28}
                 height={28}
-                sizes="28px"
-                unoptimized
                 className="size-full rounded-full object-cover"
               />
             ) : (
@@ -1171,13 +1158,11 @@ function AssigneeAvatars({
                 className={`relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ring-2 ring-card ${colorClass}`}
               >
                 {avatarSrc ? (
-                  <Image
+                  <img
                     src={avatarSrc}
                     alt={displayName}
                     width={28}
                     height={28}
-                    sizes="28px"
-                    unoptimized
                     className="size-full rounded-full object-cover"
                   />
                 ) : (
@@ -1763,13 +1748,11 @@ function EditTaskDialog({
                           className={`flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ${colorClass}`}
                         >
                           {avatarSrc ? (
-                            <Image
+                            <img
                               src={avatarSrc}
                               alt=""
                               width={28}
                               height={28}
-                              sizes="28px"
-                              unoptimized
                               className="size-full rounded-full object-cover"
                             />
                           ) : (
@@ -2027,7 +2010,7 @@ function TaskBoard({
         return
       }
       setMessage(`Moved to ${labels[next].toLowerCase()}.`)
-      router.refresh()
+      router.invalidate()
     })
   }
 

@@ -1,4 +1,3 @@
-import "server-only";
 
 import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from "@google/genai";
 import type { ToolSet, UIMessage } from "ai";

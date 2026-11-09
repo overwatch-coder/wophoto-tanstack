@@ -1,7 +1,5 @@
-"use client";
-
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { Bot, KeyRound, Search, ShieldCheck } from "lucide-react";
 
 import { updateCopilotStudioPolicyAction } from "@/app/actions/copilot-studio";
@@ -18,6 +16,10 @@ type AccessValue = "inherit" | "allow" | "deny";
 export function StudioCopilotAccessSettings({ initial }: { initial: CopilotStudioSettingsView }) {
   const router = useRouter();
   const [settings, setSettings] = useState(initial);
+
+  useEffect(() => {
+    setSettings(initial);
+  }, [initial]);
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
   const [saving, startTransition] = useTransition();
@@ -61,7 +63,7 @@ export function StudioCopilotAccessSettings({ initial }: { initial: CopilotStudi
         setClearApiKey(false);
         setSettings((current) => ({ ...current, hasSharedKey: clearApiKey ? false : Boolean(apiKey) || current.hasSharedKey }));
         setMessage("Studio Copilot settings saved.");
-        router.refresh();
+        router.invalidate();
       }
     });
   };

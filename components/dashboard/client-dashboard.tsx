@@ -1,6 +1,4 @@
-"use client"
-
-import Link from "next/link"
+import { Link } from "@tanstack/react-router"
 import type { ClientAnalyticsData } from "@/lib/analytics"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,7 +33,7 @@ export function ClientDashboard({ data }: { data: ClientAnalyticsData }) {
         <div>
           <Button
             nativeButton={false}
-            render={<Link href="/client/project-feedback" />}
+            render={<Link to="/client/project-feedback" />}
             variant="outline"
             className="w-full gap-1.5 text-xs font-medium shadow-xs sm:w-auto"
           >
@@ -302,7 +300,7 @@ export function ClientDashboard({ data }: { data: ClientAnalyticsData }) {
                 </p>
               </div>
               <Link
-                href="/client/project-feedback"
+                to="/client/project-feedback"
                 className="flex items-center gap-1 text-xs font-medium text-orange-600 hover:underline dark:text-orange-400"
               >
                 <span>Give feedback</span>
@@ -343,7 +341,7 @@ export function ClientDashboard({ data }: { data: ClientAnalyticsData }) {
               High-resolution downloads in Feedback portal
             </span>
             <Link
-              href="/client/project-feedback"
+              to="/client/project-feedback"
               className="font-medium text-orange-600 hover:underline dark:text-orange-400"
             >
               Open Feedback →

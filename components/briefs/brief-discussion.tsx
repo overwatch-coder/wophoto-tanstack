@@ -1,7 +1,4 @@
-"use client";
-
 import { useState } from "react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { postBriefQuestion, resolveBriefQuestion } from "@/app/actions/briefs";
@@ -183,12 +180,10 @@ export function BriefDiscussion({
                 <div className="flex items-center gap-2.5">
                   <div className="relative h-7 w-7 rounded-full overflow-hidden bg-muted border flex items-center justify-center text-xs font-semibold">
                     {authorAvatar ? (
-                      <Image
+                      <img
                         src={authorAvatar}
                         alt={q.author.name || "User"}
-                        fill
-                        className="object-cover"
-                        unoptimized
+                        className="size-full object-cover"
                       />
                     ) : (
                       q.author.name?.charAt(0) || "U"
@@ -296,12 +291,10 @@ export function BriefDiscussion({
                           <div className="flex items-center gap-2">
                             <div className="relative h-5 w-5 rounded-full overflow-hidden bg-muted border flex items-center justify-center text-[10px]">
                               {replyAvatar ? (
-                                <Image
+                                <img
                                   src={replyAvatar}
                                   alt={r.author.name || "User"}
-                                  fill
-                                  className="object-cover"
-                                  unoptimized
+                                  className="size-full object-cover"
                                 />
                               ) : (
                                 r.author.name?.charAt(0) || "U"

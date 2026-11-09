@@ -1,4 +1,3 @@
-import Image from "next/image"
 import { cn } from "@/lib/utils"
 
 interface WoPhotoLogoProps {
@@ -15,15 +14,14 @@ interface WoPhotoMarkProps {
   priority?: boolean
 }
 
-export function WoPhotoMark({ className, priority = false }: WoPhotoMarkProps) {
+export function WoPhotoMark({ className }: WoPhotoMarkProps) {
   return (
-    <Image
+    <img
       src="/assets/logo-mark.png"
       alt="WoPhoto"
       width={512}
       height={512}
       className={cn("size-8 shrink-0 object-contain", className)}
-      priority={priority}
     />
   )
 }
@@ -34,7 +32,6 @@ export function WoPhotoLogo({
   imageClassName,
   showSubtitle = false,
   subtitle = "Studio Workspace",
-  priority = false,
   compact = false,
 }: WoPhotoLogoProps) {
   return (
@@ -46,13 +43,12 @@ export function WoPhotoLogo({
           imageClassName,
         )}
       >
-        <Image
+        <img
           src="/assets/logo-trimmed.png"
           alt="WoPhoto"
           width={1606}
           height={453}
           className="h-full w-full object-contain"
-          priority={priority}
         />
       </span>
       {showSubtitle && (

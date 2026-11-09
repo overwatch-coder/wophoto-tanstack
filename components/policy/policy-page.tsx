@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import Link from "next/link"
+import { Link } from "@tanstack/react-router"
 import { WoPhotoLogo } from "@/components/brand/logo"
 
 export function PolicyPage({
@@ -15,7 +15,7 @@ export function PolicyPage({
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
           <WoPhotoLogo compact priority />
           <Link
-            href="/login"
+            to="/login"
             className="text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:underline"
           >
             Back to sign in
@@ -29,9 +29,9 @@ export function PolicyPage({
         </article>
 
         <nav aria-label="Legal policies" className="mt-12 flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-5 text-sm text-muted-foreground">
-          <Link href="/privacy" className="underline-offset-4 hover:text-foreground hover:underline">Privacy</Link>
-          <Link href="/terms" className="underline-offset-4 hover:text-foreground hover:underline">Terms</Link>
-          <Link href="/login" className="underline-offset-4 hover:text-foreground hover:underline">Sign in</Link>
+          <Link to="/privacy" className="underline-offset-4 hover:text-foreground hover:underline">Privacy</Link>
+          <Link to="/terms" className="underline-offset-4 hover:text-foreground hover:underline">Terms</Link>
+          <Link to="/login" className="underline-offset-4 hover:text-foreground hover:underline">Sign in</Link>
         </nav>
       </div>
     </main>

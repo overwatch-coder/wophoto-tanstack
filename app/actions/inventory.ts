@@ -1,6 +1,4 @@
-"use server"
 
-import { revalidatePath } from "next/cache"
 import {
   InventoryCondition,
   InventoryStatus,
@@ -32,12 +30,8 @@ export type InventoryActionState = {
   loanId?: string
 }
 
-const INVENTORY_PATHS = ["/manager/inventory", "/worker/inventory"]
-
 function revalidateInventory() {
-  for (const path of INVENTORY_PATHS) {
-    revalidatePath(path)
-  }
+  // TanStack Router invalidates route queries on navigation/mutation
 }
 
 export async function createInventoryItem(

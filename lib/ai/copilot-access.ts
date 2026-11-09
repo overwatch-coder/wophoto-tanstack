@@ -1,4 +1,3 @@
-import "server-only";
 
 import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { decryptAIKey, isEncryptedAIKey } from "@/lib/ai/credentials";

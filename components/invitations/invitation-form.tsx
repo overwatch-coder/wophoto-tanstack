@@ -1,4 +1,3 @@
-"use client";
 
 import { useActionState } from "react";
 import { InvitationLinkActions } from "@/components/invitations/invitation-link-actions";

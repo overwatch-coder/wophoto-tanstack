@@ -1,4 +1,3 @@
-"use client";
 
 import { useState, useTransition } from "react";
 import { UserPlus, Briefcase, Shield, Copy, Check, CheckCircle2, UsersRound } from "lucide-react";

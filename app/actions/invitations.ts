@@ -1,7 +1,4 @@
-"use server";
-
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect } from "@tanstack/react-router";
 import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
@@ -92,7 +89,6 @@ export async function replaceInvitationLink(id: string): Promise<InvitationFormS
     },
   });
   if (updated.count !== 1) return { error: "This invitation is expired, used, or unavailable." };
-  revalidatePath("/manager/invitations");
   return { invitePath: `/invite/${token}` };
 }
 
@@ -117,7 +113,6 @@ export async function revokeInvitation(id: string): Promise<{ success?: boolean;
   if (updated.count !== 1) {
     return { error: "This invitation could not be revoked." };
   }
-  revalidatePath("/manager/invitations");
   return { success: true };
 }
 
@@ -161,11 +156,6 @@ export async function revokeStudioInvitationAccess(id: string): Promise<{ succes
     await tx.session.deleteMany({ where: { userId: acceptedUserId } });
   });
 
-  revalidatePath("/manager/invitations");
-  revalidatePath("/manager");
-  revalidatePath("/worker");
-  revalidatePath("/client");
-  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -173,7 +163,7 @@ export async function acceptInvitation(formData: FormData) {
   const token = formData.get("token");
   const parsedToken = invitationTokenSchema.safeParse(token);
   if (!parsedToken.success) {
-    redirect("/login?invite=invalid");
+    throw redirect({ href: "/login?invite=invalid" });
   }
 
   const tokenHash = createHash("sha256").update(parsedToken.data).digest("hex");
@@ -195,9 +185,8 @@ export async function acceptInvitation(formData: FormData) {
       where: { tokenHash, status: InvitationStatus.ACCEPTED, usedAt: null, expiresAt: { gt: now } },
       select: { id: true },
     });
-    if (!accepted) redirect("/login?invite=invalid");
+    if (!accepted) throw redirect({ href: "/login?invite=invalid" });
   }
 
-  revalidatePath("/manager/invitations");
-  redirect("/login?invite=accepted");
+  throw redirect({ href: "/login?invite=accepted" });
 }

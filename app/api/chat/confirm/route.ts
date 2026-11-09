@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import { revalidatePath } from "next/cache";
 import { createProjectForManager, createProjectInputSchema, createTaskBatchForManager, createTaskBatchInputSchema } from "@/lib/ai/actions";
 import { createInvitationForManager } from "@/lib/invitations";
 import { createClientInvitationProposalSchema } from "@/lib/validation/invitations";
@@ -109,20 +108,9 @@ export async function POST(request: Request) {
                 ? await returnInventoryItem(actionInput)
                 : await resolveMaintenanceIssue(actionInput);
       if (inventoryResult.error) return Response.json({ error: inventoryResult.error }, { status: 422 });
-      revalidatePath("/manager/inventory");
-      revalidatePath("/worker/inventory");
       return Response.json({ ...inventoryResult, message: inventoryResult.success });
     }
     if ("error" in result) return Response.json({ error: result.error }, { status: 422 });
-    if (parsed.data.proposalType === "CREATE_PROJECT") {
-      revalidatePath("/manager/projects");
-    } else if (parsed.data.proposalType === "CREATE_TASK_BATCH") {
-      revalidatePath("/manager/tasks");
-      revalidatePath("/manager/projects");
-    } else if (parsed.data.proposalType === "CREATE_DAILY_ENTRY") {
-      revalidatePath("/worker/tasks");
-      revalidatePath("/manager/tasks");
-    }
     return Response.json(result);
   } catch (error) {
     console.error("AI proposal confirmation failed:", error);

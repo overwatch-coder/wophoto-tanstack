@@ -1,4 +1,3 @@
-import "server-only";
 
 import { Prisma, UserRole, UserStatus, WorkRequestStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";

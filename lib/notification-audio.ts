@@ -1,5 +1,3 @@
-"use client";
-
 let audioContext: AudioContext | null = null;
 
 function getAudioContext() {

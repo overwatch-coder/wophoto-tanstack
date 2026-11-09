@@ -1,6 +1,4 @@
-"use client"
-
-import { useRouter } from "next/navigation"
+import { useRouter } from "@tanstack/react-router"
 import { useCallback, useEffect, useState, useTransition } from "react"
 import {
   Undo2,
@@ -116,10 +114,10 @@ export function DeletedTasksView({
       params.delete("page")
 
       const search = params.toString()
-    router.replace(
-      search ? `/manager/deleted-tasks?${search}` : "/manager/deleted-tasks",
-      { scroll: false }
-      )
+      router.navigate({
+        href: search ? `/manager/deleted-tasks?${search}` : "/manager/deleted-tasks",
+        replace: true,
+      })
     },
     [router, searchQuery, selectedPriority, selectedProjectId]
   )
@@ -162,7 +160,7 @@ export function DeletedTasksView({
           type: "success",
           text: res.success ?? "Task restored.",
         })
-        router.refresh()
+        router.invalidate()
       }
     })
       }
@@ -180,7 +178,7 @@ export function DeletedTasksView({
           type: "success",
           text: res.success ?? "Tasks restored.",
         })
-        router.refresh()
+        router.invalidate()
       }
     })
       }
@@ -197,7 +195,7 @@ export function DeletedTasksView({
           type: "success",
           text: res.success ?? "Task permanently deleted.",
         })
-        router.refresh()
+        router.invalidate()
       }
     })
       }
@@ -214,7 +212,7 @@ export function DeletedTasksView({
           type: "success",
           text: res.success ?? "Trash emptied.",
         })
-        router.refresh()
+        router.invalidate()
       }
     })
       }

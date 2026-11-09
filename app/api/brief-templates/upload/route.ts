@@ -1,5 +1,4 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { StudioArea, StudioAccessLevel } from "@/generated/prisma/client";
 import { getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
@@ -17,10 +16,10 @@ const attachmentTypes = [
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  if (!session?.user?.id) return Response.json({ error: "Unauthorized." }, { status: 401 });
   const context = await getStudioAccessContext(session.user.id, session.user.role);
   if (!context || !hasStudioAccess(context, StudioArea.BRIEFS, StudioAccessLevel.MANAGE)) {
-    return NextResponse.json({ error: "Brief management access is required." }, { status: 403 });
+    return Response.json({ error: "Brief management access is required." }, { status: 403 });
   }
 
   try {
@@ -53,9 +52,9 @@ export async function POST(request: Request) {
         throw new Error("Invalid brief template upload path.");
       },
     });
-    return NextResponse.json(response);
+    return Response.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload could not be authorized.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return Response.json({ error: message }, { status: 400 });
   }
 }

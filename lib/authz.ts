@@ -1,6 +1,4 @@
-import "server-only";
-
-import { redirect } from "next/navigation";
+import { redirect } from "@tanstack/react-router";
 
 import { auth } from "@/auth";
 import type { UserRole } from "@/generated/prisma/client";
@@ -9,7 +7,7 @@ export async function requireUser() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    redirect("/login");
+    throw redirect({ href: "/login" });
   }
 
   return session.user;
@@ -19,7 +17,7 @@ export async function requireRole(...roles: UserRole[]) {
   const user = await requireUser();
 
   if (!roles.includes(user.role)) {
-    redirect("/forbidden");
+    throw redirect({ href: "/forbidden" });
   }
 
   return user;

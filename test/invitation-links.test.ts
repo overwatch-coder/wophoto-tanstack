@@ -28,8 +28,11 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   studioMember: { update: mocks.studioMemberUpdate },
   $transaction: mocks.transaction,
 } }));
-vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
+vi.mock("@tanstack/react-router", () => ({
+  redirect: ({ href }: { href: string }) => {
+    throw new Error(`redirect:${href}`);
+  },
+}));
 
 import { decryptInvitationToken, encryptInvitationToken } from "@/lib/invitation-token";
 import { acceptInvitation, getInvitationLink, replaceInvitationLink, revokeInvitation, revokeStudioInvitationAccess } from "@/app/actions/invitations";
@@ -85,8 +88,6 @@ describe("invitation link actions", () => {
     }));
     expect(mocks.userUpdate).toHaveBeenCalledWith({ where: { id: "person-1" }, data: { status: "SUSPENDED" } });
     expect(mocks.sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "person-1" } });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/client");
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/worker");
   });
 
   it("does not mutate data when an accepted account is unavailable", async () => {
@@ -190,6 +191,5 @@ describe("invitation link actions", () => {
         tokenEncrypted: null,
       },
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager/invitations");
   });
 });

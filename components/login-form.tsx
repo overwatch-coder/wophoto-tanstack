@@ -1,7 +1,5 @@
-"use client"
-
 import { useFormStatus } from "react-dom"
-import Link from "next/link"
+import { Link } from "@tanstack/react-router"
 import {
   CheckCircle2,
   AlertTriangle,
@@ -187,10 +185,10 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4 text-xs text-muted-foreground">
           <span>© 2026 WoPhoto Studio</span>
           <div className="flex items-center gap-4">
-            <Link href="/privacy" className="transition-colors hover:text-foreground focus-visible:underline">
+            <Link to="/privacy" className="transition-colors hover:text-foreground focus-visible:underline">
               Privacy
             </Link>
-            <Link href="/terms" className="transition-colors hover:text-foreground focus-visible:underline">
+            <Link to="/terms" className="transition-colors hover:text-foreground focus-visible:underline">
               Terms
             </Link>
             <span className="cursor-default transition-colors hover:text-foreground">

@@ -93,7 +93,6 @@ describe("Copilot daily work proposals", () => {
     expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ projectId: "project-1", createdById: "worker-1", type: "DAILY_ENTRY" }),
     }));
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/worker/tasks");
   });
 
   it("rejects future dates and non-worker accounts before writing", async () => {

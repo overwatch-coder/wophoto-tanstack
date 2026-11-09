@@ -1,6 +1,4 @@
-import "server-only";
-
-import { redirect } from "next/navigation";
+import { redirect } from "@tanstack/react-router";
 
 import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -113,7 +111,7 @@ export async function requireStudioArea(
   const { requireRole } = await import("@/lib/authz");
   const user = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR);
   const context = await getStudioAccessContext(user.id, user.role);
-  if (!context || !hasStudioAccess(context, area, required)) redirect("/forbidden");
+  if (!context || !hasStudioAccess(context, area, required)) throw redirect({ href: "/forbidden" });
   return { user, context };
 }
 
@@ -132,8 +130,8 @@ export async function requireStudioManagerArea(
 export async function requireStudioOwner() {
   const { requireUser } = await import("@/lib/authz");
   const user = await requireUser();
-  if (user.role !== UserRole.MANAGER) redirect("/forbidden");
+  if (user.role !== UserRole.MANAGER) throw redirect({ href: "/forbidden" });
   const context = await getStudioAccessContext(user.id, user.role);
-  if (!context?.isOwner) redirect("/forbidden");
+  if (!context?.isOwner) throw redirect({ href: "/forbidden" });
   return { user, context };
 }

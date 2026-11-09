@@ -1,7 +1,5 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@tanstack/react-router";
 import {
   Dialog,
   DialogContent,
@@ -116,9 +114,9 @@ export function InstantiateTemplateDialog({
         if (onSuccess) {
           onSuccess({ briefId: res.briefId, projectId: res.projectId });
         } else {
-          router.push(
-            `/manager/brief-review?search=${encodeURIComponent(briefTitle.trim() || template.title)}`
-          );
+          router.navigate({
+            href: `/manager/brief-review?search=${encodeURIComponent(briefTitle.trim() || template.title)}`,
+          });
         }
       }
     } catch {

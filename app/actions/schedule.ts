@@ -1,6 +1,4 @@
-"use server";
 
-import { revalidatePath } from "next/cache";
 import { StudioArea } from "@/generated/prisma/client";
 import { requireStudioManagerArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
@@ -22,12 +20,8 @@ export type ScheduleActionState = {
   warnings?: ScheduleConflictWarning[];
 };
 
-const SCHEDULE_PATHS = ["/manager/schedule", "/worker/schedule"];
-
 function revalidateSchedule() {
-  for (const path of SCHEDULE_PATHS) {
-    revalidatePath(path);
-  }
+  // TanStack Router invalidates route queries on navigation/mutation
 }
 
 function normalizeAllDayBounds(startAt: Date, endAt: Date, allDay: boolean) {

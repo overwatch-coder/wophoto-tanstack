@@ -1,4 +1,3 @@
-import "server-only";
 
 import type { ToolSet, UIMessage } from "ai";
 import { getTerminalToolMessage, isTerminalToolResult } from "@/lib/ai/tool-loop";
