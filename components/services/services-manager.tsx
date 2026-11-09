@@ -17,7 +17,7 @@ import {
   setStudioServiceActive,
   updateStudioService,
   type StudioServiceActionState,
-} from "@/app/actions/services";
+} from "@/src/server/actions/services";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,

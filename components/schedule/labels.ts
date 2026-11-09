@@ -10,10 +10,12 @@ export const SCHEDULE_EVENT_TYPE_LABELS: Record<ScheduleEventType, string> = {
 };
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  [TaskStatus.PENDING]: "Pending",
   [TaskStatus.TODO]: "To do",
   [TaskStatus.IN_PROGRESS]: "In progress",
   [TaskStatus.IN_REVIEW]: "In review",
   [TaskStatus.COMPLETED]: "Completed",
+  [TaskStatus.TO_EDIT]: "To edit",
 };
 
 export const LOCATION_PRESET_LABELS: Record<string, string> = {

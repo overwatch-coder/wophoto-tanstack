@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GET } from "@/app/api/briefs/[briefId]/file/route";
+import { GET } from "@/src/server/handlers/brief-file";
 
 export const Route = createFileRoute("/api/briefs/$briefId/file")({
   server: {
     handlers: {
-      GET: ({ request, params }) => GET(request, { params: Promise.resolve(params) }),
+      GET: ({ request, params }) => GET(request, { params }),
     },
   },
 });

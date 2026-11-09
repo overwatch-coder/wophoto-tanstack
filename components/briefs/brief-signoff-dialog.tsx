@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { submitBriefSignOff } from "@/app/actions/briefs";
+import { submitBriefSignOff } from "@/src/server/actions/briefs";
 import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 
 interface BriefSignOffDialogProps {

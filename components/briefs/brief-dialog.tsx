@@ -26,7 +26,7 @@ import { formatBriefOption } from "@/components/briefs/labels";
 import {
   createCreativeBrief,
   updateCreativeBrief,
-} from "@/app/actions/briefs";
+} from "@/src/server/actions/briefs";
 import {
   SHOT_FRAMING_OPTIONS,
   type ShotItem,

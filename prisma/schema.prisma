@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -48,10 +49,27 @@ enum InvitationStatus {
 }
 
 enum TaskStatus {
+  PENDING
   TODO
   IN_PROGRESS
   IN_REVIEW
   COMPLETED
+  TO_EDIT
+}
+
+enum ProjectCollaboratorRole {
+  OWNER
+  COLLABORATOR
+}
+
+enum DeliverableType {
+  INPUT
+  OUTPUT
+}
+
+enum EditCause {
+  REQUIREMENT_ADJUSTMENT
+  DELIVERY_QUALITY_ISSUE
 }
 
 enum TaskType {
@@ -181,6 +199,10 @@ model User {
   studioMembership       StudioMember?
   studioMembershipsAdded StudioMember[]               @relation("StudioMemberAddedBy")
   studioMembershipsRevoked StudioMember[]             @relation("StudioMemberRevokedBy")
+  projectCollaborations   ProjectCollaborator[]     @relation("ProjectCollaborations")
+  projectCollaboratorsAdded ProjectCollaborator[]   @relation("ProjectCollaboratorsAdded")
+  uploadedDeliverables    TaskDeliverable[]         @relation("DeliverableUploader")
+  requestedRevisions      TaskRevision[]            @relation("RevisionRequester")
 
   @@index([role, status])
 }
@@ -320,22 +342,29 @@ model Project {
   id          String   @id @default(cuid())
   name        String
   description String?  @db.Text
+  coverImage  String?
+  targetAudience String? @db.Text
+  keyMessage  String?  @db.Text
+  imageryNote String?  @db.Text
+  startDate   DateTime?
+  deadline    DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   managerId   String
   clientId    String
   studioId    String
 
-  manager                User             @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
-  client                 User             @relation("ProjectClient", fields: [clientId], references: [id], onDelete: Restrict)
-  studio                 Studio           @relation(fields: [studioId], references: [id], onDelete: Restrict)
+  manager                User                  @relation("ProjectManager", fields: [managerId], references: [id], onDelete: Restrict)
+  client                 User                  @relation("ProjectClient", fields: [clientId], references: [id], onDelete: Restrict)
+  studio                 Studio                @relation(fields: [studioId], references: [id], onDelete: Restrict)
+  collaborators          ProjectCollaborator[]
   tasks                  Task[]
   comments               Comment[]
   ratings                Rating[]
   feedbacks              ClientFeedback[]
   notifications          Notification[]
-  workRequests           WorkRequest[]    @relation("WorkRequestProject")
-  createdFromWorkRequest WorkRequest?     @relation("WorkRequestCreatedProject")
+  workRequests           WorkRequest[]         @relation("WorkRequestProject")
+  createdFromWorkRequest WorkRequest?          @relation("WorkRequestCreatedProject")
   scheduleEvents         ScheduleEvent[]
   brandAssets            BrandAsset[]
   creativeBriefs         CreativeBrief[]
@@ -368,6 +397,8 @@ model Task {
   assignees       TaskAssignee[]
   specializations TaskSpecialization[]
   services        TaskService[]
+  deliverables    TaskDeliverable[]
+  revisions       TaskRevision[]
   comments        Comment[]
   ratings         Rating[]
   feedbacks       ClientFeedback[]
@@ -437,6 +468,60 @@ model TaskSpecialization {
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@id([taskId, specialization])
+}
+
+model ProjectCollaborator {
+  id        String                  @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectCollaboratorRole @default(COLLABORATOR)
+  addedById String?
+  createdAt DateTime                @default(now())
+
+  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User                    @relation("ProjectCollaborations", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy   User?                   @relation("ProjectCollaboratorsAdded", fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model TaskDeliverable {
+  id           String          @id @default(cuid())
+  taskId       String
+  type         DeliverableType @default(OUTPUT)
+  name         String
+  fileUrl      String
+  fileKey      String?
+  fileSize     Int?
+  mimeType     String?
+  version      Int             @default(1)
+  uploadedById String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  task         Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy   User            @relation("DeliverableUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId, type])
+  @@index([uploadedById])
+}
+
+model TaskRevision {
+  id            String    @id @default(cuid())
+  taskId        String
+  cause         EditCause
+  description   String    @db.Text
+  requestedById String
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requestedBy   User      @relation("RevisionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId, createdAt])
+  @@index([requestedById])
 }
 
 model Comment {
@@ -678,7 +763,7 @@ model InventoryItem {
 
 model InventoryLoan {
   id               String              @id @default(cuid())
-  itemId           String
+  itemId           String              @unique(map: "InventoryLoan_active_item_idx", where: raw("(status = 'ACTIVE'::\"LoanStatus\")"))
   borrowerId       String
   checkedOutAt     DateTime            @default(now())
   expectedReturnAt DateTime?

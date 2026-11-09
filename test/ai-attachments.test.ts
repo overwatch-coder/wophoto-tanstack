@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("@/lib/ai/copilot-access", () => ({ isCopilotEnabledForUser: mocks.isCopilotEnabled }));
 
-import { POST } from "@/app/api/chat/attachments/route";
+import { POST } from "@/src/server/handlers/chat-attachments";
 
 describe("AI Attachment Processing (lib/ai/attachments)", () => {
   it("enforces the 10MB maximum file size limit", async () => {
@@ -104,7 +104,7 @@ describe("AI Attachment Processing (lib/ai/attachments)", () => {
   });
 });
 
-describe("AI Attachments Upload Endpoint (app/api/chat/attachments/route)", () => {
+describe("AI Attachments Upload Handler", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns 401 when the user is not authenticated", async () => {

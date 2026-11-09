@@ -33,9 +33,9 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 ## Foundations
 
 ### 1. Stack & testing architecture · done
-Base Next.js App Router project with Tailwind CSS v4, shadcn/ui components, and Vitest test suite configured under test/.
+TanStack Start application with Tailwind CSS v4, shadcn/ui components, and Vitest test suite configured under test/.
 **Done when:** the project compiles cleanly, paths resolve via `@/`, and tests run without errors.
-- [x] Scaffold Next.js project with Tailwind and shadcn: `/develop stack`
+- [x] Scaffold TanStack Start project with Tailwind and shadcn: `/develop stack`
 - [x] Configure Vitest test runner and test directory: `/test setup`
 - [x] Verify baseline tests and typecheck pass: `/test`
 code in `./`

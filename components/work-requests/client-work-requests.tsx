@@ -1,7 +1,7 @@
 
 import { useActionState, useState } from "react"
 import { Check, CircleHelp, Eye, FilePlus2, Send } from "lucide-react"
-import { createWorkRequest, respondToWorkRequest, type WorkRequestActionState } from "@/app/actions/work-requests"
+import { createWorkRequest, respondToWorkRequest, type WorkRequestActionState } from "@/src/server/actions/work-requests"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,

@@ -2,7 +2,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { Bot, KeyRound, Search, ShieldCheck } from "lucide-react";
 
-import { updateCopilotStudioPolicyAction } from "@/app/actions/copilot-studio";
+import { updateCopilotStudioPolicyAction } from "@/src/server/actions/copilot-studio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

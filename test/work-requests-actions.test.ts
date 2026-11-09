@@ -43,7 +43,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   $transaction: mocks.transaction,
 } }));
 
-import { acceptWorkRequest, createWorkRequest } from "@/app/actions/work-requests";
+import { acceptWorkRequest, createWorkRequest } from "@/src/server/actions/work-requests";
 import { UserRole, WorkRequestStatus, WorkRequestType } from "@/generated/prisma/client";
 
 function form(values: Record<string, string>) {

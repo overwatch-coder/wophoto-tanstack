@@ -27,7 +27,7 @@ vi.mock("@/lib/ai/copilot-access", () => ({
 }));
 vi.mock("ai", () => ({ convertToCoreMessages: vi.fn(() => []), streamText: vi.fn() }));
 
-import { POST } from "@/app/api/chat/route";
+import { POST } from "@/src/server/handlers/chat";
 
 function request() {
   return new Request("http://localhost/api/chat", {

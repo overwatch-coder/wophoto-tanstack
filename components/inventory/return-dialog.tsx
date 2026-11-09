@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { returnInventoryItem } from "@/app/actions/inventory"
+import { returnInventoryItem } from "@/src/server/actions/inventory"
 import { InventoryCondition } from "@/generated/prisma/browser"
 import { Loader2, AlertCircle, Wrench } from "lucide-react"
 

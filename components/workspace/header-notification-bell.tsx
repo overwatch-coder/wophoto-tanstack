@@ -16,7 +16,7 @@ import {
   markNotificationReadAction,
   markAllNotificationsReadAction,
   getHeaderNotificationsAction,
-} from "@/app/actions/notifications";
+} from "@/src/server/actions/notifications";
 import type { NotificationItemView } from "@/lib/notifications";
 import type { WorkspaceRole } from "@/lib/navigation";
 import type { NotificationType } from "@/generated/prisma/browser";

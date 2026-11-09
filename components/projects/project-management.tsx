@@ -21,7 +21,7 @@ import {
   Sparkles,
   User,
 } from "lucide-react"
-import { createProject, type ProjectActionState } from "@/app/actions/projects"
+import { createProject, type ProjectActionState } from "@/src/server/actions/projects"
 import { cleanClientName } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import {
@@ -713,12 +713,24 @@ export function ProjectManagement({
                 return (
                   <article
                     key={p.id}
-                    className="min-w-0 rounded-lg border border-border bg-background p-3.5 shadow-xs"
+                    className="min-w-0 rounded-lg border border-border bg-background p-3.5 shadow-xs cursor-pointer transition-colors hover:border-foreground/20"
+                    onClick={() => {
+                      router.navigate({
+                        to: "/manager/projects/$projectId",
+                        params: { projectId: p.id },
+                      })
+                    }}
                   >
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h2 className="text-sm leading-snug font-semibold break-words text-foreground">
-                          {p.name}
+                          <Link
+                            to="/manager/projects/$projectId"
+                            params={{ projectId: p.id }}
+                            className="hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                          >
+                            {p.name}
+                          </Link>
                         </h2>
                         {p.description ? (
                           <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -796,7 +808,23 @@ export function ProjectManagement({
                       </div>
                     </div>
 
-                    <div className="mt-3 flex justify-end border-t border-border pt-2.5">
+                    <div
+                      className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-2.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        nativeButton={false}
+                        render={
+                          <Link
+                            to="/manager/projects/$projectId"
+                            params={{ projectId: p.id }}
+                          />
+                        }
+                        size="sm"
+                        className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7"
+                      >
+                        Open workspace
+                      </Button>
                       <ViewProjectDialog
                         project={p}
                         status={p.status}
@@ -842,14 +870,24 @@ export function ProjectManagement({
                     return (
                       <TableRow
                         key={p.id}
-                        className="transition-colors hover:bg-muted/30"
+                        className="cursor-pointer transition-colors hover:bg-muted/40"
+                        onClick={() => {
+                          router.navigate({
+                            to: "/manager/projects/$projectId",
+                            params: { projectId: p.id },
+                          })
+                        }}
                       >
                         {/* Project Title */}
                         <TableCell className="px-5 py-3.5">
                           <div className="space-y-0.5">
-                            <span className="cursor-pointer text-sm font-semibold text-foreground hover:text-orange-600 dark:hover:text-orange-400">
+                            <Link
+                              to="/manager/projects/$projectId"
+                              params={{ projectId: p.id }}
+                              className="text-sm font-semibold text-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                            >
                               {p.name}
-                            </span>
+                            </Link>
                             {p.description ? (
                               <p className="line-clamp-1 max-w-sm text-xs text-muted-foreground">
                                 {p.description}
@@ -941,8 +979,22 @@ export function ProjectManagement({
                         </TableCell>
 
                         {/* Actions */}
-                        <TableCell className="px-5 py-3.5 text-right">
+                        <TableCell
+                          className="px-5 py-3.5 text-right"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <TableRowActions label={`Actions for ${p.name}`}>
+                            <DropdownMenuItem
+                              render={
+                                <Link
+                                  to="/manager/projects/$projectId"
+                                  params={{ projectId: p.id }}
+                                />
+                              }
+                            >
+                              <FolderKanban aria-hidden="true" />
+                              Open workspace
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
                                 window.dispatchEvent(
@@ -953,7 +1005,7 @@ export function ProjectManagement({
                               }
                             >
                               <Eye aria-hidden="true" />
-                              View details
+                              View quick details
                             </DropdownMenuItem>
                           </TableRowActions>
                           <ViewProjectDialog

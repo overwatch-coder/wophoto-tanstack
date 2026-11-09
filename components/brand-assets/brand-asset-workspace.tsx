@@ -43,7 +43,7 @@ import {
   List,
   Trash2,
 } from "lucide-react";
-import { deleteBrandAsset, queryBrandAssets } from "@/app/actions/brand-assets";
+import { deleteBrandAsset, queryBrandAssets } from "@/src/server/actions/brand-assets";
 import {
   AlertDialog,
   AlertDialogAction,

@@ -107,10 +107,16 @@ export const authConfig: AuthConfig = {
       clientSecret:
         process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
       authorization: {
+        url: "https://accounts.google.com/o/oauth2/v2/auth",
         params: {
           prompt: "select_account",
+          access_type: "offline",
+          response_type: "code",
+          scope: "openid profile email",
         },
       },
+      token: "https://oauth2.googleapis.com/token",
+      userinfo: "https://openidconnect.googleapis.com/v1/userinfo",
       allowDangerousEmailAccountLinking: true,
     }),
   ],
@@ -119,7 +125,7 @@ export const authConfig: AuthConfig = {
     error: "/login",
   },
   basePath: "/api/auth",
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  secret: process.env.AUTH_SECRET,
   trustHost: true,
   skipCSRFCheck,
   callbacks: {

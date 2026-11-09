@@ -19,7 +19,7 @@ import { DebouncedSearchInput } from "@/components/brief-templates/debounced-sea
 import {
   archiveBriefTemplate,
   unarchiveBriefTemplate,
-} from "@/app/actions/brief-templates";
+} from "@/src/server/actions/brief-templates";
 import { Button } from "@/components/ui/button";
 import { type ShotItem } from "@/lib/validation/briefs";
 import {

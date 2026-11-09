@@ -35,7 +35,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { decryptInvitationToken, encryptInvitationToken } from "@/lib/invitation-token";
-import { acceptInvitation, getInvitationLink, replaceInvitationLink, revokeInvitation, revokeStudioInvitationAccess } from "@/app/actions/invitations";
+import { acceptInvitation, getInvitationLink, replaceInvitationLink, revokeInvitation, revokeStudioInvitationAccess } from "@/src/server/actions/invitations";
 
 beforeEach(() => {
   vi.resetAllMocks();

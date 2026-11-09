@@ -22,7 +22,7 @@ import {
   acceptWorkRequest,
   reviewWorkRequest,
   type WorkRequestActionState,
-} from "@/app/actions/work-requests"
+} from "@/src/server/actions/work-requests"
 import type {
   getManagerWorkRequests,
   getManagerWorkRequestOptions,

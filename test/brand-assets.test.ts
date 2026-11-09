@@ -68,7 +68,7 @@ import {
   createBrandAsset,
   updateBrandAsset,
   deleteBrandAsset,
-} from "@/app/actions/brand-assets";
+} from "@/src/server/actions/brand-assets";
 import {
   getBrandAssets,
   getBrandAssetById,

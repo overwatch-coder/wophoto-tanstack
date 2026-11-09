@@ -8,7 +8,7 @@ WoPhoto is a focused workbench for photography and multimedia teams. The interfa
 
 ## Build mandate
 
-- Use the current orange, charcoal, and white theme. The values in `app/globals.css` are authoritative.
+- Use the current orange, charcoal, and white theme. The values in `src/styles/globals.css` are authoritative.
 - Use the existing Geist Sans and Geist Mono font setup.
 - Prefer compact cards and controls with the existing reduced corner radius. Keep borders visible and shadows restrained.
 - Use clear page titles, useful section headings, and direct supporting copy. Never add eyebrow labels or decorative micro headings above a page title or section.
@@ -23,4 +23,4 @@ Use the workspace shell's existing mobile drawer and responsive width. Stack pag
 
 ## Token source
 
-The CSS custom properties in `app/globals.css` own the color, radius, and typography tokens. Do not duplicate those values in components.
+The CSS custom properties in `src/styles/globals.css` own the color, radius, and typography tokens. Do not duplicate those values in components.

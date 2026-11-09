@@ -39,7 +39,7 @@ import {
   restoreMultipleTasks,
   permanentlyDeleteTask,
   emptyTrash,
-} from "@/app/actions/tasks"
+} from "@/src/server/actions/tasks"
 import type { DeletedTaskItem } from "@/lib/tasks"
 import type { SearchParamsRecord } from "@/lib/pagination"
 import { useDebounce } from "@uidotdev/usehooks"

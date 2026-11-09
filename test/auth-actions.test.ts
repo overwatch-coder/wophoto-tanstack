@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@tanstack/react-start/server", () => ({ deleteCookie: mocks.deleteCookie }))
 vi.mock("@/auth", () => ({ signIn: mocks.signIn, signOut: mocks.signOut }))
 
-import { signInWithGoogle, signOutUser } from "@/app/actions/auth"
+import { signInWithGoogle, signOutUser } from "@/src/server/actions/auth"
 
 describe("authentication server actions", () => {
   beforeEach(() => {

@@ -34,7 +34,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { revokeStudioMember, updateStudioMemberAccess } from "@/app/actions/studio-access";
+import { revokeStudioMember, updateStudioMemberAccess } from "@/src/server/actions/studio-access";
 
 describe("Studio access management actions", () => {
   beforeEach(() => {

@@ -16,7 +16,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as WorkspaceSettingsRouteImport } from './routes/_workspace.settings'
-import { Route as ApiActionRouteImport } from './routes/api.action'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as WorkspaceClientIndexRouteImport } from './routes/_workspace/client/index'
@@ -34,11 +33,9 @@ import { Route as WorkspaceManagerExploreBriefsRouteImport } from './routes/_wor
 import { Route as WorkspaceManagerInventoryRouteImport } from './routes/_workspace.manager.inventory'
 import { Route as WorkspaceManagerInvitationsRouteImport } from './routes/_workspace.manager.invitations'
 import { Route as WorkspaceManagerNotificationsRouteImport } from './routes/_workspace.manager.notifications'
-import { Route as WorkspaceManagerProjectsRouteImport } from './routes/_workspace.manager.projects'
 import { Route as WorkspaceManagerReviewsRouteImport } from './routes/_workspace.manager.reviews'
 import { Route as WorkspaceManagerScheduleRouteImport } from './routes/_workspace.manager.schedule'
 import { Route as WorkspaceManagerServicesRouteImport } from './routes/_workspace.manager.services'
-import { Route as WorkspaceManagerTasksRouteImport } from './routes/_workspace.manager.tasks'
 import { Route as WorkspaceManagerWorkRequestsRouteImport } from './routes/_workspace.manager.work-requests'
 import { Route as WorkspaceWorkerIndexRouteImport } from './routes/_workspace.worker.index'
 import { Route as WorkspaceWorkerSectionRouteImport } from './routes/_workspace.worker.$section'
@@ -49,7 +46,6 @@ import { Route as WorkspaceWorkerInventoryRouteImport } from './routes/_workspac
 import { Route as WorkspaceWorkerNotificationsRouteImport } from './routes/_workspace.worker.notifications'
 import { Route as WorkspaceWorkerReviewsRouteImport } from './routes/_workspace.worker.reviews'
 import { Route as WorkspaceWorkerScheduleRouteImport } from './routes/_workspace.worker.schedule'
-import { Route as WorkspaceWorkerTasksRouteImport } from './routes/_workspace.worker.tasks'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiBrandAssetsUploadRouteImport } from './routes/api.brand-assets.upload'
 import { Route as ApiBriefTemplatesFileRouteImport } from './routes/api.brief-templates.file'
@@ -59,6 +55,14 @@ import { Route as ApiChatAttachmentsRouteImport } from './routes/api.chat.attach
 import { Route as ApiChatConfirmRouteImport } from './routes/api.chat.confirm'
 import { Route as ApiCronDeadlineNotificationsRouteImport } from './routes/api.cron.deadline-notifications'
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
+import { Route as WorkspaceClientProjectsIndexRouteImport } from './routes/_workspace/client/projects.index'
+import { Route as WorkspaceClientProjectsProjectIdRouteImport } from './routes/_workspace/client/projects.$projectId'
+import { Route as WorkspaceManagerProjectsIndexRouteImport } from './routes/_workspace.manager.projects.index'
+import { Route as WorkspaceManagerProjectsProjectIdRouteImport } from './routes/_workspace.manager.projects.$projectId'
+import { Route as WorkspaceManagerTasksIndexRouteImport } from './routes/_workspace.manager.tasks.index'
+import { Route as WorkspaceManagerTasksTaskIdRouteImport } from './routes/_workspace.manager.tasks.$taskId'
+import { Route as WorkspaceWorkerTasksIndexRouteImport } from './routes/_workspace.worker.tasks.index'
+import { Route as WorkspaceWorkerTasksTaskIdRouteImport } from './routes/_workspace.worker.tasks.$taskId'
 import { Route as ApiBrandAssetsAssetIdFileRouteImport } from './routes/api.brand-assets.$assetId.file'
 import { Route as ApiBriefsBriefIdFileRouteImport } from './routes/api.briefs.$briefId.file'
 import { Route as ApiProfileAvatarUserIdRouteImport } from './routes/api.profile.avatar.$userId'
@@ -96,11 +100,6 @@ const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => WorkspaceRoute,
-} as any)
-const ApiActionRoute = ApiActionRouteImport.update({
-  id: '/api/action',
-  path: '/api/action',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
@@ -198,12 +197,6 @@ const WorkspaceManagerNotificationsRoute =
     path: '/manager/notifications',
     getParentRoute: () => WorkspaceRoute,
   } as any)
-const WorkspaceManagerProjectsRoute =
-  WorkspaceManagerProjectsRouteImport.update({
-    id: '/manager/projects',
-    path: '/manager/projects',
-    getParentRoute: () => WorkspaceRoute,
-  } as any)
 const WorkspaceManagerReviewsRoute = WorkspaceManagerReviewsRouteImport.update({
   id: '/manager/reviews',
   path: '/manager/reviews',
@@ -221,11 +214,6 @@ const WorkspaceManagerServicesRoute =
     path: '/manager/services',
     getParentRoute: () => WorkspaceRoute,
   } as any)
-const WorkspaceManagerTasksRoute = WorkspaceManagerTasksRouteImport.update({
-  id: '/manager/tasks',
-  path: '/manager/tasks',
-  getParentRoute: () => WorkspaceRoute,
-} as any)
 const WorkspaceManagerWorkRequestsRoute =
   WorkspaceManagerWorkRequestsRouteImport.update({
     id: '/manager/work-requests',
@@ -282,11 +270,6 @@ const WorkspaceWorkerScheduleRoute = WorkspaceWorkerScheduleRouteImport.update({
   path: '/worker/schedule',
   getParentRoute: () => WorkspaceRoute,
 } as any)
-const WorkspaceWorkerTasksRoute = WorkspaceWorkerTasksRouteImport.update({
-  id: '/worker/tasks',
-  path: '/worker/tasks',
-  getParentRoute: () => WorkspaceRoute,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -333,6 +316,54 @@ const ApiNotificationsStreamRoute = ApiNotificationsStreamRouteImport.update({
   path: '/api/notifications/stream',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkspaceClientProjectsIndexRoute =
+  WorkspaceClientProjectsIndexRouteImport.update({
+    id: '/client/projects/',
+    path: '/client/projects/',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
+const WorkspaceClientProjectsProjectIdRoute =
+  WorkspaceClientProjectsProjectIdRouteImport.update({
+    id: '/client/projects/$projectId',
+    path: '/client/projects/$projectId',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
+const WorkspaceManagerProjectsIndexRoute =
+  WorkspaceManagerProjectsIndexRouteImport.update({
+    id: '/manager/projects/',
+    path: '/manager/projects/',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
+const WorkspaceManagerProjectsProjectIdRoute =
+  WorkspaceManagerProjectsProjectIdRouteImport.update({
+    id: '/manager/projects/$projectId',
+    path: '/manager/projects/$projectId',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
+const WorkspaceManagerTasksIndexRoute =
+  WorkspaceManagerTasksIndexRouteImport.update({
+    id: '/manager/tasks/',
+    path: '/manager/tasks/',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
+const WorkspaceManagerTasksTaskIdRoute =
+  WorkspaceManagerTasksTaskIdRouteImport.update({
+    id: '/manager/tasks/$taskId',
+    path: '/manager/tasks/$taskId',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
+const WorkspaceWorkerTasksIndexRoute =
+  WorkspaceWorkerTasksIndexRouteImport.update({
+    id: '/worker/tasks/',
+    path: '/worker/tasks/',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
+const WorkspaceWorkerTasksTaskIdRoute =
+  WorkspaceWorkerTasksTaskIdRouteImport.update({
+    id: '/worker/tasks/$taskId',
+    path: '/worker/tasks/$taskId',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
 const ApiBrandAssetsAssetIdFileRoute =
   ApiBrandAssetsAssetIdFileRouteImport.update({
     id: '/api/brand-assets/$assetId/file',
@@ -357,7 +388,6 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/settings': typeof WorkspaceSettingsRoute
-  '/api/action': typeof ApiActionRoute
   '/api/chat': typeof ApiChatRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
   '/client/$section': typeof WorkspaceClientSectionRoute
@@ -373,11 +403,9 @@ export interface FileRoutesByFullPath {
   '/manager/inventory': typeof WorkspaceManagerInventoryRoute
   '/manager/invitations': typeof WorkspaceManagerInvitationsRoute
   '/manager/notifications': typeof WorkspaceManagerNotificationsRoute
-  '/manager/projects': typeof WorkspaceManagerProjectsRoute
   '/manager/reviews': typeof WorkspaceManagerReviewsRoute
   '/manager/schedule': typeof WorkspaceManagerScheduleRoute
   '/manager/services': typeof WorkspaceManagerServicesRoute
-  '/manager/tasks': typeof WorkspaceManagerTasksRoute
   '/manager/work-requests': typeof WorkspaceManagerWorkRequestsRoute
   '/worker/$section': typeof WorkspaceWorkerSectionRoute
   '/worker/brand-assets': typeof WorkspaceWorkerBrandAssetsRoute
@@ -387,7 +415,6 @@ export interface FileRoutesByFullPath {
   '/worker/notifications': typeof WorkspaceWorkerNotificationsRoute
   '/worker/reviews': typeof WorkspaceWorkerReviewsRoute
   '/worker/schedule': typeof WorkspaceWorkerScheduleRoute
-  '/worker/tasks': typeof WorkspaceWorkerTasksRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/brand-assets/upload': typeof ApiBrandAssetsUploadRoute
   '/api/brief-templates/file': typeof ApiBriefTemplatesFileRoute
@@ -400,9 +427,17 @@ export interface FileRoutesByFullPath {
   '/client/': typeof WorkspaceClientIndexRoute
   '/manager/': typeof WorkspaceManagerIndexRoute
   '/worker/': typeof WorkspaceWorkerIndexRoute
+  '/client/projects/$projectId': typeof WorkspaceClientProjectsProjectIdRoute
+  '/manager/projects/$projectId': typeof WorkspaceManagerProjectsProjectIdRoute
+  '/manager/tasks/$taskId': typeof WorkspaceManagerTasksTaskIdRoute
+  '/worker/tasks/$taskId': typeof WorkspaceWorkerTasksTaskIdRoute
   '/api/brand-assets/$assetId/file': typeof ApiBrandAssetsAssetIdFileRoute
   '/api/briefs/$briefId/file': typeof ApiBriefsBriefIdFileRoute
   '/api/profile/avatar/$userId': typeof ApiProfileAvatarUserIdRoute
+  '/client/projects/': typeof WorkspaceClientProjectsIndexRoute
+  '/manager/projects/': typeof WorkspaceManagerProjectsIndexRoute
+  '/manager/tasks/': typeof WorkspaceManagerTasksIndexRoute
+  '/worker/tasks/': typeof WorkspaceWorkerTasksIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -411,7 +446,6 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/settings': typeof WorkspaceSettingsRoute
-  '/api/action': typeof ApiActionRoute
   '/api/chat': typeof ApiChatRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
   '/client/$section': typeof WorkspaceClientSectionRoute
@@ -427,11 +461,9 @@ export interface FileRoutesByTo {
   '/manager/inventory': typeof WorkspaceManagerInventoryRoute
   '/manager/invitations': typeof WorkspaceManagerInvitationsRoute
   '/manager/notifications': typeof WorkspaceManagerNotificationsRoute
-  '/manager/projects': typeof WorkspaceManagerProjectsRoute
   '/manager/reviews': typeof WorkspaceManagerReviewsRoute
   '/manager/schedule': typeof WorkspaceManagerScheduleRoute
   '/manager/services': typeof WorkspaceManagerServicesRoute
-  '/manager/tasks': typeof WorkspaceManagerTasksRoute
   '/manager/work-requests': typeof WorkspaceManagerWorkRequestsRoute
   '/worker/$section': typeof WorkspaceWorkerSectionRoute
   '/worker/brand-assets': typeof WorkspaceWorkerBrandAssetsRoute
@@ -441,7 +473,6 @@ export interface FileRoutesByTo {
   '/worker/notifications': typeof WorkspaceWorkerNotificationsRoute
   '/worker/reviews': typeof WorkspaceWorkerReviewsRoute
   '/worker/schedule': typeof WorkspaceWorkerScheduleRoute
-  '/worker/tasks': typeof WorkspaceWorkerTasksRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/brand-assets/upload': typeof ApiBrandAssetsUploadRoute
   '/api/brief-templates/file': typeof ApiBriefTemplatesFileRoute
@@ -454,9 +485,17 @@ export interface FileRoutesByTo {
   '/client': typeof WorkspaceClientIndexRoute
   '/manager': typeof WorkspaceManagerIndexRoute
   '/worker': typeof WorkspaceWorkerIndexRoute
+  '/client/projects/$projectId': typeof WorkspaceClientProjectsProjectIdRoute
+  '/manager/projects/$projectId': typeof WorkspaceManagerProjectsProjectIdRoute
+  '/manager/tasks/$taskId': typeof WorkspaceManagerTasksTaskIdRoute
+  '/worker/tasks/$taskId': typeof WorkspaceWorkerTasksTaskIdRoute
   '/api/brand-assets/$assetId/file': typeof ApiBrandAssetsAssetIdFileRoute
   '/api/briefs/$briefId/file': typeof ApiBriefsBriefIdFileRoute
   '/api/profile/avatar/$userId': typeof ApiProfileAvatarUserIdRoute
+  '/client/projects': typeof WorkspaceClientProjectsIndexRoute
+  '/manager/projects': typeof WorkspaceManagerProjectsIndexRoute
+  '/manager/tasks': typeof WorkspaceManagerTasksIndexRoute
+  '/worker/tasks': typeof WorkspaceWorkerTasksIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -467,7 +506,6 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/_workspace/settings': typeof WorkspaceSettingsRoute
-  '/api/action': typeof ApiActionRoute
   '/api/chat': typeof ApiChatRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
   '/_workspace/client/$section': typeof WorkspaceClientSectionRoute
@@ -483,11 +521,9 @@ export interface FileRoutesById {
   '/_workspace/manager/inventory': typeof WorkspaceManagerInventoryRoute
   '/_workspace/manager/invitations': typeof WorkspaceManagerInvitationsRoute
   '/_workspace/manager/notifications': typeof WorkspaceManagerNotificationsRoute
-  '/_workspace/manager/projects': typeof WorkspaceManagerProjectsRoute
   '/_workspace/manager/reviews': typeof WorkspaceManagerReviewsRoute
   '/_workspace/manager/schedule': typeof WorkspaceManagerScheduleRoute
   '/_workspace/manager/services': typeof WorkspaceManagerServicesRoute
-  '/_workspace/manager/tasks': typeof WorkspaceManagerTasksRoute
   '/_workspace/manager/work-requests': typeof WorkspaceManagerWorkRequestsRoute
   '/_workspace/worker/$section': typeof WorkspaceWorkerSectionRoute
   '/_workspace/worker/brand-assets': typeof WorkspaceWorkerBrandAssetsRoute
@@ -497,7 +533,6 @@ export interface FileRoutesById {
   '/_workspace/worker/notifications': typeof WorkspaceWorkerNotificationsRoute
   '/_workspace/worker/reviews': typeof WorkspaceWorkerReviewsRoute
   '/_workspace/worker/schedule': typeof WorkspaceWorkerScheduleRoute
-  '/_workspace/worker/tasks': typeof WorkspaceWorkerTasksRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/brand-assets/upload': typeof ApiBrandAssetsUploadRoute
   '/api/brief-templates/file': typeof ApiBriefTemplatesFileRoute
@@ -510,9 +545,17 @@ export interface FileRoutesById {
   '/_workspace/client/': typeof WorkspaceClientIndexRoute
   '/_workspace/manager/': typeof WorkspaceManagerIndexRoute
   '/_workspace/worker/': typeof WorkspaceWorkerIndexRoute
+  '/_workspace/client/projects/$projectId': typeof WorkspaceClientProjectsProjectIdRoute
+  '/_workspace/manager/projects/$projectId': typeof WorkspaceManagerProjectsProjectIdRoute
+  '/_workspace/manager/tasks/$taskId': typeof WorkspaceManagerTasksTaskIdRoute
+  '/_workspace/worker/tasks/$taskId': typeof WorkspaceWorkerTasksTaskIdRoute
   '/api/brand-assets/$assetId/file': typeof ApiBrandAssetsAssetIdFileRoute
   '/api/briefs/$briefId/file': typeof ApiBriefsBriefIdFileRoute
   '/api/profile/avatar/$userId': typeof ApiProfileAvatarUserIdRoute
+  '/_workspace/client/projects/': typeof WorkspaceClientProjectsIndexRoute
+  '/_workspace/manager/projects/': typeof WorkspaceManagerProjectsIndexRoute
+  '/_workspace/manager/tasks/': typeof WorkspaceManagerTasksIndexRoute
+  '/_workspace/worker/tasks/': typeof WorkspaceWorkerTasksIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -523,7 +566,6 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/settings'
-    | '/api/action'
     | '/api/chat'
     | '/invite/$token'
     | '/client/$section'
@@ -539,11 +581,9 @@ export interface FileRouteTypes {
     | '/manager/inventory'
     | '/manager/invitations'
     | '/manager/notifications'
-    | '/manager/projects'
     | '/manager/reviews'
     | '/manager/schedule'
     | '/manager/services'
-    | '/manager/tasks'
     | '/manager/work-requests'
     | '/worker/$section'
     | '/worker/brand-assets'
@@ -553,7 +593,6 @@ export interface FileRouteTypes {
     | '/worker/notifications'
     | '/worker/reviews'
     | '/worker/schedule'
-    | '/worker/tasks'
     | '/api/auth/$'
     | '/api/brand-assets/upload'
     | '/api/brief-templates/file'
@@ -566,9 +605,17 @@ export interface FileRouteTypes {
     | '/client/'
     | '/manager/'
     | '/worker/'
+    | '/client/projects/$projectId'
+    | '/manager/projects/$projectId'
+    | '/manager/tasks/$taskId'
+    | '/worker/tasks/$taskId'
     | '/api/brand-assets/$assetId/file'
     | '/api/briefs/$briefId/file'
     | '/api/profile/avatar/$userId'
+    | '/client/projects/'
+    | '/manager/projects/'
+    | '/manager/tasks/'
+    | '/worker/tasks/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -577,7 +624,6 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/settings'
-    | '/api/action'
     | '/api/chat'
     | '/invite/$token'
     | '/client/$section'
@@ -593,11 +639,9 @@ export interface FileRouteTypes {
     | '/manager/inventory'
     | '/manager/invitations'
     | '/manager/notifications'
-    | '/manager/projects'
     | '/manager/reviews'
     | '/manager/schedule'
     | '/manager/services'
-    | '/manager/tasks'
     | '/manager/work-requests'
     | '/worker/$section'
     | '/worker/brand-assets'
@@ -607,7 +651,6 @@ export interface FileRouteTypes {
     | '/worker/notifications'
     | '/worker/reviews'
     | '/worker/schedule'
-    | '/worker/tasks'
     | '/api/auth/$'
     | '/api/brand-assets/upload'
     | '/api/brief-templates/file'
@@ -620,9 +663,17 @@ export interface FileRouteTypes {
     | '/client'
     | '/manager'
     | '/worker'
+    | '/client/projects/$projectId'
+    | '/manager/projects/$projectId'
+    | '/manager/tasks/$taskId'
+    | '/worker/tasks/$taskId'
     | '/api/brand-assets/$assetId/file'
     | '/api/briefs/$briefId/file'
     | '/api/profile/avatar/$userId'
+    | '/client/projects'
+    | '/manager/projects'
+    | '/manager/tasks'
+    | '/worker/tasks'
   id:
     | '__root__'
     | '/'
@@ -632,7 +683,6 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/_workspace/settings'
-    | '/api/action'
     | '/api/chat'
     | '/invite/$token'
     | '/_workspace/client/$section'
@@ -648,11 +698,9 @@ export interface FileRouteTypes {
     | '/_workspace/manager/inventory'
     | '/_workspace/manager/invitations'
     | '/_workspace/manager/notifications'
-    | '/_workspace/manager/projects'
     | '/_workspace/manager/reviews'
     | '/_workspace/manager/schedule'
     | '/_workspace/manager/services'
-    | '/_workspace/manager/tasks'
     | '/_workspace/manager/work-requests'
     | '/_workspace/worker/$section'
     | '/_workspace/worker/brand-assets'
@@ -662,7 +710,6 @@ export interface FileRouteTypes {
     | '/_workspace/worker/notifications'
     | '/_workspace/worker/reviews'
     | '/_workspace/worker/schedule'
-    | '/_workspace/worker/tasks'
     | '/api/auth/$'
     | '/api/brand-assets/upload'
     | '/api/brief-templates/file'
@@ -675,9 +722,17 @@ export interface FileRouteTypes {
     | '/_workspace/client/'
     | '/_workspace/manager/'
     | '/_workspace/worker/'
+    | '/_workspace/client/projects/$projectId'
+    | '/_workspace/manager/projects/$projectId'
+    | '/_workspace/manager/tasks/$taskId'
+    | '/_workspace/worker/tasks/$taskId'
     | '/api/brand-assets/$assetId/file'
     | '/api/briefs/$briefId/file'
     | '/api/profile/avatar/$userId'
+    | '/_workspace/client/projects/'
+    | '/_workspace/manager/projects/'
+    | '/_workspace/manager/tasks/'
+    | '/_workspace/worker/tasks/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -687,7 +742,6 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
-  ApiActionRoute: typeof ApiActionRoute
   ApiChatRoute: typeof ApiChatRouteWithChildren
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -752,13 +806,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings'
       preLoaderRoute: typeof WorkspaceSettingsRouteImport
       parentRoute: typeof WorkspaceRoute
-    }
-    '/api/action': {
-      id: '/api/action'
-      path: '/api/action'
-      fullPath: '/api/action'
-      preLoaderRoute: typeof ApiActionRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
       id: '/api/chat'
@@ -879,13 +926,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceManagerNotificationsRouteImport
       parentRoute: typeof WorkspaceRoute
     }
-    '/_workspace/manager/projects': {
-      id: '/_workspace/manager/projects'
-      path: '/manager/projects'
-      fullPath: '/manager/projects'
-      preLoaderRoute: typeof WorkspaceManagerProjectsRouteImport
-      parentRoute: typeof WorkspaceRoute
-    }
     '/_workspace/manager/reviews': {
       id: '/_workspace/manager/reviews'
       path: '/manager/reviews'
@@ -905,13 +945,6 @@ declare module '@tanstack/react-router' {
       path: '/manager/services'
       fullPath: '/manager/services'
       preLoaderRoute: typeof WorkspaceManagerServicesRouteImport
-      parentRoute: typeof WorkspaceRoute
-    }
-    '/_workspace/manager/tasks': {
-      id: '/_workspace/manager/tasks'
-      path: '/manager/tasks'
-      fullPath: '/manager/tasks'
-      preLoaderRoute: typeof WorkspaceManagerTasksRouteImport
       parentRoute: typeof WorkspaceRoute
     }
     '/_workspace/manager/work-requests': {
@@ -984,13 +1017,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceWorkerScheduleRouteImport
       parentRoute: typeof WorkspaceRoute
     }
-    '/_workspace/worker/tasks': {
-      id: '/_workspace/worker/tasks'
-      path: '/worker/tasks'
-      fullPath: '/worker/tasks'
-      preLoaderRoute: typeof WorkspaceWorkerTasksRouteImport
-      parentRoute: typeof WorkspaceRoute
-    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -1054,6 +1080,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNotificationsStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_workspace/client/projects/': {
+      id: '/_workspace/client/projects/'
+      path: '/client/projects'
+      fullPath: '/client/projects/'
+      preLoaderRoute: typeof WorkspaceClientProjectsIndexRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
+    '/_workspace/client/projects/$projectId': {
+      id: '/_workspace/client/projects/$projectId'
+      path: '/client/projects/$projectId'
+      fullPath: '/client/projects/$projectId'
+      preLoaderRoute: typeof WorkspaceClientProjectsProjectIdRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
+    '/_workspace/manager/projects/': {
+      id: '/_workspace/manager/projects/'
+      path: '/manager/projects'
+      fullPath: '/manager/projects/'
+      preLoaderRoute: typeof WorkspaceManagerProjectsIndexRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
+    '/_workspace/manager/projects/$projectId': {
+      id: '/_workspace/manager/projects/$projectId'
+      path: '/manager/projects/$projectId'
+      fullPath: '/manager/projects/$projectId'
+      preLoaderRoute: typeof WorkspaceManagerProjectsProjectIdRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
+    '/_workspace/manager/tasks/': {
+      id: '/_workspace/manager/tasks/'
+      path: '/manager/tasks'
+      fullPath: '/manager/tasks/'
+      preLoaderRoute: typeof WorkspaceManagerTasksIndexRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
+    '/_workspace/manager/tasks/$taskId': {
+      id: '/_workspace/manager/tasks/$taskId'
+      path: '/manager/tasks/$taskId'
+      fullPath: '/manager/tasks/$taskId'
+      preLoaderRoute: typeof WorkspaceManagerTasksTaskIdRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
+    '/_workspace/worker/tasks/': {
+      id: '/_workspace/worker/tasks/'
+      path: '/worker/tasks'
+      fullPath: '/worker/tasks/'
+      preLoaderRoute: typeof WorkspaceWorkerTasksIndexRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
+    '/_workspace/worker/tasks/$taskId': {
+      id: '/_workspace/worker/tasks/$taskId'
+      path: '/worker/tasks/$taskId'
+      fullPath: '/worker/tasks/$taskId'
+      preLoaderRoute: typeof WorkspaceWorkerTasksTaskIdRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
     '/api/brand-assets/$assetId/file': {
       id: '/api/brand-assets/$assetId/file'
       path: '/api/brand-assets/$assetId/file'
@@ -1093,11 +1175,9 @@ interface WorkspaceRouteChildren {
   WorkspaceManagerInventoryRoute: typeof WorkspaceManagerInventoryRoute
   WorkspaceManagerInvitationsRoute: typeof WorkspaceManagerInvitationsRoute
   WorkspaceManagerNotificationsRoute: typeof WorkspaceManagerNotificationsRoute
-  WorkspaceManagerProjectsRoute: typeof WorkspaceManagerProjectsRoute
   WorkspaceManagerReviewsRoute: typeof WorkspaceManagerReviewsRoute
   WorkspaceManagerScheduleRoute: typeof WorkspaceManagerScheduleRoute
   WorkspaceManagerServicesRoute: typeof WorkspaceManagerServicesRoute
-  WorkspaceManagerTasksRoute: typeof WorkspaceManagerTasksRoute
   WorkspaceManagerWorkRequestsRoute: typeof WorkspaceManagerWorkRequestsRoute
   WorkspaceWorkerSectionRoute: typeof WorkspaceWorkerSectionRoute
   WorkspaceWorkerBrandAssetsRoute: typeof WorkspaceWorkerBrandAssetsRoute
@@ -1107,10 +1187,17 @@ interface WorkspaceRouteChildren {
   WorkspaceWorkerNotificationsRoute: typeof WorkspaceWorkerNotificationsRoute
   WorkspaceWorkerReviewsRoute: typeof WorkspaceWorkerReviewsRoute
   WorkspaceWorkerScheduleRoute: typeof WorkspaceWorkerScheduleRoute
-  WorkspaceWorkerTasksRoute: typeof WorkspaceWorkerTasksRoute
   WorkspaceClientIndexRoute: typeof WorkspaceClientIndexRoute
   WorkspaceManagerIndexRoute: typeof WorkspaceManagerIndexRoute
   WorkspaceWorkerIndexRoute: typeof WorkspaceWorkerIndexRoute
+  WorkspaceClientProjectsProjectIdRoute: typeof WorkspaceClientProjectsProjectIdRoute
+  WorkspaceManagerProjectsProjectIdRoute: typeof WorkspaceManagerProjectsProjectIdRoute
+  WorkspaceManagerTasksTaskIdRoute: typeof WorkspaceManagerTasksTaskIdRoute
+  WorkspaceWorkerTasksTaskIdRoute: typeof WorkspaceWorkerTasksTaskIdRoute
+  WorkspaceClientProjectsIndexRoute: typeof WorkspaceClientProjectsIndexRoute
+  WorkspaceManagerProjectsIndexRoute: typeof WorkspaceManagerProjectsIndexRoute
+  WorkspaceManagerTasksIndexRoute: typeof WorkspaceManagerTasksIndexRoute
+  WorkspaceWorkerTasksIndexRoute: typeof WorkspaceWorkerTasksIndexRoute
 }
 
 const WorkspaceRouteChildren: WorkspaceRouteChildren = {
@@ -1128,11 +1215,9 @@ const WorkspaceRouteChildren: WorkspaceRouteChildren = {
   WorkspaceManagerInventoryRoute: WorkspaceManagerInventoryRoute,
   WorkspaceManagerInvitationsRoute: WorkspaceManagerInvitationsRoute,
   WorkspaceManagerNotificationsRoute: WorkspaceManagerNotificationsRoute,
-  WorkspaceManagerProjectsRoute: WorkspaceManagerProjectsRoute,
   WorkspaceManagerReviewsRoute: WorkspaceManagerReviewsRoute,
   WorkspaceManagerScheduleRoute: WorkspaceManagerScheduleRoute,
   WorkspaceManagerServicesRoute: WorkspaceManagerServicesRoute,
-  WorkspaceManagerTasksRoute: WorkspaceManagerTasksRoute,
   WorkspaceManagerWorkRequestsRoute: WorkspaceManagerWorkRequestsRoute,
   WorkspaceWorkerSectionRoute: WorkspaceWorkerSectionRoute,
   WorkspaceWorkerBrandAssetsRoute: WorkspaceWorkerBrandAssetsRoute,
@@ -1142,10 +1227,18 @@ const WorkspaceRouteChildren: WorkspaceRouteChildren = {
   WorkspaceWorkerNotificationsRoute: WorkspaceWorkerNotificationsRoute,
   WorkspaceWorkerReviewsRoute: WorkspaceWorkerReviewsRoute,
   WorkspaceWorkerScheduleRoute: WorkspaceWorkerScheduleRoute,
-  WorkspaceWorkerTasksRoute: WorkspaceWorkerTasksRoute,
   WorkspaceClientIndexRoute: WorkspaceClientIndexRoute,
   WorkspaceManagerIndexRoute: WorkspaceManagerIndexRoute,
   WorkspaceWorkerIndexRoute: WorkspaceWorkerIndexRoute,
+  WorkspaceClientProjectsProjectIdRoute: WorkspaceClientProjectsProjectIdRoute,
+  WorkspaceManagerProjectsProjectIdRoute:
+    WorkspaceManagerProjectsProjectIdRoute,
+  WorkspaceManagerTasksTaskIdRoute: WorkspaceManagerTasksTaskIdRoute,
+  WorkspaceWorkerTasksTaskIdRoute: WorkspaceWorkerTasksTaskIdRoute,
+  WorkspaceClientProjectsIndexRoute: WorkspaceClientProjectsIndexRoute,
+  WorkspaceManagerProjectsIndexRoute: WorkspaceManagerProjectsIndexRoute,
+  WorkspaceManagerTasksIndexRoute: WorkspaceManagerTasksIndexRoute,
+  WorkspaceWorkerTasksIndexRoute: WorkspaceWorkerTasksIndexRoute,
 }
 
 const WorkspaceRouteWithChildren = WorkspaceRoute._addFileChildren(
@@ -1172,7 +1265,6 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
-  ApiActionRoute: ApiActionRoute,
   ApiChatRoute: ApiChatRouteWithChildren,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

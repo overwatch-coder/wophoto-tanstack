@@ -1,22 +1,7 @@
-import { useCallback, useEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "@tanstack/react-router"
-import {
-  CalendarDays,
-  Check,
-  Eye,
-  Pencil,
-  Play,
-  Plus,
-  RotateCcw,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react"
-import {
-  TaskPriority,
-  TaskStatus,
-  TaskType,
-} from "@/generated/prisma/browser"
+import { Calendar, CalendarDays, Check, Clock, Columns3, Eye, FileText, Flag, Hourglass, LayoutGrid, MessageSquare, Paperclip, Pencil, Play, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react";
+import { TaskPriority, TaskStatus, TaskType } from "@/generated/prisma/browser";
 import {
   createAssignedTask,
   createDailyEntry,
@@ -27,7 +12,7 @@ import {
   updateAssignmentStatus,
   updateTaskStatus,
   type TaskActionState,
-} from "@/app/actions/tasks"
+} from "@/src/server/actions/tasks"
 import { Button } from "@/components/ui/button"
 import { TableRowActions } from "@/components/ui/table-row-actions"
 import {
@@ -53,7 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,10 +86,12 @@ export type Options = {
 }
 const initial: TaskActionState = {}
 const labels: Record<TaskStatus, string> = {
+  PENDING: "Pending",
   TODO: "To do",
   IN_PROGRESS: "In progress",
   IN_REVIEW: "In review",
   COMPLETED: "Completed",
+  TO_EDIT: "To edit",
 }
 
 function availabilityLabel(value: Options["workers"][number]["availability"]) {
@@ -128,6 +115,108 @@ const dateText = (date: Date | string | null) =>
         year: "numeric",
       })
     : "No date"
+
+const formatDateDDMMYYYY = (date: Date | string | null | undefined) => {
+  if (!date) return "—"
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return "—"
+  const day = String(d.getUTCDate()).padStart(2, "0")
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0")
+  const year = d.getUTCFullYear()
+  return `${day}/${month}/${year}`
+}
+
+function PriorityCell({ priority }: { priority: TaskPriority }) {
+  switch (priority) {
+    case TaskPriority.HIGH:
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-500 dark:text-rose-400">
+          <Flag className="size-3.5 fill-rose-500 text-rose-500" />
+          <span>High</span>
+        </span>
+      )
+    case TaskPriority.LOW:
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+          <Flag className="size-3.5 fill-emerald-600 dark:fill-emerald-400 text-emerald-600 dark:text-emerald-400" />
+          <span>Low</span>
+        </span>
+      )
+    case TaskPriority.MEDIUM:
+    default:
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-500 dark:text-amber-400">
+          <Flag className="size-3.5 fill-amber-500 text-amber-500" />
+          <span>Medium</span>
+        </span>
+      )
+  }
+}
+
+function TaskStatusCell({
+  status,
+  isWorker,
+  myStatus,
+}: {
+  status: TaskStatus
+  isWorker?: boolean
+  myStatus?: TaskStatus | null
+}) {
+  const currentStatus = isWorker && myStatus ? myStatus : status
+
+  const getStatusDisplay = (st: TaskStatus) => {
+    switch (st) {
+      case TaskStatus.COMPLETED:
+        return {
+          label: "DONE",
+          textClass: "text-emerald-500 dark:text-emerald-400",
+          barClass: "bg-emerald-500",
+        }
+      case TaskStatus.IN_PROGRESS:
+        return {
+          label: "DOING",
+          textClass: "text-sky-500 dark:text-sky-400",
+          barClass: "bg-sky-500",
+        }
+      case TaskStatus.IN_REVIEW:
+        return {
+          label: "IN REVIEW",
+          textClass: "text-purple-500 dark:text-purple-400",
+          barClass: "bg-purple-500",
+        }
+      case TaskStatus.TO_EDIT:
+        return {
+          label: "TO EDIT",
+          textClass: "text-amber-500 dark:text-amber-400",
+          barClass: "bg-amber-500",
+        }
+      case TaskStatus.PENDING:
+        return {
+          label: "PENDING",
+          textClass: "text-zinc-400 dark:text-zinc-500",
+          barClass: "bg-zinc-400",
+        }
+      case TaskStatus.TODO:
+      default:
+        return {
+          label: "TO DO",
+          textClass: "text-zinc-300 dark:text-zinc-400",
+          barClass: "bg-zinc-400",
+        }
+    }
+  }
+
+  const { label, textClass, barClass } = getStatusDisplay(currentStatus)
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-xs font-bold tracking-wider ${textClass}`}
+    >
+      <span className={`h-0.5 w-2 rounded-full ${barClass}`} />
+      <span>{label}</span>
+    </span>
+  )
+}
 const requestTaskReview = (taskId: string) =>
   window.dispatchEvent(new CustomEvent("task-review", { detail: taskId }))
 
@@ -181,54 +270,46 @@ export function TasksWorkspace({
     setPrevQuery(currentQuery)
     setSearchQuery(currentQuery)
   }
-  const targetTaskId =
-    typeof searchParams.taskId === "string" ? searchParams.taskId : undefined
-  const taskAction = searchParams.taskAction === "review" ? "review" : "view"
-  const openedTaskTarget = useRef<string | null>(null)
   const [view, setView] = useState("table")
   const visible = data.tasks
   const boardTasks =
     (data as { boardTasks?: TaskItem[] }).boardTasks ?? data.tasks
 
   useEffect(() => {
-    if (!targetTaskId) {
-      openedTaskTarget.current = null
-      return
+    if (typeof searchParams.taskId === "string" && searchParams.taskId) {
+      const targetRoute =
+        role === "MANAGER"
+          ? `/manager/tasks/${searchParams.taskId}`
+          : `/worker/tasks/${searchParams.taskId}`
+      router.navigate({ href: targetRoute })
     }
-    if (
-      openedTaskTarget.current === targetTaskId ||
-      !boardTasks.some((task) => task.id === targetTaskId)
-    )
-      return
+  }, [searchParams.taskId, role, router])
 
-    openedTaskTarget.current = targetTaskId
-    const eventName =
-      role === "MANAGER" && taskAction === "review"
-        ? "task-review"
-        : "task-view"
-    window.dispatchEvent(new CustomEvent(eventName, { detail: targetTaskId }))
+  useEffect(() => {
+    const handleView = (e: Event) => {
+      const taskId = (e as CustomEvent<string>).detail
+      if (taskId) {
+        const targetRoute =
+          role === "MANAGER" ? `/manager/tasks/${taskId}` : `/worker/tasks/${taskId}`
+        router.navigate({ href: targetRoute })
+      }
+    }
+    window.addEventListener("task-view", handleView)
+    window.addEventListener("task-review", handleView)
+    return () => {
+      window.removeEventListener("task-view", handleView)
+      window.removeEventListener("task-review", handleView)
+    }
+  }, [role, router])
 
-    const params = new URLSearchParams()
-    if (status !== "ALL") params.set("status", status)
-    if (priority !== "ALL") params.set("priority", priority)
-    if (serviceId !== "ALL") params.set("serviceId", serviceId)
-    if (currentQuery.trim()) params.set("q", currentQuery.trim())
-    const query = params.toString()
-    router.navigate({
-      href: query ? `${window.location.pathname}?${query}` : window.location.pathname,
-      replace: true,
-    })
-  }, [
-    boardTasks,
-    currentQuery,
-    priority,
-    role,
-    router,
-    serviceId,
-    status,
-    targetTaskId,
-    taskAction,
-  ])
+  const handleSelectTask = useCallback(
+    (task: TaskItem) => {
+      const targetRoute =
+        role === "MANAGER" ? `/manager/tasks/${task.id}` : `/worker/tasks/${task.id}`
+      router.navigate({ href: targetRoute })
+    },
+    [role, router]
+  )
 
   const applyFilters = useCallback(
     (
@@ -243,9 +324,13 @@ export function TasksWorkspace({
       if (nextPriority !== "ALL") params.set("priority", nextPriority)
       if (nextSpec !== "ALL") params.set("serviceId", nextSpec)
       if (nextQuery.trim()) params.set("q", nextQuery.trim())
+      const pathname =
+        typeof window !== "undefined"
+          ? window.location.pathname
+          : "/manager/tasks"
       const url = params.size
-        ? `?${params.toString()}`
-        : window.location.pathname
+        ? `${pathname}?${params.toString()}`
+        : pathname
       router.navigate({ href: url, replace })
     },
     [router]
@@ -268,8 +353,70 @@ export function TasksWorkspace({
     applyFilters,
   ])
 
+  const [lateOnly, setLateOnly] = useState(false)
+  const [myDayOnly, setMyDayOnly] = useState(false)
+  const [dateRange, setDateRange] = useState("ALL")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+
+  const processedTasks = visible
+    .filter((task) => {
+      if (lateOnly) {
+        const isLate =
+          task.dueAt &&
+          new Date(task.dueAt).getTime() < Date.now() &&
+          task.status !== TaskStatus.COMPLETED
+        if (!isLate) return false
+      }
+
+      if (myDayOnly) {
+        const today = new Date().toISOString().slice(0, 10)
+        const isToday =
+          (task.workDate &&
+            new Date(task.workDate).toISOString().slice(0, 10) === today) ||
+          (task.dueAt &&
+            new Date(task.dueAt).toISOString().slice(0, 10) === today) ||
+          (task.startAt &&
+            new Date(task.startAt).toISOString().slice(0, 10) === today)
+        if (!isToday) return false
+      }
+
+      if (dateRange !== "ALL") {
+        const targetDate =
+          task.startAt || task.dueAt || task.workDate || task.createdAt
+        if (!targetDate) return false
+        const d = new Date(targetDate)
+        const now = new Date()
+        if (dateRange === "TODAY") {
+          if (d.toDateString() !== now.toDateString()) return false
+        } else if (dateRange === "THIS_WEEK") {
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          if (d < weekAgo) return false
+        } else if (dateRange === "THIS_MONTH") {
+          if (
+            d.getMonth() !== now.getMonth() ||
+            d.getFullYear() !== now.getFullYear()
+          )
+            return false
+        }
+      }
+
+      return true
+    })
+    .sort((a, b) => {
+      const timeA = new Date(
+        a.startAt || a.workDate || a.createdAt
+      ).getTime()
+      const timeB = new Date(
+        b.startAt || b.workDate || b.createdAt
+      ).getTime()
+      return sortOrder === "asc" ? timeA - timeB : timeB - timeA
+    })
+
   function resetAllFilters() {
     setSearchQuery("")
+    setLateOnly(false)
+    setMyDayOnly(false)
+    setDateRange("ALL")
     router.navigate({ href: window.location.pathname })
   }
 
@@ -277,160 +424,249 @@ export function TasksWorkspace({
     status !== "ALL" ||
     priority !== "ALL" ||
     serviceId !== "ALL" ||
-    Boolean(currentQuery)
+    Boolean(currentQuery) ||
+    lateOnly ||
+    myDayOnly ||
+    dateRange !== "ALL"
 
   return (
     <div className="mx-auto w-full max-w-7xl min-w-0 space-y-6 overflow-hidden p-4 sm:p-6 lg:p-8">
-      <header className="flex min-w-0 flex-wrap items-end justify-between gap-4">
+      {/* Header with Title, View Switcher (Board vs Grid), and Action */}
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {role === "MANAGER" ? "Team Workboard" : "Workboard"}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Assigned work and daily entries in one view.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
         </div>
-        <CreateTaskDialog role={role} options={options} />
-      </header>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(
-          [
-            TaskStatus.TODO,
-            TaskStatus.IN_PROGRESS,
-            TaskStatus.IN_REVIEW,
-            TaskStatus.COMPLETED,
-          ] as const
-        ).map((state) => (
-          <button
-            key={state}
-            type="button"
-            onClick={() =>
-              applyFilters(
-                status === state ? "ALL" : state,
-                priority,
-                serviceId,
-                searchQuery
-              )
-            }
-            className={`rounded-md border bg-card px-4 py-3 text-left transition-colors hover:border-primary/40 ${status === state ? "border-primary ring-1 ring-primary/20" : ""}`}
-          >
-            <span className="block text-xs text-muted-foreground">
-              {labels[state]}
-            </span>
-            <span className="mt-1 block text-xl font-semibold">
-              {data.counts[state] ?? 0}
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex w-full flex-1 flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search tasks, clients, projects…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 pr-3 pl-9 text-xs sm:text-sm"
-            />
-          </div>
-          <Select
-            value={status}
-            onValueChange={(value) =>
-              applyFilters(
-                value ?? "ALL",
-                priority,
-                serviceId,
-                searchQuery
-              )
-            }
-            items={statusFilterItems}
-          >
-            <SelectTrigger
-              id="task-status-filter"
-              aria-label="Filter by status"
-              className="h-10 w-full sm:w-40"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statusFilterItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={priority}
-            onValueChange={(value) =>
-              applyFilters(status, value ?? "ALL", serviceId, searchQuery)
-            }
-            items={priorityFilterItems}
-          >
-            <SelectTrigger
-              id="task-priority-filter"
-              aria-label="Filter by priority"
-              className="h-10 w-full sm:w-36"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {priorityFilterItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={serviceId}
-            onValueChange={(value) =>
-              applyFilters(status, priority, value ?? "ALL", searchQuery)
-            }
-            items={[{ value: "ALL", label: "All services" }, ...options.services.map((service) => ({ value: service.id, label: service.name }))]}
-          >
-            <SelectTrigger
-              id="task-service-filter"
-              aria-label="Filter by service"
-              className="h-10 w-full sm:w-44"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[{ value: "ALL", label: "All services" }, ...options.services.map((service) => ({ value: service.id, label: service.name }))].map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {isFiltered ? (
-            <Button
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 border-b border-border/40 pb-0.5">
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              onClick={resetAllFilters}
-              className="h-10 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setView("board")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                view === "board"
+                  ? "border-b-2 border-primary text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <X className="mr-1 size-3.5" />
-              Reset
-            </Button>
-          ) : null}
+              <Columns3 className="size-3.5" />
+              <span>Board</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("table")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                view === "table"
+                  ? "border-b-2 border-primary text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="size-3.5" />
+              <span>Grid</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("daybook")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                view === "daybook"
+                  ? "border-b-2 border-primary text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarDays className="size-3.5" />
+              <span>Daybook</span>
+            </button>
+          </div>
+          <CreateTaskDialog role={role} options={options} />
         </div>
-        <Tabs
-          className="w-full min-w-0 sm:w-auto"
-          value={view}
-          onValueChange={(value) => setView(value ?? "table")}
+      </header>
+
+      {/* Filter Row matching Taski */}
+      <div className="flex w-full flex-wrap items-center gap-2 pt-1">
+        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Enter Keywords"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 pr-3 pl-9 text-xs sm:text-sm rounded-full bg-card/60"
+          />
+        </div>
+
+        {/* Late Task (ALL) */}
+        <Button
+          type="button"
+          variant={lateOnly ? "default" : "outline"}
+          size="sm"
+          onClick={() => setLateOnly((prev) => !prev)}
+          className={`h-9 gap-1.5 rounded-full px-3 text-xs ${
+            lateOnly
+              ? "bg-rose-600 text-white hover:bg-rose-700"
+              : "text-muted-foreground"
+          }`}
         >
-          <TabsList className="grid w-full grid-cols-3 sm:w-fit">
-            <TabsTrigger value="table">Table</TabsTrigger>
-            <TabsTrigger value="board">Board</TabsTrigger>
-            <TabsTrigger value="daybook">Daybook</TabsTrigger>
-          </TabsList>
-        </Tabs>
+          <Hourglass className="size-3.5" />
+          <span>{lateOnly ? "Late Task (Active)" : "Late Task (ALL)"}</span>
+        </Button>
+
+        {/* Priority ⌵ */}
+        <Select
+          value={priority}
+          onValueChange={(value) =>
+            applyFilters(status, value ?? "ALL", serviceId, searchQuery)
+          }
+          items={priorityFilterItems}
+        >
+          <SelectTrigger
+            id="task-priority-filter"
+            aria-label="Filter by priority"
+            className="h-9 w-auto min-w-[110px] gap-1 rounded-full text-xs"
+          >
+            <Flag className="size-3 text-muted-foreground" />
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            {priorityFilterItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Specialisation ⌵ */}
+        <Select
+          value={serviceId}
+          onValueChange={(value) =>
+            applyFilters(status, priority, value ?? "ALL", searchQuery)
+          }
+          items={[
+            { value: "ALL", label: "Specialisation (ALL)" },
+            ...options.services.map((s) => ({ value: s.id, label: s.name })),
+          ]}
+        >
+          <SelectTrigger
+            id="task-service-filter"
+            aria-label="Filter by specialisation"
+            className="h-9 w-auto min-w-[140px] gap-1 rounded-full text-xs"
+          >
+            <Sparkles className="size-3 text-muted-foreground" />
+            <SelectValue placeholder="Specialisation" />
+          </SelectTrigger>
+          <SelectContent>
+            {[
+              { value: "ALL", label: "Specialisation (ALL)" },
+              ...options.services.map((s) => ({ value: s.id, label: s.name })),
+            ].map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Date Range ⌵ */}
+        <Select
+          value={dateRange}
+          onValueChange={(value) => setDateRange(value || "ALL")}
+          items={[
+            { value: "ALL", label: "Date Range (ALL)" },
+            { value: "TODAY", label: "Today" },
+            { value: "THIS_WEEK", label: "This Week" },
+            { value: "THIS_MONTH", label: "This Month" },
+          ]}
+        >
+          <SelectTrigger
+            id="task-date-range-filter"
+            aria-label="Filter by date range"
+            className="h-9 w-auto min-w-[125px] gap-1 rounded-full text-xs"
+          >
+            <Calendar className="size-3 text-muted-foreground" />
+            <SelectValue placeholder="Date Range" />
+          </SelectTrigger>
+          <SelectContent>
+            {[
+              { value: "ALL", label: "Date Range (ALL)" },
+              { value: "TODAY", label: "Today" },
+              { value: "THIS_WEEK", label: "This Week" },
+              { value: "THIS_MONTH", label: "This Month" },
+            ].map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* My Day */}
+        <Button
+          type="button"
+          variant={myDayOnly ? "default" : "outline"}
+          size="sm"
+          onClick={() => setMyDayOnly((prev) => !prev)}
+          className={`h-9 gap-1.5 rounded-full px-3 text-xs ${
+            myDayOnly ? "" : "text-muted-foreground"
+          }`}
+        >
+          <CalendarDays className="size-3.5" />
+          <span>My Day</span>
+        </Button>
+
+        {/* Status filter */}
+        <Select
+          value={status}
+          onValueChange={(value) =>
+            applyFilters(
+              value ?? "ALL",
+              priority,
+              serviceId,
+              searchQuery
+            )
+          }
+          items={statusFilterItems}
+        >
+          <SelectTrigger
+            id="task-status-filter"
+            aria-label="Filter by status"
+            className="h-9 w-auto min-w-[110px] gap-1 rounded-full text-xs"
+          >
+            <Clock className="size-3 text-muted-foreground" />
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            {statusFilterItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {isFiltered ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetAllFilters}
+            className="h-9 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <X className="mr-1 size-3.5" />
+            Reset
+          </Button>
+        ) : null}
       </div>
+
+      {/* Showing X of Y tasks */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+        <p>
+          Showing{" "}
+          <span className="font-medium text-foreground">
+            {processedTasks.length}
+          </span>{" "}
+          of <span className="font-medium text-foreground">{data.total}</span>{" "}
+          tasks
+        </p>
+      </div>
+
       <Tabs
         className="w-full max-w-full min-w-0"
         value={view}
@@ -441,11 +677,16 @@ export function TasksWorkspace({
           value="table"
         >
           <TaskTable
-            tasks={visible}
+            tasks={processedTasks}
             role={role}
             options={options}
             isFiltered={isFiltered}
             onResetFilters={resetAllFilters}
+            sortOrder={sortOrder}
+            onToggleSort={() =>
+              setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+            }
+            onSelectTask={handleSelectTask}
           />
           <Pagination
             pathname={role === "MANAGER" ? "/manager/tasks" : "/worker/tasks"}
@@ -459,7 +700,12 @@ export function TasksWorkspace({
           className="w-full max-w-full min-w-0 overflow-hidden"
           value="board"
         >
-          <TaskBoard tasks={boardTasks} role={role} options={options} />
+          <TaskBoard
+            tasks={boardTasks}
+            role={role}
+            options={options}
+            onSelectTask={handleSelectTask}
+          />
           <Pagination
             pathname={role === "MANAGER" ? "/manager/tasks" : "/worker/tasks"}
             searchParams={searchParams}
@@ -1090,103 +1336,55 @@ function AssigneeAvatars({
   }>
 }) {
   if (assignees.length === 0) {
-    return (
-      <span className="text-xs text-muted-foreground italic">Unassigned</span>
-    )
+    return <span className="text-xs text-muted-foreground/60">—</span>
   }
 
-  // Single assignee
-  if (assignees.length === 1) {
-    const a = assignees[0]
-    const displayName = a.user.name || a.user.email || "Unknown"
-    const initial = displayName.charAt(0).toUpperCase()
-    const colorClass = getAssigneeColor(displayName)
-    const avatarSrc = getProfileImageSrc(a.user.image, a.userId) ?? a.user.image
+  const visible = assignees.slice(0, 3)
+  const remaining = assignees.length - 3
+  const allNames = assignees
+    .map((a) => a.user.name || a.user.email || "Unknown")
+    .join(", ")
 
-    return (
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <div className="flex items-center gap-2">
+  return (
+    <div
+      className="flex items-center -space-x-1.5 overflow-hidden py-0.5"
+      title={allNames}
+    >
+      {visible.map((a) => {
+        const displayName = a.user.name || a.user.email || "Unknown"
+        const initial = displayName.charAt(0).toUpperCase()
+        const colorClass = getAssigneeColor(displayName)
+        const avatarSrc =
+          getProfileImageSrc(a.user.image, a.userId) ?? a.user.image
+
+        return (
           <span
-            className={`flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ${colorClass}`}
+            key={a.userId}
+            title={displayName}
+            className={`relative inline-flex size-6.5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold ring-2 ring-card ${colorClass}`}
           >
             {avatarSrc ? (
               <img
                 src={avatarSrc}
                 alt={displayName}
-                width={28}
-                height={28}
+                width={26}
+                height={26}
                 className="size-full rounded-full object-cover"
               />
             ) : (
               initial
             )}
           </span>
-          <span
-            className="min-w-0 truncate text-sm font-medium text-foreground"
-            title={displayName}
-          >
-            {displayName}
-          </span>
-        </div>
-      </div>
-    )
-  }
-
-  // Multiple assignees: stacked avatar grouping
-  const visible = assignees.slice(0, 3)
-  const remaining = assignees.length - 3
-  const allNames = assignees.map((a) => a.user.name || a.user.email).join(", ")
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <div
-          className="flex -space-x-2 overflow-hidden py-0.5"
-          title={allNames}
-        >
-          {visible.map((a) => {
-            const displayName = a.user.name || a.user.email || "Unknown"
-            const initial = displayName.charAt(0).toUpperCase()
-            const colorClass = getAssigneeColor(displayName)
-            const avatarSrc =
-              getProfileImageSrc(a.user.image, a.userId) ?? a.user.image
-
-            return (
-              <span
-                key={a.userId}
-                title={displayName}
-                className={`relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ring-2 ring-card ${colorClass}`}
-              >
-                {avatarSrc ? (
-                  <img
-                    src={avatarSrc}
-                    alt={displayName}
-                    width={28}
-                    height={28}
-                    className="size-full rounded-full object-cover"
-                  />
-                ) : (
-                  initial
-                )}
-              </span>
-            )
-          })}
-          {remaining > 0 ? (
-            <span
-              title={allNames}
-              className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground ring-2 ring-card"
-            >
-              +{remaining}
-            </span>
-          ) : null}
-        </div>
+        )
+      })}
+      {remaining > 0 ? (
         <span
-          className="max-w-[130px] truncate text-xs text-muted-foreground"
           title={allNames}
+          className="relative inline-flex size-6.5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-card"
         >
-          {allNames}
+          +{remaining}
         </span>
-      </div>
+      ) : null}
     </div>
   )
 }
@@ -1197,123 +1395,250 @@ function TaskTable({
   options,
   isFiltered = false,
   onResetFilters,
+  sortOrder = "desc",
+  onToggleSort,
+  onSelectTask,
 }: {
   tasks: TaskItem[]
   role: "MANAGER" | "WORKER"
   options: Options
   isFiltered?: boolean
   onResetFilters?: () => void
+  sortOrder?: "asc" | "desc"
+  onToggleSort?: () => void
+  onSelectTask?: (task: TaskItem) => void
 }) {
   return (
     <Table
-      containerClassName="max-h-[min(70svh,48rem)] overflow-auto overscroll-contain rounded-md border bg-card"
-      className="min-w-[1180px] table-fixed text-left text-sm xl:min-w-full"
+      containerClassName="max-h-[min(72svh,52rem)] overflow-auto overscroll-contain rounded-md border bg-card"
+      className="min-w-[1240px] table-fixed text-left text-sm xl:min-w-full"
     >
       <colgroup>
-        <col className="w-[20%]" />
-        <col className="w-[16%]" />
-        <col className="w-[18%]" />
+        <col className="w-[15%]" />
         <col className="w-[9%]" />
         <col className="w-[10%]" />
-        <col className="w-[9%]" />
-        <col className="w-[18%]" />
+        <col className="w-[8%]" />
+        <col className="w-[8%]" />
+        <col className="w-[8%]" />
+        <col className="w-[7%]" />
+        <col className="w-[8%]" />
+        <col className="w-[8%]" />
+        <col className="w-[12%]" />
+        <col className="w-[7%]" />
       </colgroup>
       <TableHeader className="text-xs text-muted-foreground">
         <TableRow>
-          {[
-            "Task",
-            "Project",
-            "Assignees",
-            "Priority",
-            "Due date",
-            "Status",
-            "Actions",
-          ].map((h) => (
-            <TableHead
-              key={h}
-              scope="col"
-              className="sticky top-0 z-10 border-b border-border bg-muted px-4 py-3 align-middle font-medium"
-            >
-              {h}
-            </TableHead>
-          ))}
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Service
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Owner
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Brief
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Program
+          </TableHead>
+          <TableHead
+            className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium cursor-pointer select-none hover:text-foreground"
+            onClick={onToggleSort}
+          >
+            <div className="flex items-center gap-1">
+              <span>Start Date</span>
+              <span className="text-xs font-bold text-muted-foreground">
+                {sortOrder === "asc" ? "↑" : "↓"}
+              </span>
+            </div>
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Due Date
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Specialist(s)
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Priority
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium">
+            Status
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium whitespace-nowrap">
+            Quick look
+          </TableHead>
+          <TableHead className="sticky top-0 z-10 border-b border-border bg-muted/80 px-4 py-3 align-middle font-medium whitespace-nowrap text-right pr-6">
+            Action
+          </TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody className="divide-y">
-        {tasks.map((task) => (
-          <TableRow key={task.id} className="h-[72px] align-middle">
-            <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
-              <p
-                className="truncate font-medium text-foreground"
-                title={task.title}
-              >
-                {task.title}
-              </p>
-            </TableCell>
-            <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
-              <p className="truncate font-medium" title={task.project.name}>
-                {task.project.name}
-              </p>
-              {task.project.client?.name ? (
-                <p
-                  className="truncate text-xs text-muted-foreground"
-                  title={task.project.client.name}
+      <TableBody className="divide-y divide-border/40">
+        {tasks.map((task) => {
+          const primaryService = task.services?.[0]?.name || task.title
+          const clientName = task.project.client?.name
+          const ownerDisplay = clientName ? clientName.replace(/\s+/g, "-") : "No owner"
+
+          return (
+            <TableRow
+              key={task.id}
+              className="h-[56px] align-middle hover:bg-muted/40 transition-colors cursor-pointer"
+              onClick={() => onSelectTask?.(task)}
+            >
+              {/* 1. Service */}
+              <TableCell className="h-[56px] max-w-0 px-4 py-2">
+                <button
+                  type="button"
+                  onClick={() => onSelectTask?.(task)}
+                  className="group block w-full text-left cursor-pointer"
+                  title={task.title}
                 >
-                  {task.project.client.name}
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate font-semibold text-foreground group-hover:text-primary transition-colors text-xs sm:text-sm">
+                      {primaryService}
+                    </p>
+                    {task.services && task.services.length > 1 ? (
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        +{task.services.length - 1}
+                      </span>
+                    ) : null}
+                  </div>
+                  {task.title !== primaryService ? (
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {task.title}
+                    </p>
+                  ) : null}
+                </button>
+              </TableCell>
+
+              {/* 2. Owner */}
+              <TableCell className="h-[56px] max-w-0 px-4 py-2">
+                <p
+                  className="truncate text-xs sm:text-sm font-medium text-foreground/90"
+                  title={clientName ?? "No owner"}
+                >
+                  {ownerDisplay}
                 </p>
-              ) : null}
-            </TableCell>
-            <TableCell className="h-[72px] max-w-0 overflow-hidden px-4 py-3">
-              <AssigneeAvatars assignees={task.assignees} />
-            </TableCell>
-            <TableCell className="h-[72px] px-4 py-3 whitespace-nowrap">
-              <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground capitalize">
-                {task.priority.toLowerCase()}
-              </span>
-            </TableCell>
-            <TableCell className="h-[72px] px-4 py-3 text-sm whitespace-nowrap">
-              <span
-                className={
-                  task.dueAt &&
-                  new Date(task.dueAt) < new Date() &&
-                  task.status !== TaskStatus.COMPLETED
-                    ? "font-semibold text-rose-600 dark:text-rose-400"
-                    : "text-muted-foreground"
-                }
-              >
-                {dateText(
-                  task.type === TaskType.DAILY_ENTRY
-                    ? task.workDate
-                    : task.dueAt
+              </TableCell>
+
+              {/* 3. Brief */}
+              <TableCell className="h-[56px] max-w-0 px-4 py-2">
+                <p
+                  className="truncate text-xs sm:text-sm text-muted-foreground"
+                  title={task.project.name}
+                >
+                  {task.project.name}
+                </p>
+              </TableCell>
+
+              {/* 4. Program */}
+              <TableCell className="h-[56px] max-w-0 px-4 py-2">
+                {task.project.program && task.project.program !== "No program" ? (
+                  <span
+                    className="inline-flex max-w-full truncate rounded bg-muted/60 px-2 py-0.5 text-xs font-medium text-foreground"
+                    title={task.project.program}
+                  >
+                    {task.project.program}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground/60">
+                    No program
+                  </span>
                 )}
-              </span>
-            </TableCell>
-            <TableCell className="h-[72px] px-4 py-3 whitespace-nowrap">
-              <span className="inline-flex w-max max-w-full rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-primary">
-                {
-                  labels[
-                    role === "WORKER"
-                      ? (task.myStatus ?? task.status)
-                      : task.status
-                  ]
-                }
-              </span>
-            </TableCell>
-            <TableCell className="h-[72px] px-3 py-3 whitespace-nowrap">
-              <TaskControls
-                task={task}
-                role={role}
-                options={options}
-                compact
-                tableActions
-              />
-            </TableCell>
-          </TableRow>
-        ))}
+              </TableCell>
+
+              {/* 5. Start Date */}
+              <TableCell className="h-[56px] px-4 py-2 whitespace-nowrap text-xs sm:text-sm tabular-nums text-muted-foreground">
+                {formatDateDDMMYYYY(task.startAt || task.workDate || task.createdAt)}
+              </TableCell>
+
+              {/* 6. Due Date */}
+              <TableCell className="h-[56px] px-4 py-2 whitespace-nowrap text-xs sm:text-sm tabular-nums">
+                <span
+                  className={
+                    task.dueAt &&
+                    new Date(task.dueAt) < new Date() &&
+                    task.status !== TaskStatus.COMPLETED
+                      ? "font-semibold text-rose-500 dark:text-rose-400"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {formatDateDDMMYYYY(task.dueAt || task.workDate)}
+                </span>
+              </TableCell>
+
+              {/* 7. Specialist(s) */}
+              <TableCell className="h-[56px] max-w-0 px-4 py-2">
+                <AssigneeAvatars assignees={task.assignees} />
+              </TableCell>
+
+              {/* 8. Priority */}
+              <TableCell className="h-[56px] px-4 py-2 whitespace-nowrap">
+                <PriorityCell priority={task.priority} />
+              </TableCell>
+
+              {/* 9. Status */}
+              <TableCell className="h-[56px] px-4 py-2 whitespace-nowrap">
+                <TaskStatusCell
+                  status={task.status}
+                  isWorker={role === "WORKER"}
+                  myStatus={task.myStatus}
+                />
+              </TableCell>
+
+              {/* 10. Quick look */}
+              <TableCell className="h-[56px] px-4 py-2 whitespace-nowrap">
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span
+                    className="flex items-center gap-1 hover:text-foreground transition-colors"
+                    title={`${task.deliverablesCount} Deliverables`}
+                  >
+                    <FileText className="size-3.5" />
+                    <span className="tabular-nums font-medium">
+                      {task.deliverablesCount}
+                    </span>
+                  </span>
+                  <span
+                    className="flex items-center gap-1 hover:text-foreground transition-colors"
+                    title={`${task.attachmentsCount} Attachments`}
+                  >
+                    <Paperclip className="size-3.5" />
+                    <span className="tabular-nums font-medium">
+                      {task.attachmentsCount}
+                    </span>
+                  </span>
+                  <span
+                    className="flex items-center gap-1 hover:text-foreground transition-colors"
+                    title={`${task.commentsCount} Comments`}
+                  >
+                    <MessageSquare className="size-3.5" />
+                    <span className="tabular-nums font-medium">
+                      {task.commentsCount}
+                    </span>
+                  </span>
+                </div>
+              </TableCell>
+
+              {/* 11. Action */}
+              <TableCell
+                className="h-[56px] px-4 pr-6 py-2 whitespace-nowrap text-right"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-end">
+                  <TaskControls
+                    task={task}
+                    role={role}
+                    options={options}
+                    compact
+                    tableActions
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          )
+        })}
         {tasks.length === 0 ? (
           <TableRow>
             <TableCell
-              colSpan={7}
+              colSpan={11}
               className="px-4 py-14 text-center text-muted-foreground"
             >
               <div className="flex flex-col items-center justify-center gap-2">
@@ -1966,10 +2291,12 @@ function TaskBoard({
   tasks,
   role,
   options,
+  onSelectTask,
 }: {
   tasks: TaskItem[]
   role: "MANAGER" | "WORKER"
   options: Options
+  onSelectTask?: (task: TaskItem) => void
 }) {
   const [message, setMessage] = useState("")
   const [pending, startTransition] = useTransition()
@@ -2026,6 +2353,7 @@ function TaskBoard({
         role={role}
         pending={pending}
         onTaskMove={move}
+        onTaskClick={onSelectTask}
         renderTaskActions={(task) => (
           <TaskControls task={task} role={role} options={options} compact />
         )}

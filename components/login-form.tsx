@@ -7,7 +7,7 @@ import {
   HelpCircle,
   Loader2,
 } from "lucide-react"
-import { signInWithGoogle } from "@/app/actions/auth"
+import { signInWithGoogle } from "@/src/server/actions/auth"
 import { Button } from "@/components/ui/button"
 import { WoPhotoLogo } from "@/components/brand/logo"
 

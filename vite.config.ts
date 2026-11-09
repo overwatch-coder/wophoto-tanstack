@@ -16,39 +16,6 @@ function prismaClientBrowserPlugin(): Plugin {
   };
 }
 
-function serverActionsPlugin(): Plugin {
-  return {
-    name: "server-actions-client-stub",
-    enforce: "pre",
-    transform(code, id, options) {
-      if (!options?.ssr && id.includes("/app/actions/") && (id.endsWith(".ts") || id.endsWith(".js"))) {
-        const fileKey = path.basename(id, path.extname(id));
-        const fnNames = new Set<string>();
-
-        const fnRegex = /export\s+(?:async\s+)?function\s+([a-zA-Z0-9_$]+)\s*\(/g;
-        let match;
-        while ((match = fnRegex.exec(code)) !== null) {
-          fnNames.add(match[1]);
-        }
-
-        const constRegex = /export\s+const\s+([a-zA-Z0-9_$]+)\s*=/g;
-        while ((match = constRegex.exec(code)) !== null) {
-          fnNames.add(match[1]);
-        }
-
-        const stubs = Array.from(fnNames)
-          .map((fn) => `export const ${fn} = (...args) => callServerAction("${fileKey}", "${fn}", args);`)
-          .join("\n");
-
-        return {
-          code: `import { callServerAction } from "@/src/lib/action-client";\n${stubs}\n`,
-          map: null,
-        };
-      }
-    },
-  };
-}
-
 export default defineConfig({
   server: {
     port: 3000,
@@ -58,7 +25,6 @@ export default defineConfig({
   },
   plugins: [
     prismaClientBrowserPlugin(),
-    serverActionsPlugin(),
     tanstackStart(),
     react(),
     tailwindcss(),

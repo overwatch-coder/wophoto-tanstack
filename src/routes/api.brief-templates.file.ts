@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GET } from "@/app/api/brief-templates/file/route";
+import { GET } from "@/src/server/handlers/brief-template-file";
 
 export const Route = createFileRoute("/api/brief-templates/file")({
   server: {

@@ -6,7 +6,7 @@ import {
   replaceInvitationLink,
   revokeInvitation,
   revokeStudioInvitationAccess,
-} from "@/app/actions/invitations"
+} from "@/src/server/actions/invitations"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { TableRowActions } from "@/components/ui/table-row-actions"

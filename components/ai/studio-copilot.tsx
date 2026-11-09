@@ -3,8 +3,8 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
-import { createClientFeedback } from "@/app/actions/feedback";
-import { createWorkRequest, type WorkRequestActionState } from "@/app/actions/work-requests";
+import { createClientFeedback } from "@/src/server/actions/feedback";
+import { createWorkRequest, type WorkRequestActionState } from "@/src/server/actions/work-requests";
 import {
   Bot,
   Maximize2,

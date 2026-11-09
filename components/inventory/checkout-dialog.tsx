@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { checkoutInventoryItem } from "@/app/actions/inventory"
+import { checkoutInventoryItem } from "@/src/server/actions/inventory"
 import { Loader2, AlertCircle, MapPin } from "lucide-react"
 
 interface CheckoutDialogProps {

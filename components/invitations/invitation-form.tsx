@@ -5,7 +5,7 @@ import { InvitationLinkActions } from "@/components/invitations/invitation-link-
 import {
   createInvitation,
   type InvitationFormState,
-} from "@/app/actions/invitations";
+} from "@/src/server/actions/invitations";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";

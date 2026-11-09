@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { POST } from "@/app/api/brand-assets/upload/route";
+import { POST } from "@/src/server/handlers/brand-asset-upload";
 
 export const Route = createFileRoute("/api/brand-assets/upload")({
   server: {

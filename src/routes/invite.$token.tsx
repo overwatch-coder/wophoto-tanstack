@@ -1,6 +1,6 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { acceptInvitation } from "@/app/actions/invitations";
+import { acceptInvitation } from "@/src/server/actions/invitations";
 import { prisma } from "@/lib/prisma";
 import { InvitationStatus } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";

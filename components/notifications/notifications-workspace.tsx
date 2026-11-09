@@ -26,7 +26,7 @@ import {
   markNotificationReadAction,
   markAllNotificationsReadAction,
   getNotificationPageAction,
-} from "@/app/actions/notifications";
+} from "@/src/server/actions/notifications";
 import type { NotificationFilterMode, NotificationItemView } from "@/lib/notifications";
 import type { NotificationType } from "@/generated/prisma/browser";
 import { useDebounce } from "@uidotdev/usehooks";

@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import "@/app/globals.css";
+import "@/src/styles/globals.css";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 

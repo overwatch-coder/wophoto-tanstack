@@ -1,11 +1,11 @@
 import * as React from "react"
 import { Link, useLocation, useRouter } from "@tanstack/react-router"
 import { LogOut, Moon, Sun, UserRound } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { getProfileImageSrc } from "@/lib/profile-image"
 import { WoPhotoLogo, WoPhotoMark } from "@/components/brand/logo"
 
-import { signOutUser } from "@/app/actions/auth"
+import { signOutUser } from "@/src/server/actions/auth"
 import {
   Sidebar,
   SidebarContent,

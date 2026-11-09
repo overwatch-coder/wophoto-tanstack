@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 describe("Design System & Orange Theme tokens", () => {
-  const cssPath = path.resolve(import.meta.dirname, "../app/globals.css");
+  const cssPath = path.resolve(import.meta.dirname, "../src/styles/globals.css");
   const cssContent = fs.readFileSync(cssPath, "utf-8");
 
   it("defines orange primary color token in root and dark mode", () => {

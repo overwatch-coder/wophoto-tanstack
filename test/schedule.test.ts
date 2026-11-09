@@ -61,7 +61,7 @@ import {
   updateScheduleEvent,
   deleteScheduleEvent,
   checkScheduleConflicts,
-} from "@/app/actions/schedule";
+} from "@/src/server/actions/schedule";
 import {
   getScheduleEvents,
   getScheduleEventById,

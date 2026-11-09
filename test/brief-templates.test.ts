@@ -93,7 +93,7 @@ import {
   unarchiveBriefTemplate,
   convertBriefToTemplate,
   instantiateBriefFromTemplate,
-} from "@/app/actions/brief-templates";
+} from "@/src/server/actions/brief-templates";
 import {
   getBriefTemplates,
   getStudioBriefArchive,

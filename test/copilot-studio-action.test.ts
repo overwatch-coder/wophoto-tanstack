@@ -37,7 +37,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { updateCopilotStudioPolicyAction } from "@/app/actions/copilot-studio";
+import { updateCopilotStudioPolicyAction } from "@/src/server/actions/copilot-studio";
 import { decryptAIKey, isEncryptedAIKey } from "@/lib/ai/credentials";
 import { UserRole } from "@/generated/prisma/client";
 

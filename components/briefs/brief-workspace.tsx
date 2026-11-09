@@ -60,7 +60,7 @@ import {
   addBriefReviewer,
   removeBriefReviewer,
   updateShotItemStatus,
-} from "@/app/actions/briefs"
+} from "@/src/server/actions/briefs"
 import { getProfileImageSrc } from "@/lib/profile-image"
 import { type ShotItem, type ShotStatus } from "@/lib/validation/briefs"
 import { cn } from "cn"

@@ -103,7 +103,7 @@ import {
   updateShotItemStatus,
   postBriefQuestion,
   resolveBriefQuestion,
-} from "@/app/actions/briefs";
+} from "@/src/server/actions/briefs";
 import {
   getProjectBriefs,
   managerCanAccessBrief,

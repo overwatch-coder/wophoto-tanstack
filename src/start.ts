@@ -3,8 +3,7 @@ import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
 export const startInstance = createStart(() => ({
   requestMiddleware: [
     createCsrfMiddleware({
-      filter: (ctx) => ctx.handlerType === "serverFn",
-      allowRequestsWithoutOriginCheck: true,
+      filter: (ctx) => ctx.request.method !== "GET" && ctx.request.method !== "HEAD",
     }),
   ],
   serverFns: {

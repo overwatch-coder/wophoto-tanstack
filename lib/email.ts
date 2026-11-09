@@ -34,7 +34,7 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
 
   const recipient = deliveryMode === "test" ? configuredTestRecipient! : input.to;
   const subject = deliveryMode === "test" ? `[TEST] ${input.subject}` : input.subject;
-  const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3000";
+  const baseUrl = process.env.APP_URL || "http://localhost:3000";
   const fullLink = safeNotificationLink(baseUrl, input.link);
   const logoUrl = safeNotificationLink(baseUrl, "/assets/logo-trimmed.png");
 

@@ -67,7 +67,7 @@ import {
   restoreMultipleTasks,
   permanentlyDeleteTask,
   emptyTrash,
-} from "@/app/actions/tasks";
+} from "@/src/server/actions/tasks";
 import { UserRole } from "@/generated/prisma/client";
 
 describe("Deleted Tasks Trash & Recovery actions", () => {

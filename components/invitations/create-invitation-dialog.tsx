@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { UserPlus, Briefcase, Shield, Copy, Check, CheckCircle2, UsersRound } from "lucide-react";
 import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/browser";
-import { createInvitation, type InvitationFormState } from "@/app/actions/invitations";
+import { createInvitation, type InvitationFormState } from "@/src/server/actions/invitations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

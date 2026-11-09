@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { instantiateBriefFromTemplate } from "@/app/actions/brief-templates";
+import { instantiateBriefFromTemplate } from "@/src/server/actions/brief-templates";
 import { type SerializedBriefTemplate } from "@/lib/brief-templates";
 import { Loader2, FolderKanban, PlusCircle } from "lucide-react";
 

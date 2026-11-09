@@ -27,7 +27,7 @@ import { CreateItemDialog } from "@/components/inventory/create-item-dialog"
 import { InventoryItemDetailsSheet } from "@/components/inventory/inventory-item-details-sheet"
 import { CheckoutDialog } from "@/components/inventory/checkout-dialog"
 import { ReturnDialog } from "@/components/inventory/return-dialog"
-import { retireInventoryItems } from "@/app/actions/inventory"
+import { retireInventoryItems } from "@/src/server/actions/inventory"
 import {
   AlertDialog,
   AlertDialogAction,

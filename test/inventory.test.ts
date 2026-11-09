@@ -120,7 +120,7 @@ import {
   checkoutInventoryItem,
   returnInventoryItem,
   resolveMaintenanceIssue,
-} from "@/app/actions/inventory";
+} from "@/src/server/actions/inventory";
 import {
   generateNextAssetTag,
   getInventoryCatalog,

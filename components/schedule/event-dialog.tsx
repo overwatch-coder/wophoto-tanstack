@@ -24,7 +24,7 @@ import {
   updateScheduleEvent,
   deleteScheduleEvent,
   checkScheduleConflicts,
-} from "@/app/actions/schedule";
+} from "@/src/server/actions/schedule";
 import { ScheduleEventType } from "@/generated/prisma/browser";
 import {
   LOCATION_PRESET_LABELS,

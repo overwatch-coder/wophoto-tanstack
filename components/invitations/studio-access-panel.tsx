@@ -2,7 +2,7 @@ import { useState, useTransition } from "react";
 import { Shield, Settings2, UserRound, X } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/browser";
-import { updateStudioMemberAccess, revokeStudioMember } from "@/app/actions/studio-access";
+import { updateStudioMemberAccess, revokeStudioMember } from "@/src/server/actions/studio-access";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";

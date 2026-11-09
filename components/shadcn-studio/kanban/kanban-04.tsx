@@ -23,21 +23,24 @@ import { cn } from "@/lib/utils"
 import { getProfileImageSrc } from "@/lib/profile-image"
 import type { TaskItem } from "@/components/tasks/tasks-workspace"
 
-type Role = "MANAGER" | "WORKER"
+type Role = "MANAGER" | "WORKER" | "CLIENT"
 
 type KanbanDemoModernProps = {
   tasks: TaskItem[]
   role: Role
   pending: boolean
   onTaskMove: (taskId: string, nextStatus: TaskStatus) => void
-  renderTaskActions: (task: TaskItem) => ReactNode
+  renderTaskActions?: (task: TaskItem) => ReactNode
+  onTaskClick?: (task: TaskItem) => void
 }
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
+  [TaskStatus.PENDING]: "Pending",
   [TaskStatus.TODO]: "To do",
   [TaskStatus.IN_PROGRESS]: "In progress",
   [TaskStatus.IN_REVIEW]: "In review",
   [TaskStatus.COMPLETED]: "Completed",
+  [TaskStatus.TO_EDIT]: "To edit",
 }
 
 const PRIORITY_STYLES: Record<TaskItem["priority"], string> = {
@@ -62,6 +65,7 @@ function taskStatus(task: TaskItem, role: Role) {
 }
 
 function canMoveTask(task: TaskItem, role: Role) {
+  if (role === "CLIENT") return false
   const status = taskStatus(task, role)
   if (role === "WORKER") {
     return status === TaskStatus.TODO || status === TaskStatus.IN_PROGRESS
@@ -84,12 +88,14 @@ function TaskCard({
   pending,
   isOverlay = false,
   renderTaskActions,
+  onTaskClick,
 }: {
   task: TaskItem
   role: Role
   pending: boolean
   isOverlay?: boolean
-  renderTaskActions: (task: TaskItem) => ReactNode
+  renderTaskActions?: (task: TaskItem) => ReactNode
+  onTaskClick?: (task: TaskItem) => void
 }) {
   const canDrag = canMoveTask(task, role) && !pending
   const currentStatus = taskStatus(task, role)
@@ -110,9 +116,22 @@ function TaskCard({
       className={cn(
         "min-w-0 rounded-xl border bg-card text-card-foreground shadow-xs transition-[border-color,box-shadow]",
         canDrag && "hover:border-primary/30 hover:shadow-sm",
+        onTaskClick && "cursor-pointer hover:border-primary/40",
         isOverlay && "rotate-1 shadow-lg ring-2 ring-primary/25",
         pending && "opacity-70"
       )}
+      onClick={(e) => {
+        if (isOverlay) return
+        const target = e.target as HTMLElement | null
+        if (
+          target?.closest(
+            "button, a, [data-slot='select-trigger'], [role='menuitem']"
+          )
+        ) {
+          return
+        }
+        onTaskClick?.(task)
+      }}
     >
       <div className="space-y-3 p-3 sm:p-3.5">
         <div className="flex min-w-0 items-start gap-2">
@@ -246,7 +265,7 @@ function TaskCard({
           </p>
         ) : null}
 
-        {!isOverlay ? (
+        {!isOverlay && renderTaskActions ? (
           <div className="flex min-h-10 flex-wrap items-center gap-1.5 border-t pt-2.5 [&_button]:shrink-0">
             {renderTaskActions(task)}
             {currentStatus ? (
@@ -268,13 +287,15 @@ function TaskColumn({
   pending,
   isOverlay = false,
   renderTaskActions,
+  onTaskClick,
 }: {
   status: TaskStatus
   tasks: TaskItem[]
   role: Role
   pending: boolean
   isOverlay?: boolean
-  renderTaskActions: (task: TaskItem) => ReactNode
+  renderTaskActions?: (task: TaskItem) => ReactNode
+  onTaskClick?: (task: TaskItem) => void
 }) {
   return (
     <KanbanColumn
@@ -309,12 +330,13 @@ function TaskColumn({
               role={role}
               pending={pending}
               renderTaskActions={renderTaskActions}
+              onTaskClick={onTaskClick}
             />
           ))}
           {tasks.length === 0 ? (
             <p className="flex min-h-20 min-w-0 items-center justify-center rounded-lg border border-dashed bg-card/60 px-3 text-center text-xs wrap-anywhere text-muted-foreground">
-              {role === "MANAGER"
-                ? "No tasks in this status yet."
+              {role === "MANAGER" || role === "CLIENT"
+                ? "No tasks in this status."
                 : "Drop here to update status."}
             </p>
           ) : null}
@@ -341,17 +363,20 @@ function KanbanBoardState({
   pending,
   onTaskMove,
   renderTaskActions,
+  onTaskClick,
 }: KanbanDemoModernProps) {
-  const statuses = useMemo(
+  const statuses: TaskStatus[] = useMemo(
     () =>
-      role === "MANAGER"
+      role === "MANAGER" || role === "CLIENT"
         ? [
+            TaskStatus.PENDING,
             TaskStatus.TODO,
             TaskStatus.IN_PROGRESS,
             TaskStatus.IN_REVIEW,
             TaskStatus.COMPLETED,
+            TaskStatus.TO_EDIT,
           ]
-        : [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW],
+        : [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW, TaskStatus.TO_EDIT],
     [role]
   )
   const [columns, setColumns] = useState(() =>
@@ -402,6 +427,7 @@ function KanbanBoardState({
               role={role}
               pending={pending}
               renderTaskActions={renderTaskActions}
+              onTaskClick={onTaskClick}
             />
           ))}
         </KanbanBoard>
@@ -418,6 +444,7 @@ function KanbanBoardState({
                   pending={pending}
                   isOverlay
                   renderTaskActions={renderTaskActions}
+                  onTaskClick={onTaskClick}
                 />
               )
             }
@@ -431,6 +458,7 @@ function KanbanBoardState({
                 pending={pending}
                 isOverlay
                 renderTaskActions={renderTaskActions}
+                onTaskClick={onTaskClick}
               />
             ) : null
           }}

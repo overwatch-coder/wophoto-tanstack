@@ -31,7 +31,7 @@ import {
   discardUnusedBrandAssetUploads,
   updateBrandAsset,
   deleteBrandAsset,
-} from "@/app/actions/brand-assets";
+} from "@/src/server/actions/brand-assets";
 import {
   Loader2,
   Trash2,

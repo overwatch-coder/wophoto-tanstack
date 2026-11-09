@@ -62,9 +62,11 @@ export const updateDailyEntrySchema = z.object({
 }).superRefine(taskFieldsRefinement);
 
 export const assignmentStatusSchema = z.enum([
+  TaskStatus.PENDING,
   TaskStatus.TODO,
   TaskStatus.IN_PROGRESS,
   TaskStatus.IN_REVIEW,
+  TaskStatus.TO_EDIT,
 ]);
 
 export const taskStatusSchema = z.nativeEnum(TaskStatus);

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { resolveMaintenanceIssue } from "@/app/actions/inventory"
+import { resolveMaintenanceIssue } from "@/src/server/actions/inventory"
 import {
   InventoryCondition,
   MaintenanceStatus,

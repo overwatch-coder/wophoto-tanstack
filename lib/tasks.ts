@@ -62,11 +62,69 @@ export async function getTasks(input: {
   const taskSelect = {
     id: true, title: true, description: true, type: true, workDate: true, status: true, priority: true,
     startAt: true, dueAt: true, completedAt: true, createdAt: true, updatedAt: true, projectId: true,
-    project: { select: { id: true, name: true, client: { select: { name: true } } } },
-    assignees: { select: { userId: true, status: true, submittedAt: true, managerNote: true, user: { select: { name: true, email: true, image: true } } } },
+    project: {
+      select: {
+        id: true,
+        name: true,
+        client: { select: { id: true, name: true, image: true } },
+        creativeBriefs: {
+          select: { tags: true },
+          take: 1,
+        },
+      },
+    },
+    assignees: {
+      select: {
+        userId: true,
+        status: true,
+        submittedAt: true,
+        managerNote: true,
+        user: { select: { id: true, name: true, email: true, image: true } },
+      },
+    },
     specializations: { select: { specialization: true } },
     services: { select: { service: { select: { id: true, name: true } } } },
-  };
+    deliverables: {
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        fileUrl: true,
+        fileSize: true,
+        mimeType: true,
+        version: true,
+        createdAt: true,
+        uploadedBy: { select: { id: true, name: true, image: true } },
+      },
+      orderBy: { createdAt: "desc" as const },
+    },
+    comments: {
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        author: { select: { id: true, name: true, image: true, role: true } },
+      },
+      orderBy: { createdAt: "asc" as const },
+    },
+    ratings: {
+      select: {
+        id: true,
+        score: true,
+        feedback: true,
+      },
+    },
+    revisions: {
+      select: {
+        id: true,
+        cause: true,
+        description: true,
+        createdAt: true,
+        requestedBy: { select: { id: true, name: true, image: true } },
+      },
+      orderBy: { createdAt: "desc" as const },
+    },
+  } satisfies Prisma.TaskSelect;
 
   const [rows, counts] = await Promise.all([
     prisma.task.findMany({
@@ -85,15 +143,31 @@ export async function getTasks(input: {
     ...task,
     project: {
       ...task.project,
-      client: task.project.client?.name ? { name: cleanClientName(task.project.client.name) } : null,
+      client: task.project.client?.name
+        ? {
+            id: task.project.client.id,
+            name: cleanClientName(task.project.client.name),
+            image: task.project.client.image,
+          }
+        : null,
+      program: task.project.creativeBriefs?.[0]?.tags?.[0] || "No program",
     },
     assignees: task.assignees.map((assignment) => ({
       ...assignment,
-      managerNote: user.role !== UserRole.WORKER || assignment.userId === user.id ? assignment.managerNote : null,
+      managerNote:
+        user.role !== UserRole.WORKER || assignment.userId === user.id
+          ? assignment.managerNote
+          : null,
       isCurrentUser: assignment.userId === user.id,
     })),
-    myStatus: task.assignees.find((assignment) => assignment.userId === user.id)?.status ?? null,
+    myStatus:
+      task.assignees.find((assignment) => assignment.userId === user.id)?.status ?? null,
     services: task.services.map((item) => item.service),
+    deliverablesCount:
+      task.deliverables?.filter((d) => d.type === "OUTPUT").length ?? 0,
+    attachmentsCount:
+      task.deliverables?.filter((d) => d.type === "INPUT").length ?? 0,
+    commentsCount: task.comments?.length ?? 0,
   });
 
   const tasks = rows.map(formatTask);
@@ -105,6 +179,7 @@ export async function getTasks(input: {
     total,
     totalPages,
     counts: Object.fromEntries(counts.map((row) => [row.status, row._count._all])) as Partial<Record<TaskStatus, number>>,
+    currentUserId: current.id,
   };
 }
 
@@ -311,3 +386,138 @@ export async function getDeletedTasks(input: {
 
 export type DeletedTasksPage = Awaited<ReturnType<typeof getDeletedTasks>>;
 export type DeletedTaskItem = DeletedTasksPage["tasks"][number];
+
+export async function getTaskDetails(taskId: string) {
+  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
+  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.TASKS);
+  const user = current.role === UserRole.WORKER ? current : { ...current, id: studio!.context.ownerUserId };
+
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      deletedAt: null,
+      ...(user.role === UserRole.WORKER
+        ? { assignees: { some: { userId: user.id } } }
+        : { project: { studioId: studio!.context.studioId } }),
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      type: true,
+      workDate: true,
+      status: true,
+      priority: true,
+      startAt: true,
+      dueAt: true,
+      completedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      projectId: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          client: { select: { id: true, name: true, image: true } },
+          creativeBriefs: {
+            select: { tags: true },
+            take: 1,
+          },
+        },
+      },
+      assignees: {
+        select: {
+          userId: true,
+          status: true,
+          submittedAt: true,
+          managerNote: true,
+          user: { select: { id: true, name: true, email: true, image: true } },
+        },
+      },
+      specializations: { select: { specialization: true } },
+      services: { select: { service: { select: { id: true, name: true } } } },
+      deliverables: {
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          fileUrl: true,
+          fileSize: true,
+          mimeType: true,
+          version: true,
+          createdAt: true,
+          uploadedBy: { select: { id: true, name: true, image: true } },
+        },
+        orderBy: { createdAt: "desc" as const },
+      },
+      comments: {
+        select: {
+          id: true,
+          body: true,
+          createdAt: true,
+          author: { select: { id: true, name: true, image: true, role: true } },
+        },
+        orderBy: { createdAt: "asc" as const },
+      },
+      ratings: {
+        select: {
+          id: true,
+          score: true,
+          feedback: true,
+          clientId: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" as const },
+      },
+      revisions: {
+        select: {
+          id: true,
+          cause: true,
+          description: true,
+          createdAt: true,
+          requestedBy: { select: { id: true, name: true, image: true } },
+        },
+        orderBy: { createdAt: "desc" as const },
+      },
+    },
+  });
+
+  if (!task) return null;
+
+  return {
+    task: {
+      ...task,
+      project: {
+        ...task.project,
+        client: task.project.client?.name
+          ? {
+              id: task.project.client.id,
+              name: cleanClientName(task.project.client.name),
+              image: task.project.client.image,
+            }
+          : null,
+        program: task.project.creativeBriefs?.[0]?.tags?.[0] || "No program",
+      },
+      assignees: task.assignees.map((assignment) => ({
+        ...assignment,
+        managerNote:
+          user.role !== UserRole.WORKER || assignment.userId === user.id
+            ? assignment.managerNote
+            : null,
+        isCurrentUser: assignment.userId === user.id,
+      })),
+      myStatus:
+        task.assignees.find((assignment) => assignment.userId === user.id)?.status ?? null,
+      services: task.services.map((item) => item.service),
+      deliverablesCount:
+        task.deliverables?.filter((d) => d.type === "OUTPUT").length ?? 0,
+      attachmentsCount:
+        task.deliverables?.filter((d) => d.type === "INPUT").length ?? 0,
+      commentsCount: task.comments?.length ?? 0,
+    },
+    currentUserRole: current.role,
+    currentUserId: current.id,
+  };
+}
+
+export type TaskDetailsData = NonNullable<Awaited<ReturnType<typeof getTaskDetails>>>;

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { convertBriefToTemplate } from "@/app/actions/brief-templates";
+import { convertBriefToTemplate } from "@/src/server/actions/brief-templates";
 import { BriefTemplateCategory } from "@/generated/prisma/browser";
 import {
   BRIEF_TEMPLATE_CATEGORY_LABELS,

@@ -23,7 +23,7 @@ import {
   createInventoryItem,
   updateInventoryItem,
   retireInventoryItem,
-} from "@/app/actions/inventory"
+} from "@/src/server/actions/inventory"
 import { InventoryCondition } from "@/generated/prisma/browser"
 import { Plus, Trash2, Loader2, AlertCircle } from "lucide-react"
 import {

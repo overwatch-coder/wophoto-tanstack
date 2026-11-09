@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { postBriefQuestion, resolveBriefQuestion } from "@/app/actions/briefs";
+import { postBriefQuestion, resolveBriefQuestion } from "@/src/server/actions/briefs";
 import { getProfileImageSrc } from "@/lib/profile-image";
 import {
   MessageSquare,

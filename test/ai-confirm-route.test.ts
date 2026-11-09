@@ -22,7 +22,7 @@ vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("@/lib/ai/copilot-access", () => ({ isCopilotEnabledForUser: mocks.isCopilotEnabled }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/invitations", () => ({ createInvitationForManager: mocks.createInvitationForManager }));
-vi.mock("@/app/actions/inventory", () => ({
+vi.mock("@/src/server/actions/inventory", () => ({
   createInventoryItem: mocks.createInventoryItem,
   updateInventoryItem: mocks.updateInventoryItem,
   retireInventoryItem: mocks.retireInventoryItem,
@@ -40,7 +40,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { POST } from "@/app/api/chat/confirm/route";
+import { POST } from "@/src/server/handlers/chat-confirm";
 
 function request(body: unknown) {
   return new Request("http://localhost/api/chat/confirm", {

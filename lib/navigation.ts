@@ -61,6 +61,7 @@ export const workspaceNavigation: Record<Exclude<WorkspaceRole, "SUPERVISOR" | "
   ],
   CLIENT: [
     { title: "Dashboard", href: "/client", icon: LayoutDashboard, group: "primary" },
+    { title: "Projects", href: "/client/projects", icon: FolderKanban, group: "work" },
     { title: "Project Feedback", href: "/client/project-feedback", icon: MessageSquareText, group: "work" },
     { title: "Work Requests", href: "/client/work-requests", icon: ClipboardList, group: "work" },
     { title: "Notifications", href: "/client/notifications", icon: Bell, group: "communication" },

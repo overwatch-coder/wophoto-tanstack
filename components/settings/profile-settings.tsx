@@ -1,5 +1,5 @@
 import { useActionState, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import {
   User,
   Bell,
@@ -26,7 +26,7 @@ import {
   updateProfilePicture,
   removeProfilePicture,
   type ProfileActionState,
-} from "@/app/actions/profile";
+} from "@/src/server/actions/profile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,7 @@ import { FileDropzone } from "@/components/ui/file-dropzone";
 import { StudioCopilotAccessSettings } from "@/components/settings/studio-copilot-access-settings";
 import type { CopilotStudioSettingsView } from "@/lib/ai/copilot-access";
 import { SettingsDensity, UserRole, WorkerAvailability } from "@/generated/prisma/browser";
-import { updateUserPreferencesAction } from "@/app/actions/settings";
+import { updateUserPreferencesAction } from "@/src/server/actions/settings";
 import { useWorkspacePreferences } from "@/components/workspace/workspace-preferences-context";
 import { playNotificationChime, prepareNotificationAudio } from "@/lib/notification-audio";
 import type { UserPreferencePatch } from "@/lib/validation/settings";

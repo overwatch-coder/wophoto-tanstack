@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LogOut, ShieldAlert } from "lucide-react";
-import { signOutUser } from "@/app/actions/auth";
+import { signOutUser } from "@/src/server/actions/auth";
 
 export const Route = createFileRoute("/forbidden")({
   head: () => ({

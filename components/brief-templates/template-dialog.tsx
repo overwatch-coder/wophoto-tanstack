@@ -23,7 +23,7 @@ import {
 import {
   createBriefTemplate,
   updateBriefTemplate,
-} from "@/app/actions/brief-templates";
+} from "@/src/server/actions/brief-templates";
 import {
   SHOT_FRAMING_OPTIONS,
   type ShotItem,
