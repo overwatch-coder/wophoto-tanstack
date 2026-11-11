@@ -21,7 +21,13 @@ import {
   Sparkles,
   User,
 } from "lucide-react"
-import { createProject, type ProjectActionState } from "@/src/server/actions/projects"
+import {
+  addProjectClient,
+  createProject,
+  getAssignableProjects,
+  type AssignableProjectOption,
+  type ProjectActionState,
+} from "@/src/server/actions/projects"
 import { cleanClientName } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,6 +41,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Combobox,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+  ComboboxTrigger,
+} from "@/components/ui/combobox"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -258,9 +274,17 @@ function ViewProjectDialog({
 
 function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
   const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<"create" | "assign">("create")
   const formRef = useRef<HTMLFormElement>(null)
   const [state, setState] = useState<ProjectActionState>({})
   const [pending, startTransition] = useTransition()
+  const [projectSearch, setProjectSearch] = useState("")
+  const [assignableProjects, setAssignableProjects] = useState<AssignableProjectOption[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState("")
+  const [selectedClientId, setSelectedClientId] = useState("")
+  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
+  const router = useRouter()
 
   const clientItems = useMemo(
     () =>
@@ -271,6 +295,39 @@ function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
     [clients]
   )
 
+  const projectItems = useMemo(
+    () =>
+      assignableProjects.map((project) => ({
+        value: project.id,
+        label: `${project.name} · ${project.clientNames.map((name) => cleanClientName(name)).join(", ") || "Unnamed client"}`,
+      })),
+    [assignableProjects],
+  )
+  const selectedProject = assignableProjects.find((project) => project.id === selectedProjectId)
+  const availableClientItems = clientItems.filter((client) => !selectedProject?.clientIds.includes(client.value))
+
+  useEffect(() => {
+    if (!open || mode !== "assign") return
+
+    let cancelled = false
+    const timeout = window.setTimeout(() => {
+      setProjectsLoading(true)
+      setProjectsError(null)
+      void getAssignableProjects(projectSearch).then((projects) => {
+        if (!cancelled) setAssignableProjects(projects)
+      }).catch(() => {
+        if (!cancelled) setProjectsError("Projects could not be loaded. Try again.")
+      }).finally(() => {
+        if (!cancelled) setProjectsLoading(false)
+      })
+    }, 200)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [mode, open, projectSearch])
+
   const handleSubmit = (formData: FormData) => {
     setState({})
     startTransition(async () => {
@@ -279,6 +336,27 @@ function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
       if (res.success) {
         formRef.current?.reset()
         setOpen(false)
+        await router.invalidate()
+      }
+    })
+  }
+
+  const handleAddClient = () => {
+    if (!selectedProjectId || !selectedClientId) {
+      setState({ error: "Choose both a project and a client." })
+      return
+    }
+
+    setState({})
+    startTransition(async () => {
+      const res = await addProjectClient(selectedProjectId, selectedClientId)
+      setState(res)
+      if (res.success) {
+        setSelectedProjectId("")
+        setSelectedClientId("")
+        setProjectSearch("")
+        setOpen(false)
+        await router.invalidate()
       }
     })
   }
@@ -289,7 +367,7 @@ function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
         render={
           <Button className="h-9 w-full gap-2 rounded-full bg-orange-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-orange-700 sm:w-auto">
             <Plus className="size-4" />
-            <span>Add Project</span>
+            <span>Create or Add Project</span>
           </Button>
         }
       />
@@ -301,11 +379,10 @@ function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
             </span>
             <div>
               <DialogTitle className="text-base font-semibold text-foreground">
-                Create New Project
+                Create or Add Client to Project
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Set up a new production project and assign it to an active
-                client.
+                Create a project for a client or add another client to an existing project.
               </DialogDescription>
             </div>
           </div>
@@ -318,7 +395,30 @@ function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
             project.
           </div>
         ) : (
-          <form ref={formRef} action={handleSubmit} className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2">
+            <div role="group" aria-label="Project action" className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                aria-pressed={mode === "create"}
+                variant={mode === "create" ? "default" : "outline"}
+                className={mode === "create" ? "bg-orange-600 text-white hover:bg-orange-700" : ""}
+                onClick={() => { setMode("create"); setState({}) }}
+              >
+                Create New Project
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={mode === "assign"}
+                variant={mode === "assign" ? "default" : "outline"}
+                className={mode === "assign" ? "bg-orange-600 text-white hover:bg-orange-700" : ""}
+                onClick={() => { setMode("assign"); setState({}) }}
+              >
+                Add Client to Project
+              </Button>
+            </div>
+
+            {mode === "create" ? (
+          <form ref={formRef} action={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label
                 htmlFor="create-project-name"
@@ -412,6 +512,91 @@ function CreateProjectDialog({ clients }: { clients: ClientOption[] }) {
               </Button>
             </DialogFooter>
           </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="assign-project-select" className="text-xs font-medium text-foreground">
+                    Project <span className="text-rose-500">*</span>
+                  </Label>
+                  <Combobox
+                    items={projectItems.map((project) => project.value)}
+                    value={selectedProjectId || null}
+                    onValueChange={(value) => {
+                      setSelectedProjectId(value ?? "")
+                      setSelectedClientId("")
+                    }}
+                    onInputValueChange={(value, details) => {
+                      if (details.reason === "input-change" || details.reason === "input-clear") {
+                        setSelectedProjectId("")
+                        setProjectSearch(value)
+                      }
+                    }}
+                    itemToStringLabel={(value) => projectItems.find((project) => project.value === value)?.label ?? ""}
+                    autoHighlight
+                  >
+                    <ComboboxInputGroup>
+                      <ComboboxInput
+                        id="assign-project-select"
+                        placeholder={projectsLoading ? "Loading projects…" : "Search or choose a project"}
+                        className="h-9"
+                      />
+                      <ComboboxTrigger aria-label="Show projects" />
+                    </ComboboxInputGroup>
+                    <ComboboxPopup>
+                      <ComboboxList>
+                        <ComboboxEmpty>
+                          {projectsLoading
+                            ? "Searching projects…"
+                            : projectsError
+                              ? projectsError
+                              : "No matching projects found."}
+                        </ComboboxEmpty>
+                        {projectItems.map((project) => (
+                          <ComboboxItem key={project.value} value={project.value}>
+                            {project.label}
+                          </ComboboxItem>
+                        ))}
+                      </ComboboxList>
+                    </ComboboxPopup>
+                  </Combobox>
+                  {projectsError ? <p role="alert" className="text-xs text-destructive">{projectsError}</p> : null}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="assign-project-client" className="text-xs font-medium text-foreground">
+                    Client to Add <span className="text-rose-500">*</span>
+                  </Label>
+                  <Select value={selectedClientId || null} onValueChange={(value) => setSelectedClientId(value ?? "")} items={availableClientItems}>
+                    <SelectTrigger id="assign-project-client" className="h-9 w-full text-xs">
+                      <SelectValue placeholder="Choose a client to add" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableClientItems.map((client) => (
+                        <SelectItem key={client.value} value={client.value} className="text-xs">
+                          {client.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedProject && availableClientItems.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">All active clients already have access to this project.</p>
+                  ) : null}
+                </div>
+
+                <p className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  The new client will get access to this project. Existing clients will keep their access.
+                </p>
+
+                {state.error ? <p role="alert" className="text-xs font-medium text-destructive">{state.error}</p> : null}
+                <DialogFooter className="-mx-4 mt-5 -mb-4 border-t border-border bg-muted/30 px-4 py-3">
+                  <DialogClose render={<Button type="button" variant="outline" className="h-8 px-3 text-xs">Cancel</Button>} />
+                  <Button type="button" disabled={pending || projectsLoading || !selectedProjectId || !selectedClientId} onClick={handleAddClient} className="h-8 bg-orange-600 px-4 text-xs font-semibold text-white hover:bg-orange-700">
+                    {pending ? "Adding client…" : "Add Client"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>

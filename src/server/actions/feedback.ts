@@ -60,7 +60,10 @@ async function createClientFeedbackServerImplementation(
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
-        clientId: client.id,
+        OR: [
+          { clientId: client.id },
+          { collaborators: { some: { userId: client.id } } },
+        ],
       },
       select: { id: true, managerId: true, studioId: true, name: true },
     })
@@ -491,7 +494,13 @@ async function updateClientFeedbackServerImplementation(
     }
 
     const project = await prisma.project.findFirst({
-      where: { id: projectId, clientId: client.id },
+      where: {
+        id: projectId,
+        OR: [
+          { clientId: client.id },
+          { collaborators: { some: { userId: client.id } } },
+        ],
+      },
       select: { id: true, managerId: true, studioId: true, name: true },
     })
     if (!project) {

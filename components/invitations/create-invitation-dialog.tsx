@@ -1,6 +1,6 @@
 
 import { useState, useTransition } from "react";
-import { UserPlus, Briefcase, Shield, Copy, Check, CheckCircle2, UsersRound } from "lucide-react";
+import { UserPlus, Briefcase, Shield, Copy, Check, CheckCircle2, UsersRound, AlertTriangle } from "lucide-react";
 import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/browser";
 import { createInvitation, type InvitationFormState } from "@/src/server/actions/invitations";
 import { Button } from "@/components/ui/button";
@@ -123,14 +123,16 @@ export function CreateInvitationDialog() {
 
         {state.invitePath ? (
           <div className="space-y-4 py-2">
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="size-4" />
+            <div className={`rounded-xl border p-4 ${state.emailDelivery?.status === "sent" ? "border-emerald-500/30 bg-emerald-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
+              <div className={`flex items-center gap-2 text-sm font-semibold ${state.emailDelivery?.status === "sent" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+                {state.emailDelivery?.status === "sent" ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
                 <span>{state.emailDelivery?.status === "sent" ? "Invitation Email Sent" : "Invitation Link Ready"}</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {state.message} {state.emailDelivery?.status === "sent" ? "You can also copy the link:" : "Copy and share this one-time link:"} <strong className="text-foreground">{email}</strong>
+                {state.message}
               </p>
+              {state.emailDelivery?.error ? <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">{state.emailDelivery.error}</p> : null}
+              <p className="mt-2 text-xs text-muted-foreground">{state.emailDelivery?.status === "sent" ? "You can also copy the one-time link for" : "Share the one-time link with"} <strong className="text-foreground">{email}</strong></p>
               <div className="mt-3 flex items-center gap-2">
                 <code className="flex-1 truncate rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono text-foreground">
                   {typeof window !== "undefined" ? window.location.origin : ""}{state.invitePath}

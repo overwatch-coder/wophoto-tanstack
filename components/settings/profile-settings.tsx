@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { getProfileImageSrc } from "@/lib/profile-image";
+import { ProfileImage } from "@/components/auth/profile-image";
 import { FileDropzone } from "@/components/ui/file-dropzone";
 import { StudioCopilotAccessSettings } from "@/components/settings/studio-copilot-access-settings";
 import type { CopilotStudioSettingsView } from "@/lib/ai/copilot-access";
@@ -1353,9 +1354,11 @@ function ProfilePhoto({
       style={{ width: size, height: size }}
     >
       {imgSrc ? (
-        <img
-          src={imgSrc}
+        <ProfileImage
+          image={image}
+          userId={userId}
           alt={name || "User avatar"}
+          fallback={initials}
           className="size-full object-cover"
         />
       ) : (

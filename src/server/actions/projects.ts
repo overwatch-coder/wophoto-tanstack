@@ -15,11 +15,125 @@ import { auth } from "@/auth";
 import { requireStudioManagerArea, getStudioAccessContext, hasStudioAccess } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import { InputValidationError, parseInput } from "@/lib/validation/common";
-import { createProjectSchema } from "@/lib/validation/projects";
+import { addProjectClientSchema, createProjectSchema } from "@/lib/validation/projects";
 import { createNotification } from "@/lib/notifications";
 
 export type ProjectActionState = { error?: string; success?: string };
+export type AssignableProjectOption = {
+  id: string;
+  name: string;
+  client: { id: string; name: string | null };
+  clientIds: string[];
+  clientNames: string[];
+};
 class ProjectValidationError extends Error {}
+
+async function getAssignableProjectsServerImplementation(query: string): Promise<AssignableProjectOption[]> {
+  const { manager, context } = await requireStudioManagerArea(StudioArea.PROJECTS);
+  const search = query.trim().slice(0, 120);
+
+  return prisma.project.findMany({
+    where: {
+      managerId: manager.id,
+      studioId: context.studioId,
+      ...(search
+        ? { name: { contains: search, mode: "insensitive" } }
+        : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      client: { select: { id: true, name: true } },
+      collaborators: {
+        where: { user: { role: UserRole.CLIENT } },
+        select: { user: { select: { id: true, name: true } } },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: 50,
+  }).then((projects) => projects.map((project) => ({
+    id: project.id,
+    name: project.name,
+    client: project.client,
+    clientIds: [project.client.id, ...project.collaborators.map(({ user }) => user.id)],
+    clientNames: [project.client.name, ...project.collaborators.map(({ user }) => user.name)]
+      .filter((name): name is string => Boolean(name)),
+  })));
+}
+
+async function addProjectClientServerImplementation(
+  projectId: string,
+  clientId: string,
+): Promise<ProjectActionState> {
+  const { manager, context } = await requireStudioManagerArea(StudioArea.PROJECTS);
+
+  try {
+    const parsed = parseInput(addProjectClientSchema, { projectId, clientId });
+    const [project, client] = await Promise.all([
+      prisma.project.findFirst({
+        where: {
+          id: parsed.projectId,
+          managerId: manager.id,
+          studioId: context.studioId,
+        },
+        select: {
+          id: true,
+          name: true,
+          clientId: true,
+          collaborators: { select: { userId: true } },
+        },
+      }),
+      prisma.user.findFirst({
+        where: {
+          id: parsed.clientId,
+          role: UserRole.CLIENT,
+          status: UserStatus.ACTIVE,
+          acceptedInvitation: { is: { invitedById: manager.id, status: InvitationStatus.USED } },
+        },
+        select: { id: true, name: true, email: true },
+      }),
+    ]);
+
+    if (!project) throw new ProjectValidationError("That project is not available to you.");
+    if (!client) throw new ProjectValidationError("That client is not available to you.");
+    if (project.clientId === client.id || project.collaborators.some(({ userId }) => userId === client.id)) {
+      throw new ProjectValidationError("This client already has access to the project.");
+    }
+
+    await prisma.projectCollaborator.create({
+      data: {
+        projectId: project.id,
+        userId: client.id,
+        role: ProjectCollaboratorRole.COLLABORATOR,
+        addedById: manager.id,
+      },
+    });
+
+    try {
+      await createNotification({
+        userId: client.id,
+        actorId: manager.id,
+        type: NotificationType.SYSTEM_ALERT,
+        category: NotificationCategory.UPDATE,
+        title: "Added to project workspace",
+        message: `You've been added to "${project.name}" as a project client.`,
+        link: `/client/projects/${project.id}`,
+        projectId: project.id,
+      });
+    } catch (error) {
+      console.error("Failed to notify client about project access:", error);
+    }
+
+    return { success: `${client.name || client.email} added to the project.` };
+  } catch (error) {
+    return {
+      error:
+        error instanceof ProjectValidationError || error instanceof InputValidationError
+          ? error.message
+          : "The client could not be added to that project. Try again.",
+    };
+  }
+}
 
 async function createProjectServerImplementation(
   _previousState: ProjectActionState,
@@ -244,6 +358,16 @@ const createProjectServerFunction = createServerFn({ method: "POST" })
   .validator((args: EncodedActionArguments<Parameters<typeof createProjectServerImplementation>>) => args)
   .handler(async ({ data }) => createProjectServerImplementation(...decodeActionArguments<Parameters<typeof createProjectServerImplementation>>(data)));
 export const createProject = async (...args: Parameters<typeof createProjectServerImplementation>) => createProjectServerFunction({ data: await encodeActionArguments(args) });
+
+const getAssignableProjectsServerFunction = createServerFn({ method: "GET" })
+  .validator((query: string) => query)
+  .handler(async ({ data }) => getAssignableProjectsServerImplementation(data));
+export const getAssignableProjects = async (query: string) => getAssignableProjectsServerFunction({ data: query });
+
+const addProjectClientServerFunction = createServerFn({ method: "POST" })
+  .validator((args: EncodedActionArguments<Parameters<typeof addProjectClientServerImplementation>>) => args)
+  .handler(async ({ data }) => addProjectClientServerImplementation(...decodeActionArguments<Parameters<typeof addProjectClientServerImplementation>>(data)));
+export const addProjectClient = async (...args: Parameters<typeof addProjectClientServerImplementation>) => addProjectClientServerFunction({ data: await encodeActionArguments(args) });
 
 const addProjectCollaboratorServerFunction = createServerFn({ method: "POST" })
   .validator((args: EncodedActionArguments<Parameters<typeof addProjectCollaboratorServerImplementation>>) => args)

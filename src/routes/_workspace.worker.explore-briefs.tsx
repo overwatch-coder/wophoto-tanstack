@@ -61,7 +61,7 @@ const getWorkerExploreBriefsData = createServerFn({ method: "GET" })
       initialArchiveBriefs: archiveResult.briefs,
       totalArchiveBriefs: archiveResult.total,
       projects: allProjects,
-    } as any;
+    };
   });
 
 export const Route = createFileRoute("/_workspace/worker/explore-briefs")({
@@ -83,7 +83,7 @@ export const Route = createFileRoute("/_workspace/worker/explore-briefs")({
 });
 
 function WorkerExploreBriefsRouteComponent() {
-  const data = Route.useLoaderData() as any;
+  const data = Route.useLoaderData();
   return (
     <ExploreBriefsWorkspace
       {...data}

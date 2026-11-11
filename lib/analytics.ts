@@ -322,15 +322,22 @@ export async function getWorkerAnalytics(): Promise<WorkerAnalyticsData> {
 
 export async function getClientAnalytics(): Promise<ClientAnalyticsData> {
   const user = await requireRole(UserRole.CLIENT);
+  const clientProjects = {
+    OR: [
+      { clientId: user.id },
+      { collaborators: { some: { userId: user.id } } },
+    ],
+  } satisfies Prisma.ProjectWhereInput;
+  const taskClientProjects: Prisma.ProjectWhereInput = clientProjects;
   const [activeProjectsCount, statusCounts, projects, recentRows, onTimeStats] = await Promise.all([
-    prisma.project.count({ where: { clientId: user.id } }),
+    prisma.project.count({ where: clientProjects }),
     prisma.task.groupBy({
       by: ["status"],
-      where: { project: { clientId: user.id }, deletedAt: null },
+      where: { project: taskClientProjects, deletedAt: null },
       _count: { _all: true },
     }),
     prisma.project.findMany({
-      where: { clientId: user.id },
+      where: clientProjects,
       select: {
         id: true, name: true, updatedAt: true,
         manager: { select: { name: true } },
@@ -339,13 +346,13 @@ export async function getClientAnalytics(): Promise<ClientAnalyticsData> {
       take: 6,
     }),
     prisma.task.findMany({
-      where: { project: { clientId: user.id }, deletedAt: null, status: TaskStatus.COMPLETED },
+      where: { project: taskClientProjects, deletedAt: null, status: TaskStatus.COMPLETED },
       select: { id: true, title: true, priority: true, completedAt: true, project: { select: { name: true } } },
       orderBy: [{ completedAt: "desc" }, { id: "desc" }],
       take: 5,
     }),
     prisma.$queryRawUnsafe<Array<{ total: number; onTime: number }>>(
-      'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime" FROM "Task" t JOIN "Project" p ON p."id" = t."projectId" WHERE p."clientId" = $1 AND t."deletedAt" IS NULL AND t."status" = \'COMPLETED\'',
+      'SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t."dueAt" IS NULL OR t."completedAt" IS NULL OR t."completedAt" <= t."dueAt")::int AS "onTime" FROM "Task" t JOIN "Project" p ON p."id" = t."projectId" WHERE (p."clientId" = $1 OR EXISTS (SELECT 1 FROM "ProjectCollaborator" pc WHERE pc."projectId" = p."id" AND pc."userId" = $1)) AND t."deletedAt" IS NULL AND t."status" = \'COMPLETED\'',
       user.id,
     ),
   ]);

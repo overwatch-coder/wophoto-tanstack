@@ -47,9 +47,14 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 interface TaskDetailsViewProps {
   data: TaskDetailsData
   backUrl?: string
+  backLabel?: string
 }
 
-export function TaskDetailsView({ data, backUrl = "/manager/tasks" }: TaskDetailsViewProps) {
+export function TaskDetailsView({
+  data,
+  backUrl = "/manager/tasks",
+  backLabel = "Back to Tasks",
+}: TaskDetailsViewProps) {
   const { task, currentUserRole } = data
   const router = useRouter()
   const [currentStatus, setCurrentStatus] = useState<TaskStatus>(task.status)
@@ -77,6 +82,13 @@ export function TaskDetailsView({ data, backUrl = "/manager/tasks" }: TaskDetail
   const latestRating = task.ratings[0]
   const categoryName = task.services[0]?.name || task.specializations[0]?.specialization
   const isManager = currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.SUPERVISOR
+  const projectUrl = task.projectId
+    ? isManager
+      ? `/manager/projects/${task.projectId}`
+      : currentUserRole === UserRole.CLIENT
+        ? `/client/projects/${task.projectId}`
+        : null
+    : null
 
   const isOverdue =
     task.dueAt &&
@@ -195,13 +207,12 @@ export function TaskDetailsView({ data, backUrl = "/manager/tasks" }: TaskDetail
               className="inline-flex items-center gap-1.5 font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
             >
               <ArrowLeft className="size-3.5" />
-              <span>Back to Tasks</span>
+              <span>{backLabel}</span>
             </Link>
             <span className="text-muted-foreground/40 shrink-0">•</span>
-            {task.projectId ? (
+            {projectUrl ? (
               <Link
-                to={isManager ? "/manager/projects/$projectId" : "/manager/tasks"}
-                params={isManager ? { projectId: task.projectId } : undefined}
+                to={projectUrl}
                 className="truncate font-medium hover:text-foreground transition-colors"
                 title={task.project.name}
               >

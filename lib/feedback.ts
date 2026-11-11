@@ -211,7 +211,12 @@ export async function getClientFeedbackData(
   // Keep request form options bounded. Feedback records are paginated below.
   const [projects, totalItems, stats] = await Promise.all([
     prisma.project.findMany({
-    where: { clientId: client.id },
+    where: {
+      OR: [
+        { clientId: client.id },
+        { collaborators: { some: { userId: client.id } } },
+      ],
+    },
     select: {
       id: true,
       name: true,

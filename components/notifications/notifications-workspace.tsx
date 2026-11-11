@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, type RegisteredRouter } from "@tanstack/react-router";
 import {
   Check,
   CheckCheck,
@@ -608,7 +608,7 @@ export function NotificationsWorkspace({
           )}
           {item.link ? (
             <Link
-              to={item.link as any}
+              to={item.link as RegisteredRouter["routeTree"]["types"]["fullPath"]}
               onClick={() => handleMarkItemRead(item.id)}
               className="inline-flex items-center gap-1 rounded-full text-xs h-7 px-3 bg-card border hover:bg-muted text-foreground font-medium transition-colors cursor-pointer"
             >

@@ -62,6 +62,8 @@ export type CreateNotificationInput = {
   taskId?: string | null;
   actorId?: string | null;
   sendEmail?: boolean;
+  /** Persist a stream cursor update without adding a visible bell notification. */
+  refreshOnly?: boolean;
   emailSubject?: string | null;
   dedupeKey?: string | null;
 };
@@ -168,9 +170,10 @@ export async function createNotification(input: CreateNotificationInput) {
     ? await getUserPreferences(input.userId, recipient.role, { resolveCopilotName: false })
     : null;
   const channels = preferences?.notificationChannels[input.type];
-  const showInApp = channels?.inApp ?? true;
-  const shouldSendEmail = channels?.email ??
-    (input.sendEmail ?? DEFAULT_EMAIL_NOTIFICATION_TYPES.includes(input.type));
+  const showInApp = input.refreshOnly ? false : channels?.inApp ?? true;
+  const shouldSendEmail = input.sendEmail === false
+    ? false
+    : channels?.email ?? DEFAULT_EMAIL_NOTIFICATION_TYPES.includes(input.type);
 
   if (recipient) recipientEmail = recipient.email;
   if (actor) actorName = actor.name;
@@ -256,6 +259,8 @@ export async function createNotification(input: CreateNotificationInput) {
       event: "NEW_NOTIFICATION",
       notification: notificationToView(notification),
     });
+  } else if (input.refreshOnly) {
+    broadcastToUser(input.userId, { event: "DATA_CHANGED", id: notification.id });
   }
 
   return notification;
@@ -333,7 +338,7 @@ export async function getLatestNotificationStreamCursor(
   userId: string,
 ): Promise<NotificationStreamCursor | null> {
   return prisma.notification.findFirst({
-    where: { userId, inAppVisible: true },
+    where: { userId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: { createdAt: true, id: true },
   });
@@ -346,7 +351,6 @@ export async function getNotificationsAfter(
   const rows = await prisma.notification.findMany({
     where: {
       userId,
-      inAppVisible: true,
       ...(cursor
         ? {
             OR: [
@@ -362,7 +366,8 @@ export async function getNotificationsAfter(
   });
   const last = rows.at(-1);
   return {
-    items: rows.map(notificationToView),
+    items: rows.filter((row) => row.inAppVisible).map(notificationToView),
+    dataChangedIds: rows.filter((row) => !row.inAppVisible).map((row) => row.id),
     nextCursor: last ? { createdAt: last.createdAt, id: last.id } : cursor,
   };
 }

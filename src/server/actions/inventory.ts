@@ -6,6 +6,8 @@ import {
   InventoryStatus,
   LoanStatus,
   MaintenanceStatus,
+  NotificationCategory,
+  NotificationType,
   Prisma,
   StudioArea,
   UserRole,
@@ -15,6 +17,7 @@ import { requireStudioManagerArea } from "@/lib/studio-access"
 import { prisma } from "@/lib/prisma"
 import { generateNextAssetTag } from "@/lib/inventory"
 import { recordInventoryActivity } from "@/lib/inventory-activity"
+import { createStudioAreaNotification } from "@/lib/notifications"
 import {
   createInventoryItemSchema,
   updateInventoryItemSchema,
@@ -34,6 +37,24 @@ export type InventoryActionState = {
 
 function revalidateInventory() {
   // TanStack Router invalidates route queries on navigation/mutation
+}
+
+async function notifyInventoryChange(studioId: string, title: string, message: string) {
+  try {
+    await createStudioAreaNotification(studioId, StudioArea.INVENTORY, {
+      type: NotificationType.SYSTEM_ALERT,
+      category: NotificationCategory.UPDATE,
+      title,
+      message,
+      // Recipients may be workers, whose inventory view lives under /worker.
+      link: null,
+      sendEmail: false,
+      refreshOnly: true,
+    })
+  } catch (error) {
+    // The inventory mutation is already committed; delivery must not turn it into a failure.
+    console.warn("[inventory] Failed to publish realtime update:", error)
+  }
 }
 
 async function createInventoryItemServerImplementation(
@@ -110,6 +131,7 @@ async function createInventoryItemServerImplementation(
     })
 
     revalidateInventory()
+    await notifyInventoryChange(context.studioId, "Inventory item added", `“${item.name}” was added to studio inventory.`)
     return {
       success: `Asset "${item.name}" (${item.assetTag}) created successfully.`,
       itemId: item.id,
@@ -210,6 +232,7 @@ async function updateInventoryItemServerImplementation(
     })
 
     revalidateInventory()
+    await notifyInventoryChange(context.studioId, "Inventory item updated", `“${updated.name}” was updated.`)
     return {
       success: `Asset "${updated.name}" updated successfully.`,
       itemId: updated.id,
@@ -283,6 +306,7 @@ async function retireInventoryItemServerImplementation(
     }
 
     revalidateInventory()
+    await notifyInventoryChange(context.studioId, "Inventory item retired", `“${item.name}” was retired from studio inventory.`)
     return {
       success: `Asset "${item.name}" (${item.assetTag}) has been retired.`,
       itemId: item.id,
@@ -367,6 +391,7 @@ async function retireInventoryItemsServerImplementation(
     })
 
     revalidateInventory()
+    await notifyInventoryChange(context.studioId, "Inventory items retired", `${items.length} studio inventory item${items.length === 1 ? " was" : "s were"} retired.`)
     return {
       success: `${items.length} asset${items.length === 1 ? "" : "s"} retired.`,
       itemId: ids[0],
@@ -413,6 +438,7 @@ async function checkoutInventoryItemServerImplementation(
           checkoutNotes: notes || null,
           status: LoanStatus.ACTIVE,
         },
+        include: { item: { select: { studioId: true, name: true } } },
       })
       await recordInventoryActivity(tx, {
         itemId,
@@ -437,6 +463,7 @@ async function checkoutInventoryItemServerImplementation(
     }
 
     revalidateInventory()
+    await notifyInventoryChange(loan.item.studioId, "Inventory item checked out", `“${loan.item.name}” was checked out.`)
     return {
       success: "Asset checked out successfully.",
       loanId: loan.id,
@@ -555,6 +582,7 @@ async function returnInventoryItemServerImplementation(
     if (!result) return { error: "This loan has already been returned." }
 
     revalidateInventory()
+    await notifyInventoryChange(loan.item.studioId, hasIssue ? "Inventory issue reported" : "Inventory item returned", hasIssue ? `“${loan.item.name}” was returned with an issue and needs maintenance.` : `“${loan.item.name}” was returned and is available again.`)
     return {
       success: hasIssue
         ? `Asset returned and flagged for maintenance (${loan.item.name}).`
@@ -662,6 +690,7 @@ async function resolveMaintenanceIssueServerImplementation(
       }
 
     revalidateInventory()
+    await notifyInventoryChange(context.studioId, "Maintenance issue resolved", `The maintenance issue for “${log.item.name}” was resolved.`)
     return {
       success: `Maintenance issue for "${log.item.name}" resolved successfully.`,
       itemId: log.itemId,

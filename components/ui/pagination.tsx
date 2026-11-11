@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, type RegisteredRouter } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_PAGE_SIZE, getPageItems, makePageHref, type SearchParamsRecord } from "@/lib/pagination";
@@ -25,17 +25,17 @@ export function Pagination({
     <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
       <p className="text-sm text-muted-foreground">Showing {first}–{last} of {totalItems}</p>
       <div className="flex items-center gap-1">
-        <Button nativeButton={false} render={<Link to={makePageHref(pathname, searchParams, Math.max(1, page - 1)) as any} aria-disabled={page <= 1} tabIndex={page <= 1 ? -1 : undefined} />} variant="outline" size="icon" className={`${itemClass} ${page <= 1 ? "pointer-events-none opacity-50" : ""}`} aria-label="Previous page">
+        <Button nativeButton={false} render={<Link to={makePageHref(pathname, searchParams, Math.max(1, page - 1)) as RegisteredRouter["routeTree"]["types"]["fullPath"]} aria-disabled={page <= 1} tabIndex={page <= 1 ? -1 : undefined} />} variant="outline" size="icon" className={`${itemClass} ${page <= 1 ? "pointer-events-none opacity-50" : ""}`} aria-label="Previous page">
           <ChevronLeft className="size-4" />
         </Button>
         {getPageItems(page, totalPages).map((item, index) => item === "ellipsis" ? (
           <span key={`ellipsis-${index}`} aria-hidden="true" className="flex size-9 items-center justify-center text-muted-foreground"><MoreHorizontal className="size-4" /></span>
         ) : (
-          <Button key={item} nativeButton={false} render={<Link to={makePageHref(pathname, searchParams, item) as any} aria-current={item === page ? "page" : undefined} />} variant={item === page ? "default" : "outline"} size="icon" className={itemClass} aria-label={`Page ${item}`}>
+          <Button key={item} nativeButton={false} render={<Link to={makePageHref(pathname, searchParams, item) as RegisteredRouter["routeTree"]["types"]["fullPath"]} aria-current={item === page ? "page" : undefined} />} variant={item === page ? "default" : "outline"} size="icon" className={itemClass} aria-label={`Page ${item}`}>
             {item}
           </Button>
         ))}
-        <Button nativeButton={false} render={<Link to={makePageHref(pathname, searchParams, Math.min(totalPages, page + 1)) as any} aria-disabled={page >= totalPages} tabIndex={page >= totalPages ? -1 : undefined} />} variant="outline" size="icon" className={`${itemClass} ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`} aria-label="Next page">
+        <Button nativeButton={false} render={<Link to={makePageHref(pathname, searchParams, Math.min(totalPages, page + 1)) as RegisteredRouter["routeTree"]["types"]["fullPath"]} aria-disabled={page >= totalPages} tabIndex={page >= totalPages ? -1 : undefined} />} variant="outline" size="icon" className={`${itemClass} ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`} aria-label="Next page">
           <ChevronRight className="size-4" />
         </Button>
       </div>

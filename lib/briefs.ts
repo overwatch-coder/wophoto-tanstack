@@ -78,7 +78,12 @@ export async function getProjectBriefs(rawQuery?: Record<string, unknown>) {
 
   // Role based filtering
   if (user.role === UserRole.CLIENT) {
-    where.project = { clientId: user.id };
+    where.project = {
+      OR: [
+        { clientId: user.id },
+        { collaborators: { some: { userId: user.id } } },
+      ],
+    };
     where.AND = [{ status: { not: BriefStatus.DRAFT } }];
   } else if (user.role === UserRole.WORKER) {
     where.AND = [
@@ -264,6 +269,7 @@ export async function getBriefDetail(briefId: string) {
           clientId: true,
           managerId: true,
           studioId: true,
+          collaborators: { select: { userId: true } },
           client: { select: { id: true, name: true, email: true } },
         },
       },
@@ -303,7 +309,9 @@ export async function getBriefDetail(briefId: string) {
 
   // Access check
   if (user.role === UserRole.CLIENT) {
-    if (brief.project.clientId !== user.id || brief.status === BriefStatus.DRAFT) {
+    const isProjectClient = brief.project.clientId === user.id
+      || brief.project.collaborators.some(({ userId }) => userId === user.id)
+    if (!isProjectClient || brief.status === BriefStatus.DRAFT) {
       return null;
     }
   } else if (user.role === UserRole.WORKER) {

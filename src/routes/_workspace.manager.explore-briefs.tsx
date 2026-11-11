@@ -82,7 +82,7 @@ const getManagerExploreBriefsData = createServerFn({ method: "GET" })
       totalArchiveBriefs: archiveResult.total,
       projects: managedProjects,
       clients: invitedClients,
-    } as any;
+    };
   });
 
 export const Route = createFileRoute("/_workspace/manager/explore-briefs")({
@@ -104,6 +104,6 @@ export const Route = createFileRoute("/_workspace/manager/explore-briefs")({
 });
 
 function ManagerExploreBriefsRouteComponent() {
-  const data = Route.useLoaderData() as any;
+  const data = Route.useLoaderData();
   return <ExploreBriefsWorkspace {...data} role={UserRole.MANAGER} />;
 }

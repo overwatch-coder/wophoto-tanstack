@@ -7,7 +7,6 @@ import {
   HelpCircle,
   Loader2,
 } from "lucide-react"
-import { signInWithGoogle } from "@/src/server/actions/auth"
 import { Button } from "@/components/ui/button"
 import { WoPhotoLogo } from "@/components/brand/logo"
 
@@ -156,7 +155,7 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
           ) : null}
 
           {/* Real Form using signInWithGoogle */}
-          <form action={signInWithGoogle} className="space-y-4">
+          <form action="/auth/google" method="GET" className="space-y-4">
             <GoogleSubmitButton />
 
             <div className="relative py-2">

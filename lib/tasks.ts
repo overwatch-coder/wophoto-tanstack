@@ -388,17 +388,34 @@ export type DeletedTasksPage = Awaited<ReturnType<typeof getDeletedTasks>>;
 export type DeletedTaskItem = DeletedTasksPage["tasks"][number];
 
 export async function getTaskDetails(taskId: string) {
-  const current = await requireRole(UserRole.MANAGER, UserRole.SUPERVISOR, UserRole.COLLABORATOR, UserRole.WORKER);
-  const studio = current.role === UserRole.WORKER ? null : await requireStudioArea(StudioArea.TASKS);
-  const user = current.role === UserRole.WORKER ? current : { ...current, id: studio!.context.ownerUserId };
+  const current = await requireRole(
+    UserRole.MANAGER,
+    UserRole.SUPERVISOR,
+    UserRole.COLLABORATOR,
+    UserRole.WORKER,
+    UserRole.CLIENT,
+  );
+  const isWorker = current.role === UserRole.WORKER;
+  const isClient = current.role === UserRole.CLIENT;
+  const studio = isWorker || isClient ? null : await requireStudioArea(StudioArea.TASKS);
+  const user = isWorker || isClient ? current : { ...current, id: studio!.context.ownerUserId };
 
   const task = await prisma.task.findFirst({
     where: {
       id: taskId,
       deletedAt: null,
-      ...(user.role === UserRole.WORKER
+      ...(isWorker
         ? { assignees: { some: { userId: user.id } } }
-        : { project: { studioId: studio!.context.studioId } }),
+        : isClient
+          ? {
+              project: {
+                OR: [
+                  { clientId: user.id },
+                  { collaborators: { some: { userId: user.id } } },
+                ],
+              },
+            }
+          : { project: { studioId: studio!.context.studioId } }),
     },
     select: {
       id: true,

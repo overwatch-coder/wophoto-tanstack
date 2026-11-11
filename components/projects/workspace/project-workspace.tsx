@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useRouter } from "@tanstack/react-router"
 import { ArrowLeft } from "lucide-react";
 import { ProjectOverviewTab } from "./project-overview-tab"
 import { ProjectTasksView } from "./project-tasks-view"
@@ -15,6 +15,7 @@ interface ProjectWorkspaceProps {
 
 export function ProjectWorkspace({ data, backUrl = "/manager/projects" }: ProjectWorkspaceProps) {
   const { project, tasks, stats, currentUserRole, canManage } = data
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<"OVERVIEW" | "TASKS" | "FILES">("OVERVIEW")
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -23,6 +24,13 @@ export function ProjectWorkspace({ data, backUrl = "/manager/projects" }: Projec
     : null
 
   function handleSelectTask(task: ProjectWorkspaceTask) {
+    if (currentUserRole === "CLIENT") {
+      router.navigate({
+        href: `/client/tasks/${task.id}`,
+      })
+      return
+    }
+
     setSelectedTaskId(task.id)
     setSheetOpen(true)
   }

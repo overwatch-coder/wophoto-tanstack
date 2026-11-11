@@ -79,8 +79,8 @@ export async function createInvitationForManager(managerId: string, input: unkno
       ? `Invitation created; a test email was sent to the configured test inbox instead of ${email}. Copy the link and share it with the intended recipient.`
       : `Invitation created and sent to ${email}.`
     : delivery.status === "preview"
-      ? `Invitation created, but email delivery is not configured. Copy the link and share it with ${email}.`
-      : `Invitation created, but the email could not be sent. Copy the link and share it with ${email}.`;
+      ? "Invitation created, but email delivery is not configured. Copy the link and share it with the invitee."
+      : "Invitation created, but the email could not be sent. Copy the link and share it with the invitee.";
   return {
     success: true,
     email,
@@ -88,7 +88,7 @@ export async function createInvitationForManager(managerId: string, input: unkno
     invitationId: invitation.id,
     invitePath,
     expiresAt,
-    emailDelivery: { status: delivery.status },
+    emailDelivery: { status: delivery.status, error: delivery.error },
     message: `${emailMessage} It expires in seven days.`,
   };
 }

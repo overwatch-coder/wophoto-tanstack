@@ -74,6 +74,7 @@ export async function GET(req: Request) {
           for (const notification of updates.items) {
             if (!send({ event: "NEW_NOTIFICATION", notification })) break;
           }
+          for (const id of updates.dataChangedIds) send({ event: "DATA_CHANGED", id });
           if (
             nextUnreadCounts.unread !== unreadCounts.unread ||
             nextUnreadCounts.actionRequired !== unreadCounts.actionRequired ||

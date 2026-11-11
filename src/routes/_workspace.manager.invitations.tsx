@@ -39,12 +39,13 @@ const getManagerInvitationsData = createServerFn({ method: "GET" })
       ...(filter === "PENDING"
         ? {
             usedAt: null,
-            status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
+            status: InvitationStatus.PENDING,
+            acceptedAt: null,
             expiresAt: { gt: now },
           }
         : {}),
       ...(filter === "ACCEPTED"
-        ? { status: InvitationStatus.USED, usedAt: { not: null } }
+        ? { OR: [{ acceptedAt: { not: null } }, { usedAt: { not: null } }] }
         : {}),
       ...(filter === "WORKER" ? { role: UserRole.WORKER } : {}),
       ...(filter === "CLIENT" ? { role: UserRole.CLIENT } : {}),
@@ -79,7 +80,8 @@ const getManagerInvitationsData = createServerFn({ method: "GET" })
             invitedById: manager.id,
             studioId: context.studioId,
             usedAt: null,
-            status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
+            status: InvitationStatus.PENDING,
+            acceptedAt: null,
             expiresAt: { gt: now },
           },
         }),
@@ -87,8 +89,7 @@ const getManagerInvitationsData = createServerFn({ method: "GET" })
           where: {
             invitedById: manager.id,
             studioId: context.studioId,
-            status: InvitationStatus.USED,
-            usedAt: { not: null },
+            OR: [{ acceptedAt: { not: null } }, { usedAt: { not: null } }],
           },
         }),
         prisma.invitation.count({
@@ -97,7 +98,8 @@ const getManagerInvitationsData = createServerFn({ method: "GET" })
             studioId: context.studioId,
             usedAt: null,
             expiresAt: { lte: now },
-            status: { in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED] },
+            status: InvitationStatus.PENDING,
+            acceptedAt: null,
           },
         }),
         prisma.studioMember.findMany({

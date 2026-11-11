@@ -1,11 +1,11 @@
 import * as React from "react"
-import { Link, useLocation, useRouter } from "@tanstack/react-router"
+import { Link, useLocation, useRouter, type RegisteredRouter } from "@tanstack/react-router"
 import { LogOut, Moon, Sun, UserRound } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
-import { getProfileImageSrc } from "@/lib/profile-image"
 import { WoPhotoLogo, WoPhotoMark } from "@/components/brand/logo"
 
-import { signOutUser } from "@/src/server/actions/auth"
+import { useLogout } from "@/components/auth/use-logout"
+import { ProfileImage } from "@/components/auth/profile-image"
 import {
   Sidebar,
   SidebarContent,
@@ -47,7 +47,7 @@ export function AppSidebar({
   const home = getWorkspaceHome(role)
   const navigationGroups = getWorkspaceNavigationGroups(role, allowedAreas)
   const prefetchOnIntent = React.useCallback((href: string) => {
-    void router.preloadRoute({ href } as any)
+    void router.preloadRoute({ to: href as RegisteredRouter["routeTree"]["types"]["fullPath"] })
   }, [router])
   const groupTitles: Record<(typeof navigationGroups)[number][number]["group"], string> = {
     primary: "Overview",
@@ -80,7 +80,7 @@ export function AppSidebar({
               tooltip="WoPhoto home"
               render={
                 <Link
-                  to={home as any}
+                  to={home as RegisteredRouter["routeTree"]["types"]["fullPath"]}
                   preload={false}
                   onPointerEnter={() => prefetchOnIntent(home)}
                   onFocus={() => prefetchOnIntent(home)}
@@ -124,7 +124,7 @@ export function AppSidebar({
                           tooltip={item.title}
                           render={
                             <Link
-                              to={item.href as any}
+                              to={item.href as RegisteredRouter["routeTree"]["types"]["fullPath"]}
                               preload={false}
                               onPointerEnter={() => prefetchOnIntent(item.href)}
                               onFocus={() => prefetchOnIntent(item.href)}
@@ -249,6 +249,7 @@ function AccountIdentity({
   prefetchOnIntent: (href: string) => void
 }) {
   const { state, isMobile } = useSidebar()
+  const logout = useLogout()
   const compact = state === "collapsed" && !isMobile
   const displayName = name?.trim() || email?.trim() || "Account"
   const roleLabel = role.charAt(0) + role.slice(1).toLowerCase()
@@ -273,11 +274,11 @@ function AccountIdentity({
           >
             <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
               {image ? (
-                <img
-                  src={getProfileImageSrc(image, userId) ?? image}
+                <ProfileImage
+                  image={image}
+                  userId={userId}
                   alt=""
-                  width={32}
-                  height={32}
+                  fallback={<UserRound aria-hidden="true" className="size-4" />}
                   className="size-full object-cover"
                 />
               ) : (
@@ -288,11 +289,12 @@ function AccountIdentity({
           </SidebarMenuButton>
         </SidebarMenuItem>
         <SidebarMenuItem>
-          <form action={signOutUser} className="w-full">
+          <form onSubmit={logout.handleSubmit} className="w-full">
+            {logout.error ? <span role="alert" className="sr-only">{logout.error}</span> : null}
             <SidebarMenuButton
               tooltip="Log out"
               aria-label="Log out"
-              render={<button type="submit" />}
+              render={<button type="submit" disabled={logout.isPending} />}
               className="size-8 justify-center p-0 rounded-full hover:bg-sidebar-accent text-muted-foreground hover:text-foreground"
             >
               <LogOut aria-hidden="true" className="size-4" />
@@ -319,11 +321,11 @@ function AccountIdentity({
       >
         <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
           {image ? (
-            <img
-              src={getProfileImageSrc(image, userId) ?? image}
+              <ProfileImage
+                image={image}
+                userId={userId}
               alt=""
-              width={32}
-              height={32}
+                fallback={<UserRound aria-hidden="true" className="size-4" />}
               className="size-full object-cover"
             />
           ) : (
@@ -335,11 +337,12 @@ function AccountIdentity({
           <span className="text-xs text-muted-foreground">{roleLabel}</span>
         </span>
       </Link>
-      <form action={signOutUser} className="shrink-0 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+      <form onSubmit={logout.handleSubmit} className="shrink-0 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+        {logout.error ? <span role="alert" className="sr-only">{logout.error}</span> : null}
         <SidebarMenuButton
           tooltip="Log out"
           aria-label="Log out"
-          render={<button type="submit" />}
+          render={<button type="submit" disabled={logout.isPending} />}
           className="size-8 justify-center p-0 rounded-full text-muted-foreground hover:text-foreground"
         >
           <LogOut aria-hidden="true" className="size-4" />

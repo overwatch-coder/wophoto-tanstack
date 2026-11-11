@@ -1,13 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie } from "@tanstack/react-start/server";
-import { signIn, signOut } from "@/auth";
-
-async function signInWithGoogleServerImplementation() {
-  // Auth.js otherwise treats a different Google identity as an account to link
-  // to the current session, rather than a separate invited member signing in.
-  await signOut({ redirect: false });
-  await signIn("google", { redirectTo: "/" });
-}
+import { signOut } from "@/auth";
 
 async function signOutUserServerImplementation() {
   try {
@@ -15,13 +8,9 @@ async function signOutUserServerImplementation() {
   } catch {
     // outside server context
   }
-  await signOut({ redirectTo: "/login" });
+  await signOut({ redirectTo: "/login", redirect: false });
+  return { success: true };
 }
-
-
-const signInWithGoogleServerFunction = createServerFn({ method: "POST" })
-  .handler(async () => signInWithGoogleServerImplementation());
-export const signInWithGoogle = () => signInWithGoogleServerFunction();
 
 
 const signOutUserServerFunction = createServerFn({ method: "POST" })

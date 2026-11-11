@@ -29,7 +29,12 @@ const getClientBriefReviewData = createServerFn({ method: "GET" })
         page,
       }),
       prisma.project.findMany({
-        where: { clientId: user.id },
+        where: {
+          OR: [
+            { clientId: user.id },
+            { collaborators: { some: { userId: user.id } } },
+          ],
+        },
         select: { id: true, name: true, clientId: true },
         orderBy: { name: "asc" },
       }),

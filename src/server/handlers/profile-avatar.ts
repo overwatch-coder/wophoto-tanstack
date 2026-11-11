@@ -54,14 +54,49 @@ export async function GET(
     return new Response("Not found", { status: 404 })
   }
 
-  if (
-    imageUrl.protocol !== "https:" ||
-    !imageUrl.hostname.endsWith(".private.blob.vercel-storage.com")
-  ) {
+  if (imageUrl.protocol !== "https:" || imageUrl.username || imageUrl.password || imageUrl.port) {
     return new Response("Not found", { status: 404 })
   }
 
-  if (!imageUrl.pathname.startsWith(`/profile/${target.id}/avatar`)) {
+  const isPrivateVercelBlob = imageUrl.hostname.endsWith(".private.blob.vercel-storage.com")
+  const isGoogleProfileImage =
+    imageUrl.hostname === "googleusercontent.com" ||
+    imageUrl.hostname.endsWith(".googleusercontent.com")
+
+  if (isGoogleProfileImage) {
+    try {
+      const response = await fetch(target.image, {
+        redirect: "error",
+        headers: { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*" },
+        signal: AbortSignal.timeout(8_000),
+      })
+      const contentType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase()
+      const contentLength = Number(response.headers.get("content-length") || 0)
+      if (
+        !response.ok ||
+        !contentType?.startsWith("image/") ||
+        contentLength > 5 * 1024 * 1024 ||
+        !response.body
+      ) {
+        return new Response("Not found", { status: 404 })
+      }
+
+      return new Response(response.body, {
+        headers: {
+          "Content-Type": contentType,
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, max-age=3600",
+        },
+      })
+    } catch (error) {
+      console.error("Google profile picture read failed", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      })
+      return new Response("Profile picture unavailable", { status: 502 })
+    }
+  }
+
+  if (!isPrivateVercelBlob || !imageUrl.pathname.startsWith(`/profile/${target.id}/avatar`)) {
     return new Response("Not found", { status: 404 })
   }
 

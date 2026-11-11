@@ -17,6 +17,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as WorkspaceSettingsRouteImport } from './routes/_workspace.settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as AuthGoogleRouteImport } from './routes/auth.google'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as WorkspaceClientIndexRouteImport } from './routes/_workspace/client/index'
 import { Route as WorkspaceClientSectionRouteImport } from './routes/_workspace/client/$section'
@@ -57,6 +58,7 @@ import { Route as ApiCronDeadlineNotificationsRouteImport } from './routes/api.c
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
 import { Route as WorkspaceClientProjectsIndexRouteImport } from './routes/_workspace/client/projects.index'
 import { Route as WorkspaceClientProjectsProjectIdRouteImport } from './routes/_workspace/client/projects.$projectId'
+import { Route as WorkspaceClientTasksTaskIdRouteImport } from './routes/_workspace/client/tasks.$taskId'
 import { Route as WorkspaceManagerProjectsIndexRouteImport } from './routes/_workspace.manager.projects.index'
 import { Route as WorkspaceManagerProjectsProjectIdRouteImport } from './routes/_workspace.manager.projects.$projectId'
 import { Route as WorkspaceManagerTasksIndexRouteImport } from './routes/_workspace.manager.tasks.index'
@@ -104,6 +106,11 @@ const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthGoogleRoute = AuthGoogleRouteImport.update({
+  id: '/auth/google',
+  path: '/auth/google',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
@@ -328,6 +335,12 @@ const WorkspaceClientProjectsProjectIdRoute =
     path: '/client/projects/$projectId',
     getParentRoute: () => WorkspaceRoute,
   } as any)
+const WorkspaceClientTasksTaskIdRoute =
+  WorkspaceClientTasksTaskIdRouteImport.update({
+    id: '/client/tasks/$taskId',
+    path: '/client/tasks/$taskId',
+    getParentRoute: () => WorkspaceRoute,
+  } as any)
 const WorkspaceManagerProjectsIndexRoute =
   WorkspaceManagerProjectsIndexRouteImport.update({
     id: '/manager/projects/',
@@ -389,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/settings': typeof WorkspaceSettingsRoute
   '/api/chat': typeof ApiChatRouteWithChildren
+  '/auth/google': typeof AuthGoogleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/client/$section': typeof WorkspaceClientSectionRoute
   '/client/brief-review': typeof WorkspaceClientBriefReviewRoute
@@ -428,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/manager/': typeof WorkspaceManagerIndexRoute
   '/worker/': typeof WorkspaceWorkerIndexRoute
   '/client/projects/$projectId': typeof WorkspaceClientProjectsProjectIdRoute
+  '/client/tasks/$taskId': typeof WorkspaceClientTasksTaskIdRoute
   '/manager/projects/$projectId': typeof WorkspaceManagerProjectsProjectIdRoute
   '/manager/tasks/$taskId': typeof WorkspaceManagerTasksTaskIdRoute
   '/worker/tasks/$taskId': typeof WorkspaceWorkerTasksTaskIdRoute
@@ -447,6 +462,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/settings': typeof WorkspaceSettingsRoute
   '/api/chat': typeof ApiChatRouteWithChildren
+  '/auth/google': typeof AuthGoogleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/client/$section': typeof WorkspaceClientSectionRoute
   '/client/brief-review': typeof WorkspaceClientBriefReviewRoute
@@ -486,6 +502,7 @@ export interface FileRoutesByTo {
   '/manager': typeof WorkspaceManagerIndexRoute
   '/worker': typeof WorkspaceWorkerIndexRoute
   '/client/projects/$projectId': typeof WorkspaceClientProjectsProjectIdRoute
+  '/client/tasks/$taskId': typeof WorkspaceClientTasksTaskIdRoute
   '/manager/projects/$projectId': typeof WorkspaceManagerProjectsProjectIdRoute
   '/manager/tasks/$taskId': typeof WorkspaceManagerTasksTaskIdRoute
   '/worker/tasks/$taskId': typeof WorkspaceWorkerTasksTaskIdRoute
@@ -507,6 +524,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_workspace/settings': typeof WorkspaceSettingsRoute
   '/api/chat': typeof ApiChatRouteWithChildren
+  '/auth/google': typeof AuthGoogleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_workspace/client/$section': typeof WorkspaceClientSectionRoute
   '/_workspace/client/brief-review': typeof WorkspaceClientBriefReviewRoute
@@ -546,6 +564,7 @@ export interface FileRoutesById {
   '/_workspace/manager/': typeof WorkspaceManagerIndexRoute
   '/_workspace/worker/': typeof WorkspaceWorkerIndexRoute
   '/_workspace/client/projects/$projectId': typeof WorkspaceClientProjectsProjectIdRoute
+  '/_workspace/client/tasks/$taskId': typeof WorkspaceClientTasksTaskIdRoute
   '/_workspace/manager/projects/$projectId': typeof WorkspaceManagerProjectsProjectIdRoute
   '/_workspace/manager/tasks/$taskId': typeof WorkspaceManagerTasksTaskIdRoute
   '/_workspace/worker/tasks/$taskId': typeof WorkspaceWorkerTasksTaskIdRoute
@@ -567,6 +586,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/settings'
     | '/api/chat'
+    | '/auth/google'
     | '/invite/$token'
     | '/client/$section'
     | '/client/brief-review'
@@ -606,6 +626,7 @@ export interface FileRouteTypes {
     | '/manager/'
     | '/worker/'
     | '/client/projects/$projectId'
+    | '/client/tasks/$taskId'
     | '/manager/projects/$projectId'
     | '/manager/tasks/$taskId'
     | '/worker/tasks/$taskId'
@@ -625,6 +646,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/settings'
     | '/api/chat'
+    | '/auth/google'
     | '/invite/$token'
     | '/client/$section'
     | '/client/brief-review'
@@ -664,6 +686,7 @@ export interface FileRouteTypes {
     | '/manager'
     | '/worker'
     | '/client/projects/$projectId'
+    | '/client/tasks/$taskId'
     | '/manager/projects/$projectId'
     | '/manager/tasks/$taskId'
     | '/worker/tasks/$taskId'
@@ -684,6 +707,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_workspace/settings'
     | '/api/chat'
+    | '/auth/google'
     | '/invite/$token'
     | '/_workspace/client/$section'
     | '/_workspace/client/brief-review'
@@ -723,6 +747,7 @@ export interface FileRouteTypes {
     | '/_workspace/manager/'
     | '/_workspace/worker/'
     | '/_workspace/client/projects/$projectId'
+    | '/_workspace/client/tasks/$taskId'
     | '/_workspace/manager/projects/$projectId'
     | '/_workspace/manager/tasks/$taskId'
     | '/_workspace/worker/tasks/$taskId'
@@ -743,6 +768,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   ApiChatRoute: typeof ApiChatRouteWithChildren
+  AuthGoogleRoute: typeof AuthGoogleRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiBrandAssetsUploadRoute: typeof ApiBrandAssetsUploadRoute
@@ -812,6 +838,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/google': {
+      id: '/auth/google'
+      path: '/auth/google'
+      fullPath: '/auth/google'
+      preLoaderRoute: typeof AuthGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invite/$token': {
@@ -1094,6 +1127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceClientProjectsProjectIdRouteImport
       parentRoute: typeof WorkspaceRoute
     }
+    '/_workspace/client/tasks/$taskId': {
+      id: '/_workspace/client/tasks/$taskId'
+      path: '/client/tasks/$taskId'
+      fullPath: '/client/tasks/$taskId'
+      preLoaderRoute: typeof WorkspaceClientTasksTaskIdRouteImport
+      parentRoute: typeof WorkspaceRoute
+    }
     '/_workspace/manager/projects/': {
       id: '/_workspace/manager/projects/'
       path: '/manager/projects'
@@ -1191,6 +1231,7 @@ interface WorkspaceRouteChildren {
   WorkspaceManagerIndexRoute: typeof WorkspaceManagerIndexRoute
   WorkspaceWorkerIndexRoute: typeof WorkspaceWorkerIndexRoute
   WorkspaceClientProjectsProjectIdRoute: typeof WorkspaceClientProjectsProjectIdRoute
+  WorkspaceClientTasksTaskIdRoute: typeof WorkspaceClientTasksTaskIdRoute
   WorkspaceManagerProjectsProjectIdRoute: typeof WorkspaceManagerProjectsProjectIdRoute
   WorkspaceManagerTasksTaskIdRoute: typeof WorkspaceManagerTasksTaskIdRoute
   WorkspaceWorkerTasksTaskIdRoute: typeof WorkspaceWorkerTasksTaskIdRoute
@@ -1231,6 +1272,7 @@ const WorkspaceRouteChildren: WorkspaceRouteChildren = {
   WorkspaceManagerIndexRoute: WorkspaceManagerIndexRoute,
   WorkspaceWorkerIndexRoute: WorkspaceWorkerIndexRoute,
   WorkspaceClientProjectsProjectIdRoute: WorkspaceClientProjectsProjectIdRoute,
+  WorkspaceClientTasksTaskIdRoute: WorkspaceClientTasksTaskIdRoute,
   WorkspaceManagerProjectsProjectIdRoute:
     WorkspaceManagerProjectsProjectIdRoute,
   WorkspaceManagerTasksTaskIdRoute: WorkspaceManagerTasksTaskIdRoute,
@@ -1266,6 +1308,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   ApiChatRoute: ApiChatRouteWithChildren,
+  AuthGoogleRoute: AuthGoogleRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiBrandAssetsUploadRoute: ApiBrandAssetsUploadRoute,

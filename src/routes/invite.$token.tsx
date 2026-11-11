@@ -1,5 +1,6 @@
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { useState, useTransition, type FormEvent } from "react";
 import { acceptInvitation } from "@/src/server/actions/invitations";
 import { prisma } from "@/lib/prisma";
 import { InvitationStatus } from "@/generated/prisma/client";
@@ -23,15 +24,17 @@ const getInvitationData = createServerFn({ method: "GET" })
       select: { email: true, role: true, status: true },
     });
 
-    if (invitation?.status === InvitationStatus.ACCEPTED) {
-      throw redirect({ href: "/login?invite=accepted" });
-    }
+    if (invitation?.status === InvitationStatus.ACCEPTED) return { redirectTo: "/login?invite=accepted" };
 
     return invitation;
   });
 
 export const Route = createFileRoute("/invite/$token")({
-  loader: ({ params }) => getInvitationData({ data: params.token }),
+  loader: async ({ params }) => {
+    const result = await getInvitationData({ data: params.token });
+    if (result && "redirectTo" in result) throw redirect({ href: result.redirectTo });
+    return result;
+  },
   head: () => ({
     meta: [{ title: "Accept Invitation | WoPhoto" }],
   }),
@@ -41,6 +44,24 @@ export const Route = createFileRoute("/invite/$token")({
 function InvitePageComponent() {
   const { token } = Route.useParams();
   const invitation = Route.useLoaderData();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAccept = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+
+    startTransition(async () => {
+      try {
+        const result = await acceptInvitation(formData);
+        await router.navigate({ href: result.redirectTo });
+      } catch {
+        setError("We couldn't accept this invitation. Check your connection and try again.");
+      }
+    });
+  };
 
   if (!invitation) {
     return (
@@ -62,9 +83,12 @@ function InvitePageComponent() {
         <p className="mt-3 text-sm text-muted-foreground">
           Accept the invitation for {invitation.email} as a {invitation.role.toLowerCase()}. You will then sign in with that Google account.
         </p>
-        <form action={acceptInvitation} className="mt-6">
+        <form onSubmit={handleAccept} className="mt-6">
           <input type="hidden" name="token" value={token} />
-          <Button type="submit" className="w-full">Accept invitation</Button>
+          {error ? <p role="alert" className="mb-3 text-sm text-destructive">{error}</p> : null}
+          <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? "Accepting invitation…" : "Accept invitation"}
+          </Button>
         </form>
       </div>
     </main>

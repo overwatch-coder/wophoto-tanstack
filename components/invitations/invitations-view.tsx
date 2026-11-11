@@ -244,8 +244,8 @@ export function InvitationsView({
                   (invitation.status === InvitationStatus.PENDING ||
                     invitation.status === InvitationStatus.ACCEPTED)
                 const isExpired =
-                  isUnused && new Date(invitation.expiresAt) <= now
-                const isPending = isUnused && !isExpired
+                  isUnused && !invitation.acceptedAt && new Date(invitation.expiresAt) <= now
+                const isPending = isUnused && !invitation.acceptedAt && !isExpired
                 const isRevoked = invitation.status === InvitationStatus.REVOKED
                 const isAccepted = !isRevoked && Boolean(
                   invitation.usedAt || invitation.acceptedAt
@@ -344,10 +344,10 @@ export function InvitationsView({
                     <TableCell className="py-3.5 text-xs text-muted-foreground">
                       {isAccepted ? (
                         <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                          Joined{" "}
+                          {invitation.usedAt ? "Joined" : "Accepted"}{" "}
                           {new Date(
-                            invitation.acceptedAt ||
-                              invitation.usedAt ||
+                            invitation.usedAt ||
+                              invitation.acceptedAt ||
                               invitation.createdAt
                           ).toLocaleDateString()}
                         </span>

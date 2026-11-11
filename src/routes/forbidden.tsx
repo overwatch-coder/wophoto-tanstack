@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LogOut, ShieldAlert } from "lucide-react";
-import { signOutUser } from "@/src/server/actions/auth";
+import { useLogout } from "@/components/auth/use-logout";
 
 export const Route = createFileRoute("/forbidden")({
   head: () => ({
@@ -10,6 +10,8 @@ export const Route = createFileRoute("/forbidden")({
 });
 
 function ForbiddenPage() {
+  const logout = useLogout();
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-5 py-12 text-foreground">
       <section className="w-full max-w-lg rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
@@ -27,9 +29,11 @@ function ForbiddenPage() {
           >
             Open an available area
           </Link>
-          <form action={signOutUser}>
+          <form onSubmit={logout.handleSubmit}>
+            {logout.error ? <p role="alert" className="mb-2 text-sm text-destructive">{logout.error}</p> : null}
             <button
               type="submit"
+              disabled={logout.isPending}
               className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
             >
               <LogOut aria-hidden="true" className="size-4" />

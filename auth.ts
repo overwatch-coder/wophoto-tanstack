@@ -271,7 +271,7 @@ export async function signIn(
       "x-forwarded-proto": proto,
       "content-type": "application/x-www-form-urlencoded",
     },
-    body: `redirectTo=${encodeURIComponent(redirectTo)}`,
+    body: `callbackUrl=${encodeURIComponent(redirectTo)}`,
   });
 
   const res = await Auth(req, { ...authConfig, skipCSRFCheck });
@@ -316,7 +316,7 @@ export async function signOut(options?: {
       "x-forwarded-proto": proto,
       "content-type": "application/x-www-form-urlencoded",
     },
-    body: `redirectTo=${encodeURIComponent(redirectTo)}`,
+    body: `callbackUrl=${encodeURIComponent(redirectTo)}`,
   });
 
   const res = await Auth(req, { ...authConfig, skipCSRFCheck });

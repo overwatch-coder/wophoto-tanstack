@@ -18,7 +18,7 @@ export interface SerializedBriefTemplate {
   deliverables: string | null;
   guidelines: string | null;
   externalLinks: Array<{ label: string; url: string }> | null;
-  shotList: unknown;
+  shotList: Prisma.JsonValue;
   coverImageUrl: string | null;
   attachmentUrl: string | null;
   attachmentName: string | null;
@@ -175,7 +175,7 @@ export interface SerializedStudioBriefArchiveItem {
   version: number;
   deliverables: string | null;
   guidelines: string | null;
-  shotList: unknown;
+  shotList: Prisma.JsonValue;
   externalUrl: string | null;
   fileUrl: string | null;
   fileName: string | null;

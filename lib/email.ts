@@ -131,7 +131,17 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
       return { success: true, status: "sent", messageId: info.messageId };
     } catch (error) {
       console.error("[email] Gmail SMTP delivery failed:", error);
-      return { success: false, status: "failed", error: "Gmail SMTP could not send this email. Check the Gmail account and App Password configuration." };
+      const smtpError = typeof error === "object" && error !== null
+        ? error as { code?: unknown; timeoutType?: unknown }
+        : {};
+      const timedOut = smtpError.code === "ETIMEDOUT" || smtpError.timeoutType === "CONNECT_TIMEOUT";
+      return {
+        success: false,
+        status: "failed",
+        error: timedOut
+          ? "Gmail SMTP connection timed out. Check outbound access to smtp.gmail.com on port 465, or configure the Resend provider."
+          : "Gmail SMTP could not send this email. Check the Gmail account and App Password configuration.",
+      };
     } finally {
       transporter.close();
     }

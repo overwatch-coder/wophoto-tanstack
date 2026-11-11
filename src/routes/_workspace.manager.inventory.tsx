@@ -32,8 +32,11 @@ const getManagerInventoryData = createServerFn({ method: "GET" })
 
     return {
       catalog,
-      maintenanceQueue,
-    } as any;
+      maintenanceQueue: maintenanceQueue.map((log) => ({
+        ...log,
+        cost: log.cost === null ? null : Number(log.cost),
+      })),
+    };
   });
 
 export const Route = createFileRoute("/_workspace/manager/inventory")({
@@ -54,7 +57,7 @@ export const Route = createFileRoute("/_workspace/manager/inventory")({
 });
 
 function ManagerInventoryRouteComponent() {
-  const { catalog, maintenanceQueue } = Route.useLoaderData() as any;
+  const { catalog, maintenanceQueue } = Route.useLoaderData();
   return (
     <div className="container mx-auto max-w-7xl py-6">
       <InventoryCatalogView

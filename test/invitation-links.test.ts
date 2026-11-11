@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  requireRole: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), revalidatePath: vi.fn(),
+  requireRole: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), createNotification: vi.fn(), revalidatePath: vi.fn(),
   userUpdate: vi.fn(), sessionDeleteMany: vi.fn(), studioMemberUpdate: vi.fn(), transaction: vi.fn(),
 }));
 vi.mock("@/lib/authz", () => ({ requireRole: mocks.requireRole }));
@@ -22,12 +22,13 @@ vi.mock("@/lib/studio-access", () => {
 });
 
 vi.mock("@/lib/prisma", () => ({ prisma: {
-  invitation: { findFirst: mocks.findFirst, updateMany: mocks.updateMany },
+  invitation: { findFirst: mocks.findFirst, findUnique: mocks.findUnique, updateMany: mocks.updateMany },
   user: { update: mocks.userUpdate },
   session: { deleteMany: mocks.sessionDeleteMany },
   studioMember: { update: mocks.studioMemberUpdate },
   $transaction: mocks.transaction,
 } }));
+vi.mock("@/lib/notifications", () => ({ createNotification: mocks.createNotification }));
 vi.mock("@tanstack/react-router", () => ({
   redirect: ({ href }: { href: string }) => {
     throw new Error(`redirect:${href}`);
@@ -168,9 +169,23 @@ describe("invitation link actions", () => {
     mocks.findFirst.mockResolvedValue({ id: "accepted-invitation" });
     const data = new FormData();
     data.set("token", "a".repeat(43));
-    await expect(acceptInvitation(data)).rejects.toThrow("redirect:/login?invite=accepted");
+    await expect(acceptInvitation(data)).resolves.toEqual({ redirectTo: "/login?invite=accepted" });
     mocks.findFirst.mockResolvedValue(null);
-    await expect(acceptInvitation(data)).rejects.toThrow("redirect:/login?invite=invalid");
+    await expect(acceptInvitation(data)).resolves.toEqual({ redirectTo: "/login?invite=invalid" });
+  });
+
+  it("returns a login destination after accepting and notifying the inviter", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.findUnique.mockResolvedValue({ id: "invite-1", email: "worker@example.com", role: "WORKER", invitedById: "manager-1" });
+    const data = new FormData();
+    data.set("token", "a".repeat(43));
+
+    await expect(acceptInvitation(data)).resolves.toEqual({ redirectTo: "/login?invite=accepted" });
+    expect(mocks.createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "manager-1",
+      title: "Invitation accepted",
+      sendEmail: false,
+    }));
   });
 
   it("revokes an owned unused invitation and revalidates path", async () => {

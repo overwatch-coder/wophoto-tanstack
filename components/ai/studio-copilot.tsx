@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, useRouter, type RegisteredRouter } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
@@ -974,7 +974,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                         {(res.message as string) || "Navigation Target Ready"}
                                       </span>
                                       <Link
-                                        to={res.href as any}
+                                        to={res.href as RegisteredRouter["routeTree"]["types"]["fullPath"]}
                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors shadow-xs"
                                       >
                                         <span>Jump</span>
@@ -1421,7 +1421,7 @@ export function StudioCopilot({ initialMode = "collapsed", copilotName = "WoPhot
                                     {(res.message as string) || "Navigate"}
                                   </span>
                                   <Link
-                                    to={res.href as any}
+                                    to={res.href as RegisteredRouter["routeTree"]["types"]["fullPath"]}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground font-semibold text-[11px] hover:bg-primary/90 transition-colors shadow-xs shrink-0"
                                   >
                                     <span>Jump</span>

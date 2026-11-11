@@ -23,6 +23,7 @@ export default tseslint.config(
       "build/**",
       "spy-doc/**",
       "generated/**",
+      "**/prototypes/**",
     ],
   }
 );

@@ -4,10 +4,7 @@ import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getBrandAssets } from "@/lib/brand-assets";
-import {
-  BrandAssetWorkspace,
-  type SerializedBrandAsset,
-} from "@/components/brand-assets/brand-asset-workspace";
+import { BrandAssetWorkspace } from "@/components/brand-assets/brand-asset-workspace";
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton";
 
 const getWorkerBrandAssetsData = createServerFn({ method: "GET" })
@@ -53,7 +50,7 @@ const getWorkerBrandAssetsData = createServerFn({ method: "GET" })
       stats: assetsResult.stats,
       clients,
       projects,
-    } as any;
+    };
   });
 
 export const Route = createFileRoute("/_workspace/worker/brand-assets")({
@@ -75,7 +72,7 @@ export const Route = createFileRoute("/_workspace/worker/brand-assets")({
 });
 
 function WorkerBrandAssetsRouteComponent() {
-  const data = Route.useLoaderData() as any;
+  const data = Route.useLoaderData();
   return (
     <BrandAssetWorkspace
       initialAssets={data.serializedAssets}

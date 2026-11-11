@@ -34,6 +34,10 @@ const serverEntry = await import(path.resolve(process.cwd(), 'dist/server/server
 const appFetchHandler = serverEntry.default?.fetch ?? serverEntry.default
 
 const nodeAppHandler = toNodeHandler(appFetchHandler)
+const handleNodeRequest = nodeAppHandler as (
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+) => void
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
@@ -60,7 +64,7 @@ const server = http.createServer((req, res) => {
   }
 
   // Fallback to TanStack Start server handler
-  nodeAppHandler(req as any, res as any)
+  handleNodeRequest(req, res)
 })
 
 const port = Number(process.env.PORT) || 3000

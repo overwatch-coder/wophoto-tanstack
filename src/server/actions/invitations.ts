@@ -1,13 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { decodeActionArguments, encodeActionArguments, type EncodedActionArguments } from "@/lib/server-action-args";
-import { redirect } from "@tanstack/react-router";
 import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
-import { InvitationStatus, StudioArea, UserRole, UserStatus } from "@/generated/prisma/client";
+import { InvitationStatus, NotificationCategory, NotificationType, StudioArea, UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireStudioManagerArea } from "@/lib/studio-access";
 import { decryptInvitationToken, encryptInvitationToken } from "@/lib/invitation-token";
 import { createInvitationForManager } from "@/lib/invitations";
+import { createNotification } from "@/lib/notifications";
 import { createInvitationSchema, invitationIdSchema, invitationTokenSchema } from "@/lib/validation/invitations";
 import { InputValidationError, parseInput } from "@/lib/validation/common";
 
@@ -15,7 +15,7 @@ export type InvitationFormState = {
   error?: string;
   invitePath?: string;
   invitationId?: string;
-  emailDelivery?: { status: "sent" | "preview" | "failed" };
+  emailDelivery?: { status: "sent" | "preview" | "failed"; error?: string };
   message?: string;
 };
 
@@ -165,7 +165,7 @@ async function acceptInvitationServerImplementation(formData: FormData) {
   const token = formData.get("token");
   const parsedToken = invitationTokenSchema.safeParse(token);
   if (!parsedToken.success) {
-    throw redirect({ href: "/login?invite=invalid" });
+    return { redirectTo: "/login?invite=invalid" };
   }
 
   const tokenHash = createHash("sha256").update(parsedToken.data).digest("hex");
@@ -187,10 +187,30 @@ async function acceptInvitationServerImplementation(formData: FormData) {
       where: { tokenHash, status: InvitationStatus.ACCEPTED, usedAt: null, expiresAt: { gt: now } },
       select: { id: true },
     });
-    if (!accepted) throw redirect({ href: "/login?invite=invalid" });
+    if (!accepted) return { redirectTo: "/login?invite=invalid" };
+  } else {
+    const invitation = await prisma.invitation.findUnique({
+      where: { tokenHash },
+      select: { id: true, email: true, role: true, invitedById: true },
+    });
+    if (invitation) {
+      try {
+        await createNotification({
+          userId: invitation.invitedById,
+          type: NotificationType.SYSTEM_ALERT,
+          category: NotificationCategory.UPDATE,
+          title: "Invitation accepted",
+          message: `${invitation.email} accepted the ${invitation.role.toLowerCase()} invitation and is continuing to sign in.`,
+          link: "/manager/invitations?filter=ACCEPTED",
+          sendEmail: false,
+        });
+      } catch (error) {
+        console.warn("[invitations] Failed to notify the inviter about acceptance:", error);
+      }
+    }
   }
 
-  throw redirect({ href: "/login?invite=accepted" });
+  return { redirectTo: "/login?invite=accepted" };
 }
 
 

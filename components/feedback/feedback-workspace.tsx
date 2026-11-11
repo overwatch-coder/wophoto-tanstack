@@ -859,6 +859,23 @@ export function FeedbackWorkspace({
                       <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
                         {item.details}
                       </p>
+                      <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
+                        <Avatar size="sm" className="size-5 ring-1 ring-border">
+                          <AvatarImage
+                            src={getProfileImageSrc(item.clientImage, item.clientId) ?? undefined}
+                            alt=""
+                          />
+                          <AvatarFallback className="text-[8px] font-semibold">
+                            {item.clientName
+                              .split(" ")
+                              .map((part) => part[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {item.clientName}
+                        </span>
+                      </div>
                     </TableCell>
 
                     <TableCell className="max-w-45 truncate py-3 align-middle text-xs text-muted-foreground">
@@ -1300,7 +1317,7 @@ export function FeedbackWorkspace({
                         src={
                           getProfileImageSrc(
                             activeDetailItem.clientImage,
-                            activeDetailItem.projectId
+                            activeDetailItem.clientId
                           ) ?? undefined
                         }
                       />

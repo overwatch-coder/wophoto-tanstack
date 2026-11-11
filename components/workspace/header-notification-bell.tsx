@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, useRouter, type RegisteredRouter } from "@tanstack/react-router";
 import {
   Bell,
   Mail,
@@ -53,6 +53,7 @@ export function HeaderNotificationBell({
   const [, startTransition] = useTransition();
   const router = useRouter();
   const seenNotificationIds = useRef(new Set(initialNotifications.map((item) => item.id)));
+  const seenDataChangeIds = useRef(new Set<string>());
   const soundAlertsRef = useRef(soundAlerts);
 
   useEffect(() => {
@@ -98,6 +99,10 @@ export function HeaderNotificationBell({
                     setUnreadUpdateCount((prev) => prev + 1);
                   }
                 }
+                // Notifications are also the durable change signal for workspaces.
+                // Refresh active loaders so invitation, task, feedback, project,
+                // and request views update without a manual page reload.
+                void router.invalidate();
               }
             } else if (data.event === "UNREAD_COUNTS" && typeof data.unread === "number") {
               setUnreadCount(data.unread);
@@ -109,6 +114,11 @@ export function HeaderNotificationBell({
               )));
             } else if (data.event === "ALL_NOTIFICATIONS_READ") {
               setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+            } else if (data.event === "DATA_CHANGED") {
+              if (typeof data.id !== "string" || !seenDataChangeIds.current.has(data.id)) {
+                if (typeof data.id === "string") seenDataChangeIds.current.add(data.id);
+                void router.invalidate();
+              }
             }
           } catch {
             // Ignore non-json heartbeats
@@ -322,7 +332,7 @@ export function HeaderNotificationBell({
             {/* Popover Footer */}
             <div className="border-t p-2 text-center bg-muted/20">
               <Link
-                to={notificationsHubUrl as any}
+                to={notificationsHubUrl as RegisteredRouter["routeTree"]["types"]["fullPath"]}
                 onClick={() => setIsOpen(false)}
                 className="inline-flex items-center justify-center w-full h-7 rounded-full text-xs font-medium text-primary hover:text-primary hover:bg-primary/10 transition-colors"
               >

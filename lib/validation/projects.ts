@@ -6,3 +6,8 @@ export const createProjectSchema = z.object({
   description: z.string().trim().max(5000, "Description must be 5,000 characters or fewer.").transform((value) => value || null),
   clientId: idSchema,
 });
+
+export const addProjectClientSchema = z.object({
+  projectId: idSchema,
+  clientId: idSchema,
+});

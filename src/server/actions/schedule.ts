@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { decodeActionArguments, encodeActionArguments, type EncodedActionArguments } from "@/lib/server-action-args";
 
-import { StudioArea } from "@/generated/prisma/client";
+import { NotificationCategory, NotificationType, StudioArea } from "@/generated/prisma/client";
 import { requireStudioManagerArea } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
+import { createStudioAreaNotification } from "@/lib/notifications";
 import {
   detectScheduleConflicts,
   type ScheduleConflictWarning,
@@ -24,6 +25,24 @@ export type ScheduleActionState = {
 
 function revalidateSchedule() {
   // TanStack Router invalidates route queries on navigation/mutation
+}
+
+async function notifyScheduleChange(studioId: string, title: string, message: string) {
+  try {
+    await createStudioAreaNotification(studioId, StudioArea.SCHEDULE, {
+      type: NotificationType.SYSTEM_ALERT,
+      category: NotificationCategory.UPDATE,
+      title,
+      message,
+      // Recipients may be workers, whose schedule lives under /worker.
+      link: null,
+      sendEmail: false,
+      refreshOnly: true,
+    });
+  } catch (error) {
+    // The schedule mutation is already committed; delivery must not turn it into a failure.
+    console.warn("[schedule] Failed to publish realtime update:", error);
+  }
 }
 
 function normalizeAllDayBounds(startAt: Date, endAt: Date, allDay: boolean) {
@@ -154,6 +173,7 @@ async function createScheduleEventServerImplementation(
     });
 
     revalidateSchedule();
+    await notifyScheduleChange(context.studioId, "Schedule event created", `“${event.title}” was added to the studio schedule.`);
 
     return {
       success: `Event "${event.title}" scheduled successfully.`,
@@ -264,6 +284,7 @@ async function updateScheduleEventServerImplementation(
     });
 
     revalidateSchedule();
+    await notifyScheduleChange(context.studioId, "Schedule event updated", `“${updated.title}” was changed on the studio schedule.`);
 
     return {
       success: `Event "${updated.title}" updated successfully.`,
@@ -303,6 +324,7 @@ async function deleteScheduleEventServerImplementation(
     await prisma.scheduleEvent.delete({ where: { id } });
 
     revalidateSchedule();
+    await notifyScheduleChange(context.studioId, "Schedule event removed", `“${existing.title}” was removed from the studio schedule.`);
 
     return {
       success: `Event "${existing.title}" deleted successfully.`,
