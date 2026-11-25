@@ -123,6 +123,24 @@ describe("Demo Studio access & guardrails", () => {
     expect(cookies.some((c) => c.startsWith("authjs.session-token=") && !c.includes("Max-Age=0"))).toBe(true);
   });
 
+  it("returns JSON redirectTo payload when Accept: application/json is requested", async () => {
+    const formData = new FormData();
+    formData.set("role", "MANAGER");
+
+    const res = await handleDemoAuthPost(
+      new Request("http://localhost:3000/auth/demo", {
+        method: "POST",
+        headers: { accept: "application/json" },
+        body: formData,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, redirectTo: "/manager" });
+    const cookies = res.headers.getSetCookie();
+    expect(cookies.some((c) => c.startsWith("authjs.session-token=") && !c.includes("Max-Age=0"))).toBe(true);
+  });
+
   it("sets __Secure- cookie over HTTPS", async () => {
     const formData = new FormData();
     formData.set("role", "CLIENT");

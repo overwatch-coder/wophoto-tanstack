@@ -10,6 +10,7 @@ import {
   type DemoRole,
 } from "@/lib/demo";
 import { ensureDemoStudioSeeded, seedDemoStudio } from "@/lib/demo-seed";
+import { getWorkspaceHome } from "@/lib/navigation";
 import { prisma } from "@/lib/prisma";
 
 function extractSessionToken(cookieHeader: string | null): string | undefined {
@@ -28,8 +29,9 @@ function isHttpsRequest(request: Request): boolean {
   }
 }
 
-function buildDemoSessionHeaders(request: Request, sessionToken: string, redirectTo = "/"): Headers {
-  const headers = new Headers({ Location: redirectTo });
+function buildDemoSessionHeaders(request: Request, sessionToken: string, redirectTo?: string): Headers {
+  const headers = new Headers();
+  if (redirectTo) headers.set("Location", redirectTo);
   const secure = isHttpsRequest(request);
   const maxAgeSeconds = Math.floor(DEMO_SESSION_TTL_MS / 1000);
   const encodedToken = encodeURIComponent(sessionToken);
@@ -77,6 +79,7 @@ export async function handleDemoAuthPost(request: Request): Promise<Response> {
   const action = formData.get("action");
   const requestedRole = formData.get("role");
   const redirectTo = resolveSafeRedirect(formData.get("redirectTo"));
+  const wantsJson = request.headers.get("accept")?.includes("application/json") ?? false;
 
   if (action === "reset") {
     const currentSession = await auth(request);
@@ -98,6 +101,13 @@ export async function handleDemoAuthPost(request: Request): Promise<Response> {
         expires: new Date(Date.now() + DEMO_SESSION_TTL_MS),
       },
     });
+
+    if (wantsJson) {
+      return Response.json(
+        { ok: true, redirectTo: getWorkspaceHome(targetRole) },
+        { status: 200, headers: buildDemoSessionHeaders(request, sessionToken) },
+      );
+    }
 
     return new Response(null, {
       status: 303,
@@ -125,6 +135,13 @@ export async function handleDemoAuthPost(request: Request): Promise<Response> {
       expires: new Date(Date.now() + DEMO_SESSION_TTL_MS),
     },
   });
+
+  if (wantsJson) {
+    return Response.json(
+      { ok: true, redirectTo: getWorkspaceHome(requestedRole) },
+      { status: 200, headers: buildDemoSessionHeaders(request, sessionToken) },
+    );
+  }
 
   return new Response(null, {
     status: 303,

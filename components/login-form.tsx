@@ -1,4 +1,4 @@
-import { useFormStatus } from "react-dom"
+import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   CheckCircle2,
@@ -10,9 +10,16 @@ import {
   Briefcase,
   Camera,
   UserCheck,
+  Sun,
+  Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WoPhotoLogo } from "@/components/brand/logo"
+import { useTheme } from "@/components/theme-provider"
+import {
+  DemoTransitionModal,
+  useDemoAccessTransition,
+} from "@/components/workspace/demo-transition-modal"
 import { DEMO_PERSONAS, DEMO_ROLES, type DemoRole } from "@/lib/demo"
 
 type LoginFormProps = {
@@ -22,6 +29,9 @@ type LoginFormProps = {
 }
 
 export function LoginForm({ error, invitationStatus, demoEnabled = false }: LoginFormProps) {
+  const { transition, isPending: demoPending, trigger, dismiss } = useDemoAccessTransition()
+  const [googlePending, setGooglePending] = React.useState(false)
+  const anyPending = demoPending || googlePending
   const errorMessage =
     error === "InvitationRequired"
       ? "This Google account does not have an accepted WoPhoto invitation. Accept the invitation sent to this email address before signing in."
@@ -86,7 +96,12 @@ export function LoginForm({ error, invitationStatus, demoEnabled = false }: Logi
             priority
             imageClassName="h-9 w-32 sm:h-10 sm:w-36"
           />
-          <span className="text-xs text-muted-foreground">Studio Access</span>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              Studio Access
+            </span>
+            <LoginThemeSwitcher />
+          </div>
         </div>
 
         {/* Center Form Content */}
@@ -161,8 +176,13 @@ export function LoginForm({ error, invitationStatus, demoEnabled = false }: Logi
           ) : null}
 
           {/* Real Form using signInWithGoogle */}
-          <form action="/auth/google" method="GET" className="space-y-4">
-            <GoogleSubmitButton />
+          <form
+            action="/auth/google"
+            method="GET"
+            className="space-y-4"
+            onSubmit={() => setGooglePending(true)}
+          >
+            <GoogleSubmitButton pending={googlePending} disabled={anyPending} />
 
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center">
@@ -199,12 +219,24 @@ export function LoginForm({ error, invitationStatus, demoEnabled = false }: Logi
               <div className="grid gap-2">
                 {DEMO_ROLES.map((demoRole) => {
                   const persona = DEMO_PERSONAS[demoRole]
-                  return <DemoRoleFormButton key={demoRole} role={demoRole} label={persona.label} summary={persona.summary} />
+                  return (
+                    <DemoRoleFormButton
+                      key={demoRole}
+                      role={demoRole}
+                      label={persona.label}
+                      summary={persona.summary}
+                      disabled={anyPending}
+                      pending={demoPending && transition?.role === demoRole}
+                      onTrigger={(selectedRole) => void trigger("signin", selectedRole)}
+                    />
+                  )
                 })}
               </div>
             </div>
           )}
         </div>
+
+        <DemoTransitionModal transition={transition} onDismiss={dismiss} />
 
         {/* Bottom Security & Help Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4 text-xs text-muted-foreground">
@@ -226,75 +258,123 @@ export function LoginForm({ error, invitationStatus, demoEnabled = false }: Logi
   )
 }
 
+function LoginThemeSwitcher() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const mounted = React.useSyncExternalStore(
+    React.useCallback(() => () => {}, []),
+    () => true,
+    () => false,
+  )
+  const isDark = mounted ? resolvedTheme === "dark" : true
+
+  return (
+    <div
+      role="group"
+      aria-label="Theme"
+      className="inline-flex items-center rounded-full border border-border bg-muted/50 p-0.5"
+    >
+      <button
+        type="button"
+        aria-label="Light theme"
+        aria-pressed={mounted && !isDark}
+        onClick={() => mounted && setTheme("light")}
+        className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          mounted && !isDark
+            ? "bg-background text-foreground shadow-xs"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <Sun className="size-3.5" aria-hidden="true" />
+        <span>Light</span>
+      </button>
+      <button
+        type="button"
+        aria-label="Dark theme"
+        aria-pressed={mounted && isDark}
+        onClick={() => mounted && setTheme("dark")}
+        className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          mounted && isDark
+            ? "bg-background text-foreground shadow-xs"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <Moon className="size-3.5" aria-hidden="true" />
+        <span>Dark</span>
+      </button>
+    </div>
+  )
+}
+
 function DemoRoleFormButton({
   role,
   label,
   summary,
+  disabled,
+  pending,
+  onTrigger,
 }: {
   role: DemoRole
   label: string
   summary: string
+  disabled: boolean
+  pending: boolean
+  onTrigger: (role: DemoRole) => void
 }) {
   const Icon = role === "MANAGER" ? Briefcase : role === "WORKER" ? Camera : UserCheck
 
   return (
-    <form action="/auth/demo" method="POST">
+    <form
+      action="/auth/demo"
+      method="POST"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onTrigger(role)
+      }}
+    >
       <input type="hidden" name="role" value={role} />
-      <DemoRoleSubmitButton icon={Icon} label={label} summary={summary} />
+      <button
+        type="submit"
+        disabled={disabled}
+        className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2.5 text-left transition-colors hover:border-border hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground">
+            {pending ? (
+              <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+            ) : (
+              <Icon className="size-4 text-orange-600 dark:text-orange-400" aria-hidden="true" />
+            )}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-foreground">
+              {pending ? `Opening ${label}...` : `Try as ${label}`}
+            </span>
+            <span className="block truncate text-[11px] text-muted-foreground">
+              {summary}
+            </span>
+          </span>
+        </div>
+        <ArrowRight
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+          aria-hidden="true"
+        />
+      </button>
     </form>
   )
 }
 
-function DemoRoleSubmitButton({
-  icon: Icon,
-  label,
-  summary,
+function GoogleSubmitButton({
+  pending,
+  disabled,
 }: {
-  icon: typeof Briefcase
-  label: string
-  summary: string
+  pending: boolean
+  disabled: boolean
 }) {
-  const { pending } = useFormStatus()
-
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2.5 text-left transition-colors hover:border-border hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground">
-          {pending ? (
-            <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
-          ) : (
-            <Icon className="size-4 text-orange-600 dark:text-orange-400" aria-hidden="true" />
-          )}
-        </span>
-        <span className="min-w-0">
-          <span className="block text-xs font-semibold text-foreground">
-            {pending ? `Opening ${label}...` : `Try as ${label}`}
-          </span>
-          <span className="block truncate text-[11px] text-muted-foreground">
-            {summary}
-          </span>
-        </span>
-      </div>
-      <ArrowRight
-        className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
-        aria-hidden="true"
-      />
-    </button>
-  )
-}
-
-function GoogleSubmitButton() {
-  const { pending } = useFormStatus()
-
   return (
     <Button
       type="submit"
       variant="outline"
-      disabled={pending}
+      disabled={disabled}
       className="h-11 w-full gap-3 border-border bg-card text-sm font-medium text-foreground shadow-xs transition-all duration-150 hover:bg-muted"
     >
       {pending ? (

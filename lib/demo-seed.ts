@@ -250,7 +250,14 @@ export async function seedDemoStudio(options: { reset?: boolean } = {}): Promise
 
   await prisma.$transaction(
     async (tx) => {
-      await cleanupDemoStudioData(tx);
+      const hasExistingDemoRecords =
+        reset ||
+        (await tx.studio.count({ where: { id: DEMO_STUDIO_ID } })) > 0 ||
+        (await tx.user.count({ where: { id: { in: [...DEMO_ALL_USER_IDS] } } })) > 0;
+
+      if (hasExistingDemoRecords) {
+        await cleanupDemoStudioData(tx);
+      }
 
       const manager = DEMO_PERSONAS.MANAGER;
       const worker1 = DEMO_PERSONAS.WORKER;
@@ -1319,64 +1326,68 @@ export async function seedDemoStudio(options: { reset?: boolean } = {}): Promise
         },
       ];
 
-      for (const item of tasksData) {
-        const assigneeStatus = item.status === TaskStatus.PENDING ? TaskStatus.TODO : item.status;
-        await tx.task.create({
-          data: {
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            type: item.type,
-            status: item.status,
-            priority: item.priority,
-            startAt: item.startedAt ?? null,
-            dueAt: item.dueAt ?? null,
-            startedAt: item.startedAt ?? null,
-            completedAt: item.completedAt ?? null,
-            workDate: item.type === TaskType.DAILY_ENTRY ? (item.workDate ?? daysOffset(0)) : null,
-            deletedAt: item.deletedAt ?? null,
-            createdAt: item.startedAt ?? daysOffset(-3),
-            projectId: item.projectId,
-            createdById: item.type === TaskType.DAILY_ENTRY ? item.workerId : manager.id,
-            assignees: {
-              create: {
-                userId: item.workerId,
-                status: assigneeStatus,
-                submittedAt:
-                  item.status === TaskStatus.IN_REVIEW || item.status === TaskStatus.COMPLETED
-                    ? item.completedAt ?? daysOffset(-1)
-                    : null,
-              },
-            },
-            services: {
-              create: {
-                serviceId: item.serviceId,
-              },
-            },
-            specializations: {
-              create: {
-                specialization: item.spec,
-              },
-            },
-          },
-        });
+      await tx.task.createMany({
+        data: tasksData.map((item) => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          type: item.type,
+          status: item.status,
+          priority: item.priority,
+          startAt: item.startedAt ?? null,
+          dueAt: item.dueAt ?? null,
+          startedAt: item.startedAt ?? null,
+          completedAt: item.completedAt ?? null,
+          workDate: item.type === TaskType.DAILY_ENTRY ? (item.workDate ?? daysOffset(0)) : null,
+          deletedAt: item.deletedAt ?? null,
+          createdAt: item.startedAt ?? daysOffset(-3),
+          projectId: item.projectId,
+          createdById: item.type === TaskType.DAILY_ENTRY ? item.workerId : manager.id,
+        })),
+      });
 
-        if (item.rating) {
-          const projectClientId =
+      await tx.taskAssignee.createMany({
+        data: tasksData.map((item) => ({
+          taskId: item.id,
+          userId: item.workerId,
+          status: item.status === TaskStatus.PENDING ? TaskStatus.TODO : item.status,
+          submittedAt:
+            item.status === TaskStatus.IN_REVIEW || item.status === TaskStatus.COMPLETED
+              ? item.completedAt ?? daysOffset(-1)
+              : null,
+        })),
+      });
+
+      await tx.taskService.createMany({
+        data: tasksData.map((item) => ({
+          taskId: item.id,
+          serviceId: item.serviceId,
+        })),
+      });
+
+      await tx.taskSpecialization.createMany({
+        data: tasksData.map((item) => ({
+          taskId: item.id,
+          specialization: item.spec,
+        })),
+      });
+
+      const ratingRows = tasksData
+        .filter((item) => Boolean(item.rating))
+        .map((item) => ({
+          score: item.rating!,
+          feedback: item.ratingText,
+          clientId:
             item.projectId === projEyewear.id || item.projectId === projChronograph.id
               ? client2.id
-              : client1.id;
-          await tx.rating.create({
-            data: {
-              score: item.rating,
-              feedback: item.ratingText,
-              clientId: projectClientId,
-              projectId: item.projectId,
-              taskId: item.id,
-              createdAt: item.completedAt ?? daysOffset(-1),
-            },
-          });
-        }
+              : client1.id,
+          projectId: item.projectId,
+          taskId: item.id,
+          createdAt: item.completedAt ?? daysOffset(-1),
+        }));
+
+      if (ratingRows.length > 0) {
+        await tx.rating.createMany({ data: ratingRows });
       }
 
       // 11. Task Revisions & Comments
