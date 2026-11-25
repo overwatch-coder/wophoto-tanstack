@@ -9,6 +9,7 @@
     "build": "tsx scripts/generate-routes.ts && vite build",
     "start": "tsx scripts/serve.ts",
     "bootstrap:manager": "tsx scripts/bootstrap-manager.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "db:start": "pg_ctl -D \"$HOME/Library/Application Support/WoPhoto/postgres-data\" -l \"$HOME/Library/Application Support/WoPhoto/postgres-data/server.log\" -o \"-p 5433 -h 127.0.0.1 -k /tmp\" start",
     "db:stop": "pg_ctl -D \"$HOME/Library/Application Support/WoPhoto/postgres-data\" stop",
     "db:status": "pg_ctl -D \"$HOME/Library/Application Support/WoPhoto/postgres-data\" status",

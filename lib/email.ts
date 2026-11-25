@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer-patched";
+import { isDemoEmail } from "@/lib/demo";
 
 export type SendEmailInput = {
   to: string;
@@ -18,6 +19,10 @@ export async function sendNotificationEmail(input: SendEmailInput): Promise<{
   messageId?: string;
   error?: string;
 }> {
+  if (isDemoEmail(input.to)) {
+    return { success: true, status: "preview" };
+  }
+
   const deliveryMode = process.env.EMAIL_DELIVERY_MODE?.trim().toLowerCase() === "test" ? "test" : "live";
   const provider = process.env.EMAIL_PROVIDER?.trim().toLowerCase() || "resend";
   const configuredTestRecipient = process.env.EMAIL_TEST_RECIPIENT?.trim();

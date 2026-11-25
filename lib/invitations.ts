@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { InvitationStatus, type UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { encryptInvitationToken } from "@/lib/invitation-token";
+import { isDemoUserId } from "@/lib/demo";
 import { sendNotificationEmail } from "@/lib/email";
 import { createInvitationSchema } from "@/lib/validation/invitations";
 
@@ -65,7 +66,9 @@ export async function createInvitationForManager(managerId: string, input: unkno
     WORKER: "worker",
     CLIENT: "client",
   };
-  const delivery = await sendNotificationEmail({
+  const delivery = isDemoUserId(managerId)
+    ? { success: true, status: "preview" as const, error: undefined }
+    : await sendNotificationEmail({
     to: email,
     subject: "Your WoPhoto Studio invitation",
     title: "You're invited to WoPhoto Studio",

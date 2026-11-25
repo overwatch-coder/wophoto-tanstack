@@ -17,6 +17,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as WorkspaceSettingsRouteImport } from './routes/_workspace.settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as AuthDemoRouteImport } from './routes/auth.demo'
 import { Route as AuthGoogleRouteImport } from './routes/auth.google'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as WorkspaceClientIndexRouteImport } from './routes/_workspace/client/index'
@@ -106,6 +107,11 @@ const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthDemoRoute = AuthDemoRouteImport.update({
+  id: '/auth/demo',
+  path: '/auth/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthGoogleRoute = AuthGoogleRouteImport.update({
@@ -402,6 +408,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/settings': typeof WorkspaceSettingsRoute
   '/api/chat': typeof ApiChatRouteWithChildren
+  '/auth/demo': typeof AuthDemoRoute
   '/auth/google': typeof AuthGoogleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/client/$section': typeof WorkspaceClientSectionRoute
@@ -462,6 +469,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/settings': typeof WorkspaceSettingsRoute
   '/api/chat': typeof ApiChatRouteWithChildren
+  '/auth/demo': typeof AuthDemoRoute
   '/auth/google': typeof AuthGoogleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/client/$section': typeof WorkspaceClientSectionRoute
@@ -524,6 +532,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_workspace/settings': typeof WorkspaceSettingsRoute
   '/api/chat': typeof ApiChatRouteWithChildren
+  '/auth/demo': typeof AuthDemoRoute
   '/auth/google': typeof AuthGoogleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_workspace/client/$section': typeof WorkspaceClientSectionRoute
@@ -586,6 +595,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/settings'
     | '/api/chat'
+    | '/auth/demo'
     | '/auth/google'
     | '/invite/$token'
     | '/client/$section'
@@ -646,6 +656,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/settings'
     | '/api/chat'
+    | '/auth/demo'
     | '/auth/google'
     | '/invite/$token'
     | '/client/$section'
@@ -707,6 +718,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_workspace/settings'
     | '/api/chat'
+    | '/auth/demo'
     | '/auth/google'
     | '/invite/$token'
     | '/_workspace/client/$section'
@@ -768,6 +780,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   ApiChatRoute: typeof ApiChatRouteWithChildren
+  AuthDemoRoute: typeof AuthDemoRoute
   AuthGoogleRoute: typeof AuthGoogleRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -838,6 +851,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/demo': {
+      id: '/auth/demo'
+      path: '/auth/demo'
+      fullPath: '/auth/demo'
+      preLoaderRoute: typeof AuthDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/google': {
@@ -1308,6 +1328,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   ApiChatRoute: ApiChatRouteWithChildren,
+  AuthDemoRoute: AuthDemoRoute,
   AuthGoogleRoute: AuthGoogleRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

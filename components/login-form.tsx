@@ -6,16 +6,22 @@ import {
   ShieldAlert,
   HelpCircle,
   Loader2,
+  ArrowRight,
+  Briefcase,
+  Camera,
+  UserCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WoPhotoLogo } from "@/components/brand/logo"
+import { DEMO_PERSONAS, DEMO_ROLES, type DemoRole } from "@/lib/demo"
 
 type LoginFormProps = {
   error?: string
   invitationStatus?: string
+  demoEnabled?: boolean
 }
 
-export function LoginForm({ error, invitationStatus }: LoginFormProps) {
+export function LoginForm({ error, invitationStatus, demoEnabled = false }: LoginFormProps) {
   const errorMessage =
     error === "InvitationRequired"
       ? "This Google account does not have an accepted WoPhoto invitation. Accept the invitation sent to this email address before signing in."
@@ -178,6 +184,26 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
               Email and password sign-in is not available yet.
             </div>
           </form>
+
+          {demoEnabled && (
+            <div className="mt-6 space-y-3 border-t border-border/60 pt-6">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">
+                  Explore Interactive Demo
+                </h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Enter the pre-populated Studio Lumière workspace instantly—no account needed.
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                {DEMO_ROLES.map((demoRole) => {
+                  const persona = DEMO_PERSONAS[demoRole]
+                  return <DemoRoleFormButton key={demoRole} role={demoRole} label={persona.label} summary={persona.summary} />
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bottom Security & Help Footer */}
@@ -197,6 +223,67 @@ export function LoginForm({ error, invitationStatus }: LoginFormProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+function DemoRoleFormButton({
+  role,
+  label,
+  summary,
+}: {
+  role: DemoRole
+  label: string
+  summary: string
+}) {
+  const Icon = role === "MANAGER" ? Briefcase : role === "WORKER" ? Camera : UserCheck
+
+  return (
+    <form action="/auth/demo" method="POST">
+      <input type="hidden" name="role" value={role} />
+      <DemoRoleSubmitButton icon={Icon} label={label} summary={summary} />
+    </form>
+  )
+}
+
+function DemoRoleSubmitButton({
+  icon: Icon,
+  label,
+  summary,
+}: {
+  icon: typeof Briefcase
+  label: string
+  summary: string
+}) {
+  const { pending } = useFormStatus()
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-3.5 py-2.5 text-left transition-colors hover:border-border hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground">
+          {pending ? (
+            <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+          ) : (
+            <Icon className="size-4 text-orange-600 dark:text-orange-400" aria-hidden="true" />
+          )}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold text-foreground">
+            {pending ? `Opening ${label}...` : `Try as ${label}`}
+          </span>
+          <span className="block truncate text-[11px] text-muted-foreground">
+            {summary}
+          </span>
+        </span>
+      </div>
+      <ArrowRight
+        className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+        aria-hidden="true"
+      />
+    </button>
   )
 }
 

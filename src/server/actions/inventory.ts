@@ -81,7 +81,7 @@ async function createInventoryItemServerImplementation(
       notes,
     } = parsed.data
 
-    const assetTag = customTag?.trim() || (await generateNextAssetTag())
+    const assetTag = customTag?.trim() || (await generateNextAssetTag(context.studioId))
 
     // Check unique constraints
     const existingTag = await prisma.inventoryItem.findUnique({

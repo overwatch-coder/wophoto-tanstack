@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { UserRole, BriefTemplateCategory, BriefStatus } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { getStudioIdForUser } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import {
   getBriefTemplates,
@@ -13,7 +14,8 @@ import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleto
 const getWorkerExploreBriefsData = createServerFn({ method: "GET" })
   .validator((params: Record<string, string | string[] | undefined>) => params)
   .handler(async ({ data: params }) => {
-    await requireRole(UserRole.WORKER);
+    const user = await requireRole(UserRole.WORKER);
+    const studioId = (await getStudioIdForUser(user.id, user.role)) ?? "__missing_studio__";
 
     const search = typeof params.search === "string" ? params.search : "";
     const category =
@@ -40,6 +42,7 @@ const getWorkerExploreBriefsData = createServerFn({ method: "GET" })
         includeArchived: false,
         page,
         pageSize: 12,
+        studioId,
       }),
       getStudioBriefArchive({
         search,
@@ -47,8 +50,10 @@ const getWorkerExploreBriefsData = createServerFn({ method: "GET" })
         status,
         page,
         pageSize: 12,
+        studioId,
       }),
       prisma.project.findMany({
+        where: { studioId },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),

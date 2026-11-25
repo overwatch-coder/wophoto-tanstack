@@ -59,7 +59,17 @@ export async function getBrandAssets(
         assetType: null,
       };
 
-  const filters: Prisma.BrandAssetWhereInput[] = user.role === UserRole.WORKER ? [] : [{ studioId: studio!.context.studioId }];
+  const requestedStudioId =
+    rawQuery && typeof rawQuery.studioId === "string" && rawQuery.studioId.trim() !== ""
+      ? rawQuery.studioId.trim()
+      : null;
+
+  const filters: Prisma.BrandAssetWhereInput[] =
+    user.role === UserRole.WORKER
+      ? requestedStudioId
+        ? [{ studioId: requestedStudioId }]
+        : []
+      : [{ studioId: studio!.context.studioId }];
   if (query.projectId) filters.push({ projectId: query.projectId });
   if (query.clientId) filters.push({ clientId: query.clientId });
   if (query.scope === "STUDIO") filters.push({ clientId: null, projectId: null });

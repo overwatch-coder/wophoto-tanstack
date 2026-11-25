@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { UserRole } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { getStudioIdForUser } from "@/lib/studio-access";
 import { prisma } from "@/lib/prisma";
 import { getScheduleEvents } from "@/lib/schedule";
 import { getInitialScheduleWindow } from "@/lib/schedule-window";
@@ -9,7 +10,8 @@ import { ScheduleWorkspace } from "@/components/schedule/schedule-workspace";
 import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleton";
 
 const getWorkerScheduleData = createServerFn({ method: "GET" }).handler(async () => {
-  await requireRole(UserRole.WORKER);
+  const user = await requireRole(UserRole.WORKER);
+  const studioId = (await getStudioIdForUser(user.id, user.role)) ?? "__missing_studio__";
 
   const { startDate, endDate } = getInitialScheduleWindow(new Date());
 
@@ -17,8 +19,10 @@ const getWorkerScheduleData = createServerFn({ method: "GET" }).handler(async ()
     getScheduleEvents({
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
+      studioId,
     }),
     prisma.project.findMany({
+      where: { studioId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

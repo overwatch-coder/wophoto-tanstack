@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { UserRole } from "@/generated/prisma/client";
 import { requireRole } from "@/lib/authz";
+import { getStudioIdForUser } from "@/lib/studio-access";
 import { getInventoryCatalog } from "@/lib/inventory";
 import {
   InventoryCatalogView,
@@ -12,7 +13,8 @@ import { PageLoadingSkeleton } from "@/components/workspace/page-loading-skeleto
 const getWorkerInventoryData = createServerFn({ method: "GET" })
   .validator((params: Record<string, string | string[] | undefined>) => params)
   .handler(async ({ data: params }) => {
-    await requireRole(UserRole.WORKER);
+    const user = await requireRole(UserRole.WORKER);
+    const studioId = (await getStudioIdForUser(user.id, user.role)) ?? "__missing_studio__";
 
     const search = typeof params.search === "string" ? params.search : undefined;
     const category = typeof params.category === "string" ? params.category : undefined;
@@ -24,6 +26,7 @@ const getWorkerInventoryData = createServerFn({ method: "GET" })
       category,
       status,
       page: isNaN(page) ? 1 : page,
+      studioId,
     });
 
     return { catalog };

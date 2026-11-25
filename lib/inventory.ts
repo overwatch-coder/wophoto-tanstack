@@ -11,9 +11,12 @@ import { requireStudioArea } from "@/lib/studio-access";
 import { StudioArea } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export async function generateNextAssetTag(): Promise<string> {
+export async function generateNextAssetTag(studioId?: string): Promise<string> {
   const lastItem = await prisma.inventoryItem.findFirst({
-    where: { assetTag: { startsWith: "INV-" } },
+    where: {
+      assetTag: { startsWith: "INV-" },
+      ...(studioId ? { studioId } : {}),
+    },
     orderBy: { createdAt: "desc" },
     select: { assetTag: true },
   });
@@ -22,7 +25,9 @@ export async function generateNextAssetTag(): Promise<string> {
 
   const match = lastItem.assetTag.match(/^INV-(\d+)$/);
   if (!match || !match[1]) {
-    const totalCount = await prisma.inventoryItem.count();
+    const totalCount = await prisma.inventoryItem.count(
+      studioId ? { where: { studioId } } : undefined,
+    );
     return `INV-${String(totalCount + 1).padStart(4, "0")}`;
   }
 
@@ -36,6 +41,7 @@ export interface InventoryCatalogFilters {
   status?: string;
   page?: number;
   pageSize?: number;
+  studioId?: string | null;
 }
 
 export async function getInventoryCatalog(filters: InventoryCatalogFilters = {}) {
@@ -65,20 +71,25 @@ export async function getInventoryCatalog(filters: InventoryCatalogFilters = {})
       }
     : {};
 
+  const scopedStudioId =
+    user.role === UserRole.WORKER
+      ? filters.studioId?.trim() || null
+      : studio!.context.studioId;
+
   const where: Prisma.InventoryItemWhereInput = {
-    ...(user.role === UserRole.WORKER ? {} : { studioId: studio!.context.studioId }),
+    ...(scopedStudioId ? { studioId: scopedStudioId } : {}),
     ...searchWhere,
     ...(category && category !== "ALL" ? { category } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
   };
   const activeCheckoutWhere: Prisma.InventoryItemWhereInput = {
-    ...(user.role === UserRole.WORKER ? {} : { studioId: studio!.context.studioId }),
+    ...(scopedStudioId ? { studioId: scopedStudioId } : {}),
     ...searchWhere,
     ...(category && category !== "ALL" ? { category } : {}),
     status: InventoryStatus.IN_USE,
   };
   const activityWhere: Prisma.InventoryActivityLogWhereInput = {
-    ...(user.role === UserRole.WORKER ? {} : { item: { studioId: studio!.context.studioId } }),
+    ...(scopedStudioId ? { item: { studioId: scopedStudioId } } : {}),
     ...(user.role === UserRole.WORKER ? { actorId: user.id } : {}),
     ...(search
       ? {

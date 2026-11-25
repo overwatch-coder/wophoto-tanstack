@@ -32,10 +32,18 @@ const taskFormFields = (data: FormData) => ({
 });
 const stringList = (data: FormData, key: string) => data.getAll(key);
 const validId = (s: string) => taskIdSchema.safeParse(s).success;
-const checkWorkers = async (workerIds: string[]) => {
+const checkWorkers = async (workerIds: string[], studioId: string) => {
   if (!workerIds.length || workerIds.length > 50 || workerIds.some((id) => !validId(id))) throw new Error("Choose at least one worker.");
   const unique = [...new Set(workerIds)];
-  const workers = await prisma.user.findMany({ where: { id: { in: unique }, role: UserRole.WORKER, status: UserStatus.ACTIVE }, select: { id: true } });
+  const workers = await prisma.user.findMany({
+    where: {
+      id: { in: unique },
+      role: UserRole.WORKER,
+      status: UserStatus.ACTIVE,
+      acceptedInvitation: { is: { studioId } },
+    },
+    select: { id: true },
+  });
   if (workers.length !== unique.length) throw new Error("One or more selected workers are unavailable.");
   return unique;
 };
@@ -62,7 +70,7 @@ async function createAssignedTaskServerImplementation(_state: TaskActionState, d
       serviceIds: stringList(data, "serviceId"),
     });
     const { projectId, workerIds: requestedWorkerIds, serviceIds, ...fields } = input;
-    const workerIds = await checkWorkers(requestedWorkerIds);
+    const workerIds = await checkWorkers(requestedWorkerIds, context.studioId);
     const project = await prisma.project.findFirst({ where: { id: projectId, managerId: manager.id }, select: { id: true } });
     if (!project) throw new Error("That project is not available to you.");
     const validServices = await prisma.studioService.findMany({ where: { id: { in: serviceIds }, studioId: context.studioId, isActive: true }, select: { id: true } });
@@ -105,7 +113,7 @@ async function updateAssignedTaskServerImplementation(taskId: string, _state: Ta
       serviceIds: stringList(data, "serviceId"),
     });
     const { taskId: validatedTaskId, workerIds: requestedWorkerIds, serviceIds, ...fields } = input;
-    const workerIds = await checkWorkers(requestedWorkerIds);
+    const workerIds = await checkWorkers(requestedWorkerIds, context.studioId);
     await prisma.$transaction(async (tx) => {
       await lockTask(tx, validatedTaskId);
       const task = await tx.task.findFirst({ where: { id: validatedTaskId, deletedAt: null, type: TaskType.ASSIGNED, status: { not: TaskStatus.COMPLETED }, project: { managerId: manager.id } }, select: { id: true, assignees: { select: { userId: true } } } });

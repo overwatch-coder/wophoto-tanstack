@@ -4,6 +4,7 @@ import { useLocation } from "@tanstack/react-router"
 import { Moon, Sun } from "lucide-react"
 
 import { AppSidebar } from "@/components/workspace/app-sidebar"
+import { DemoModeBar } from "@/components/workspace/demo-mode-bar"
 import { Button } from "@/components/ui/button"
 import {
   SidebarInset,
@@ -31,6 +32,7 @@ type WorkspaceShellProps = {
   preferencesSlot: React.ReactNode
   density: SettingsDensity
   soundAlerts: boolean
+  isDemoSession?: boolean
 }
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
@@ -56,6 +58,7 @@ function WorkspaceShellContent({
   userId,
   notificationBell,
   copilotSlot,
+  isDemoSession = false,
 }: WorkspaceShellProps) {
   const { density } = useWorkspacePreferences()
   const { pathname } = useLocation()
@@ -86,6 +89,7 @@ function WorkspaceShellContent({
         userId={userId}
       />
       <SidebarInset className="min-h-svh w-full max-w-full min-w-0 overflow-x-clip rounded-none">
+        {isDemoSession ? <DemoModeBar role={role} /> : null}
         <header className="flex min-h-16 shrink-0 items-center gap-3 border-b bg-background px-3 sm:px-5">
           <SidebarTrigger
             aria-label="Toggle navigation sidebar"

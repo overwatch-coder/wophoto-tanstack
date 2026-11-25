@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { requireUser } from "@/lib/authz";
+import { isDemoAccessEnabled, isDemoUserId } from "@/lib/demo";
 import { isWorkspaceRole } from "@/lib/navigation";
 import { getStudioAccessContext } from "@/lib/studio-access";
 import { getCookie } from "@tanstack/react-start/server";
@@ -51,6 +52,7 @@ const getWorkspaceShellData = createServerFn({ method: "GET" }).handler(async ()
       enabled: copilotEnabled,
       copilotName: userPref.aiPreferences.aiCopilotName,
     },
+    isDemoSession: isDemoAccessEnabled() && isDemoUserId(user.id),
   };
 });
 
@@ -93,6 +95,7 @@ function WorkspaceLayoutComponent() {
       }
       density={SettingsDensity.COZY}
       soundAlerts={false}
+      isDemoSession={data.isDemoSession}
     >
       <Outlet />
     </WorkspaceShell>

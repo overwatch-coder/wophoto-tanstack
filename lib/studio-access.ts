@@ -1,6 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 
-import { StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
+import { InvitationStatus, StudioAccessLevel, StudioArea, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const SUPERVISOR_ACCESS: Partial<Record<StudioArea, StudioAccessLevel>> = {
@@ -125,6 +125,40 @@ export async function requireStudioManagerArea(
     actor: user,
     context,
   };
+}
+
+export async function getStudioIdForUser(
+  userId: string,
+  role: UserRole,
+): Promise<string | null> {
+  if (role === UserRole.MANAGER || role === UserRole.SUPERVISOR || role === UserRole.COLLABORATOR) {
+    const context = await getStudioAccessContext(userId, role);
+    return context?.studioId ?? null;
+  }
+
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      acceptedUserId: userId,
+      status: { in: [InvitationStatus.USED, InvitationStatus.ACCEPTED] },
+    },
+    select: { studioId: true },
+  });
+  if (invitation?.studioId) return invitation.studioId;
+
+  if (role === UserRole.CLIENT) {
+    const project = await prisma.project.findFirst({
+      where: { clientId: userId },
+      orderBy: { updatedAt: "desc" },
+      select: { studioId: true },
+    });
+    return project?.studioId ?? null;
+  }
+
+  const assignment = await prisma.taskAssignee.findFirst({
+    where: { userId },
+    select: { task: { select: { project: { select: { studioId: true } } } } },
+  });
+  return assignment?.task.project.studioId ?? null;
 }
 
 export async function requireStudioOwner() {

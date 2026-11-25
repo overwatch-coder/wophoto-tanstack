@@ -134,10 +134,19 @@ export async function getScheduleEvents(rawQuery: unknown) {
     endAt: { gte: startDate },
   };
 
+  const workerStudioId =
+    rawQuery &&
+    typeof rawQuery === "object" &&
+    "studioId" in rawQuery &&
+    typeof (rawQuery as { studioId?: unknown }).studioId === "string"
+      ? (rawQuery as { studioId: string }).studioId
+      : null;
+
   const roleEventWhere: Prisma.ScheduleEventWhereInput =
     user.role !== UserRole.WORKER
       ? { studioId: studio!.context.studioId }
       : {
+          ...(workerStudioId ? { studioId: workerStudioId } : {}),
           OR: [
             { assignees: { some: { id: user.id } } },
             {

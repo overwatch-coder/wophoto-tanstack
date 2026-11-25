@@ -24,7 +24,11 @@ const getManagerScheduleData = createServerFn({ method: "GET" }).handler(async (
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({
-      where: { role: UserRole.WORKER, status: UserStatus.ACTIVE },
+      where: {
+        role: UserRole.WORKER,
+        status: UserStatus.ACTIVE,
+        acceptedInvitation: { is: { studioId: context.studioId } },
+      },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),

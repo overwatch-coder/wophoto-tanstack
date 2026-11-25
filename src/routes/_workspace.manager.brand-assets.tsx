@@ -26,7 +26,11 @@ const getManagerBrandAssetsData = createServerFn({ method: "GET" })
         pageSize: 24,
       }),
       prisma.user.findMany({
-        where: { role: UserRole.CLIENT, status: UserStatus.ACTIVE },
+        where: {
+          role: UserRole.CLIENT,
+          status: UserStatus.ACTIVE,
+          acceptedInvitation: { is: { studioId: context.studioId } },
+        },
         select: { id: true, name: true, email: true },
         orderBy: { name: "asc" },
       }),

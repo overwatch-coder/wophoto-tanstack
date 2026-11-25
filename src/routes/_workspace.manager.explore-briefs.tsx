@@ -49,6 +49,7 @@ const getManagerExploreBriefsData = createServerFn({ method: "GET" })
           includeArchived,
           page,
           pageSize: 12,
+          studioId: context.studioId,
         }),
         getStudioBriefArchive({
           search,
@@ -57,6 +58,7 @@ const getManagerExploreBriefsData = createServerFn({ method: "GET" })
           status,
           page,
           pageSize: 12,
+          studioId: context.studioId,
         }),
         prisma.project.findMany({
           where: { studioId: context.studioId },

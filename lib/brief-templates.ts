@@ -56,8 +56,17 @@ export async function getBriefTemplates(rawQuery?: Record<string, unknown>) {
     ? parsed.data
     : { includeArchived: false, page: 1, pageSize: 12 };
 
+  const requestedStudioId =
+    rawQuery && typeof rawQuery.studioId === "string" && rawQuery.studioId.trim() !== ""
+      ? rawQuery.studioId.trim()
+      : null;
+
   const where: Prisma.BriefTemplateWhereInput = {};
   const andConditions: Prisma.BriefTemplateWhereInput[] = [];
+
+  if (requestedStudioId) {
+    andConditions.push({ studioId: requestedStudioId });
+  }
 
   if (isWorker) {
     andConditions.push({ isArchived: false });
@@ -123,6 +132,7 @@ export async function getBriefTemplates(rawQuery?: Record<string, unknown>) {
       FROM "BriefTemplate"
       CROSS JOIN LATERAL unnest("tags") AS tag_value(tag)
       WHERE ${isWorker ? Prisma.sql`"isArchived" = false` : Prisma.sql`TRUE`}
+        ${requestedStudioId ? Prisma.sql`AND "studioId" = ${requestedStudioId}` : Prisma.sql``}
         AND trim(tag_value.tag) <> ''
       ORDER BY tag
       LIMIT 100
@@ -214,8 +224,14 @@ export async function getStudioBriefArchive(rawQuery?: Record<string, unknown>) 
     ? parsed.data
     : { page: 1, pageSize: 12 };
 
+  const requestedStudioId =
+    rawQuery && typeof rawQuery.studioId === "string" && rawQuery.studioId.trim() !== ""
+      ? rawQuery.studioId.trim()
+      : null;
+
   const where: Prisma.CreativeBriefWhereInput = {
     status: { not: BriefStatus.DRAFT },
+    ...(requestedStudioId ? { project: { studioId: requestedStudioId } } : {}),
   };
 
   const andConditions: Prisma.CreativeBriefWhereInput[] = [];
